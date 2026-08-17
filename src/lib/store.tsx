@@ -1,0 +1,798 @@
+// Store: the offline-first data layer. Every mutation writes the IndexedDB
+// mirror first and queues an idempotent outbox op; a debounced sync pushes
+// ops (parents before children, deletes children before parents) and pulls
+// the server snapshot back into the mirror. Actions read fresh rows from
+// IndexedDB so rapid sequential writes never race on stale React state.
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type {
+  ExerciseRow,
+  OutboxOp,
+  ProfileRow,
+  RecurrenceRuleRow,
+  ScheduleItemRow,
+  SessionDoc,
+  SessionExerciseRow,
+  SetRow,
+  SyncTable,
+  TemplateItemRow,
+  TemplateRow,
+} from '../types/db'
+import { backendConfigured, supabase } from './supabase'
+import { useAuth } from './auth'
+import {
+  appendOps,
+  clearDirtyFlags,
+  clearProfileDirty,
+  getMeta,
+  pendingCount,
+  putDirty,
+  readAll,
+  readOne,
+  readProfile,
+  reconcileProfile,
+  reconcileStore,
+  removeFrom,
+  removeMatchingOps,
+  setMeta,
+  wipeLocalData,
+  type StoreName,
+} from './db'
+import { flushOutbox, fetchSnapshot } from './sync'
+
+const SYNC_DEBOUNCE_MS = 2500
+
+export function newId(): string {
+  return crypto.randomUUID()
+}
+
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
+function upsert(table: SyncTable, row: object): OutboxOp {
+  return { kind: 'upsert', table, row: row as Record<string, unknown> }
+}
+
+export interface ExerciseInput {
+  name: string
+  category: ExerciseRow['category']
+  measurement: ExerciseRow['measurement']
+  muscle_groups: string[]
+  equipment: string[]
+  instructions: string | null
+  video_url: string | null
+}
+
+export interface TemplateItemInput {
+  id: string | null
+  exercise_id: string
+  position: number
+  planned_sets: number
+  target_weight_kg: number | null
+  target_reps: number | null
+  target_duration_s: number | null
+  target_distance_m: number | null
+  rest_seconds: number | null
+  notes: string | null
+  superset_group: string | null
+}
+
+export interface StartSessionInput {
+  templateId?: string | null
+  scheduleItemId?: string | null
+  plannedDate?: string | null
+  name?: string
+}
+
+export interface StoreData {
+  ready: boolean
+  online: boolean
+  syncing: boolean
+  pending: number
+  syncError: string | null
+  profile: ProfileRow | null
+  exercises: ExerciseRow[]
+  templates: TemplateRow[]
+  templateItems: TemplateItemRow[]
+  rules: RecurrenceRuleRow[]
+  schedules: ScheduleItemRow[]
+  sessions: SessionDoc[]
+}
+
+export interface StoreActions {
+  syncNow(): Promise<void>
+  refreshIfOnline(): void
+
+  // exercises
+  createExercise(input: ExerciseInput): Promise<ExerciseRow>
+  updateExercise(id: string, patch: Partial<ExerciseInput> & { is_archived?: boolean }): Promise<void>
+
+  // templates
+  createTemplate(name: string, notes: string | null): Promise<TemplateRow>
+  updateTemplate(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
+  deleteTemplate(id: string): Promise<void>
+  saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
+
+  // scheduling
+  scheduleSingleDate(templateId: string, date: string): Promise<void>
+  scheduleWeekly(
+    templateId: string,
+    weekdays: number[],
+    startDate: string,
+    endDate: string | null,
+    scheduleId?: string,
+  ): Promise<void>
+  deleteSchedule(id: string): Promise<void>
+
+  // sessions
+  startSession(input: StartSessionInput): Promise<SessionDoc>
+  updateSessionMeta(
+    id: string,
+    patch: { name?: string; notes?: string | null; rpe?: number | null },
+  ): Promise<void>
+  finishSession(id: string, summary: { notes?: string | null; rpe?: number | null }): Promise<void>
+  discardSession(id: string): Promise<void>
+  addSessionExercise(sessionId: string, exerciseId: string): Promise<void>
+  removeSessionExercise(sessionId: string, sessionExerciseId: string): Promise<void>
+  swapSessionExercise(sessionId: string, sessionExerciseId: string, exerciseId: string): Promise<void>
+  reorderSessionExercises(sessionId: string, orderedIds: string[]): Promise<void>
+  upsertSet(sessionId: string, set: SetRow): Promise<void>
+  deleteSet(sessionId: string, sessionExerciseId: string, setId: string): Promise<void>
+
+  // profile
+  updateProfile(
+    patch: Partial<
+      Pick<ProfileRow, 'display_name' | 'unit_system' | 'week_start' | 'default_rest_seconds'>
+    >,
+  ): Promise<void>
+
+  // auth-related
+  attemptSync(): Promise<boolean>
+  forceWipeAndSignOut(): Promise<void>
+}
+
+export type StoreState = StoreData & StoreActions
+
+const StoreContext = createContext<StoreState | null>(null)
+
+const DEFAULT_PROFILE = {
+  display_name: '',
+  unit_system: 'metric',
+  week_start: 'monday',
+  default_rest_seconds: 90,
+} as const
+
+export function StoreProvider({ children }: { children: ReactNode }) {
+  const { session, signOut } = useAuth()
+  const userId = session?.user.id ?? null
+
+  const [state, setState] = useState({
+    ready: false,
+    online: navigator.onLine,
+    syncing: false,
+    pending: 0,
+    syncError: null as string | null,
+    profile: null as ProfileRow | null,
+    exercises: [] as ExerciseRow[],
+    templates: [] as TemplateRow[],
+    templateItems: [] as TemplateItemRow[],
+    rules: [] as RecurrenceRuleRow[],
+    schedules: [] as ScheduleItemRow[],
+    sessions: [] as SessionDoc[],
+  })
+
+  const syncingRef = useRef(false)
+  const debounceRef = useRef<number | null>(null)
+  const userIdRef = useRef<string | null>(null)
+  userIdRef.current = userId
+  const clientRef = useRef<SupabaseClient | null>(null)
+  if (backendConfigured && userId) clientRef.current = supabase()
+
+  const reloadFromDb = useCallback(async () => {
+    const [all, profile] = await Promise.all([readAll(), readProfile()])
+    const pending = await pendingCount()
+    setState((prev) => ({ ...prev, ...all, profile, pending, ready: true }))
+  }, [])
+
+  const performSync = useCallback(async () => {
+    const client = clientRef.current
+    if (!client || syncingRef.current || !navigator.onLine) return
+    syncingRef.current = true
+    setState((prev) => ({ ...prev, syncing: true }))
+    try {
+      await flushOutbox(client)
+      await clearDirtyFlags()
+      await clearProfileDirty()
+      const snapshot = await fetchSnapshot(client)
+      await Promise.all([
+        reconcileProfile(snapshot.profile),
+        reconcileStore('exercises', snapshot.exercises),
+        reconcileStore('templates', snapshot.templates),
+        reconcileStore('templateItems', snapshot.templateItems),
+        reconcileStore('rules', snapshot.rules),
+        reconcileStore('schedules', snapshot.schedules),
+        reconcileStore('sessions', snapshot.sessions),
+      ])
+      await reloadFromDb()
+      setState((prev) => ({ ...prev, syncError: null }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Sync failed.'
+      setState((prev) => ({ ...prev, syncError: message }))
+    } finally {
+      syncingRef.current = false
+      setState((prev) => ({ ...prev, syncing: false }))
+    }
+  }, [reloadFromDb])
+
+  const scheduleDebouncedSync = useCallback(() => {
+    if (debounceRef.current !== null) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = null
+      void performSync()
+    }, SYNC_DEBOUNCE_MS)
+  }, [performSync])
+
+  // Load local data when the signed-in user changes; wipe when switching users.
+  useEffect(() => {
+    let cancelled = false
+    if (!userId) {
+      setState((prev) => ({
+        ...prev,
+        ready: true,
+        profile: null,
+        exercises: [],
+        templates: [],
+        templateItems: [],
+        rules: [],
+        schedules: [],
+        sessions: [],
+        pending: 0,
+      }))
+      return
+    }
+    void (async () => {
+      const storedUser = await getMeta<string>('userId')
+      if (storedUser !== userId) {
+        await wipeLocalData()
+        await setMeta('userId', userId)
+      }
+      if (cancelled) return
+      await reloadFromDb()
+      void performSync()
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId, reloadFromDb, performSync])
+
+  // Sync triggers: connectivity regain, tab focus.
+  useEffect(() => {
+    const goOnline = () => {
+      setState((prev) => ({ ...prev, online: true }))
+      void performSync()
+    }
+    const goOffline = () => setState((prev) => ({ ...prev, online: false }))
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void performSync()
+    }
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [performSync])
+
+  /** Write to the mirror, queue ops, refresh state, schedule the push. */
+  const commit = useCallback(
+    async (writes: { store: StoreName; row: object }[], ops: OutboxOp[]) => {
+      for (const write of writes) {
+        await putDirty(write.store, write.row)
+      }
+      await appendOps(ops)
+      await reloadFromDb()
+      scheduleDebouncedSync()
+    },
+    [reloadFromDb, scheduleDebouncedSync],
+  )
+
+  const actionsRef = useRef<StoreActions | null>(null)
+  if (!actionsRef.current) {
+    actionsRef.current = {
+      async syncNow() {
+        await performSync()
+      },
+      refreshIfOnline() {
+        if (navigator.onLine) void performSync()
+      },
+
+      // ------------------------------------------------------------ exercises
+
+      async createExercise(input) {
+        const row: ExerciseRow = {
+          id: newId(),
+          owner_id: userIdRef.current,
+          name: input.name,
+          category: input.category,
+          measurement: input.measurement,
+          muscle_groups: input.muscle_groups,
+          equipment: input.equipment,
+          instructions: input.instructions,
+          video_url: input.video_url,
+          is_archived: false,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'exercises', row }], [upsert('exercises', row)])
+        return row
+      },
+
+      async updateExercise(id, patch) {
+        const existing = await readOne<ExerciseRow>('exercises', id)
+        if (!existing) throw new Error('Exercise not found.')
+        const row: ExerciseRow = { ...existing, ...patch, updated_at: nowIso() }
+        await commit([{ store: 'exercises', row }], [upsert('exercises', row)])
+      },
+
+      // ------------------------------------------------------------ templates
+
+      async createTemplate(name, notes) {
+        const row: TemplateRow = {
+          id: newId(),
+          owner_id: userIdRef.current ?? '',
+          name,
+          notes,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'templates', row }], [upsert('workout_templates', row)])
+        return row
+      },
+
+      async updateTemplate(id, patch) {
+        const existing = await readOne<TemplateRow>('templates', id)
+        if (!existing) throw new Error('Routine not found.')
+        const row: TemplateRow = { ...existing, ...patch, updated_at: nowIso() }
+        await commit([{ store: 'templates', row }], [upsert('workout_templates', row)])
+      },
+
+      async deleteTemplate(id) {
+        // Items cascade server-side; drop their queued upserts so nothing
+        // recreates rows whose parent is being deleted.
+        const items = (await readAll()).templateItems.filter((i) => i.template_id === id)
+        const itemIds = new Set(items.map((i) => i.id))
+        await removeMatchingOps(
+          (op) =>
+            op.kind === 'upsert' && op.table === 'template_items' && itemIds.has(String(op.row.id)),
+        )
+        for (const itemId of itemIds) await removeFrom('templateItems', itemId)
+        await removeFrom('templates', id)
+        await appendOps([{ kind: 'delete', table: 'workout_templates', id }])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async saveTemplateItems(templateId, items) {
+        const existing = (await readAll()).templateItems.filter((i) => i.template_id === templateId)
+        const keptIds = new Set(items.map((i) => i.id).filter((id): id is string => Boolean(id)))
+        const ops: OutboxOp[] = []
+        const writes: { store: 'templateItems'; row: TemplateItemRow }[] = []
+
+        for (const item of items) {
+          const row: TemplateItemRow = {
+            id: item.id ?? newId(),
+            template_id: templateId,
+            exercise_id: item.exercise_id,
+            position: item.position,
+            planned_sets: item.planned_sets,
+            target_weight_kg: item.target_weight_kg,
+            target_reps: item.target_reps,
+            target_duration_s: item.target_duration_s,
+            target_distance_m: item.target_distance_m,
+            rest_seconds: item.rest_seconds,
+            notes: item.notes,
+            superset_group: item.superset_group,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+          }
+          writes.push({ store: 'templateItems', row })
+          ops.push(upsert('template_items', row))
+        }
+
+        for (const removed of existing.filter((i) => !keptIds.has(i.id))) {
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' &&
+              op.table === 'template_items' &&
+              String(op.row.id) === removed.id,
+          )
+          await removeFrom('templateItems', removed.id)
+          ops.push({ kind: 'delete', table: 'template_items', id: removed.id })
+        }
+
+        await commit(writes, ops)
+      },
+
+      // ------------------------------------------------------------ scheduling
+
+      async scheduleSingleDate(templateId, date) {
+        const row: ScheduleItemRow = {
+          id: newId(),
+          owner_id: userIdRef.current ?? '',
+          template_id: templateId,
+          scheduled_date: date,
+          recurrence_rule_id: null,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'schedules', row }], [upsert('schedule_items', row)])
+      },
+
+      async scheduleWeekly(templateId, weekdays, startDate, endDate, scheduleId) {
+        let rule: RecurrenceRuleRow
+        let schedule: ScheduleItemRow
+
+        if (scheduleId) {
+          const existingSchedule = await readOne<ScheduleItemRow>('schedules', scheduleId)
+          if (!existingSchedule?.recurrence_rule_id) throw new Error('Schedule not found.')
+          const existingRule = await readOne<RecurrenceRuleRow>(
+            'rules',
+            existingSchedule.recurrence_rule_id,
+          )
+          if (!existingRule) throw new Error('Recurrence rule not found.')
+          rule = { ...existingRule, weekdays, start_date: startDate, end_date: endDate, updated_at: nowIso() }
+          schedule = { ...existingSchedule, updated_at: nowIso() }
+        } else {
+          rule = {
+            id: newId(),
+            owner_id: userIdRef.current ?? '',
+            frequency: 'weekly',
+            weekdays,
+            start_date: startDate,
+            end_date: endDate,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+          }
+          schedule = {
+            id: newId(),
+            owner_id: userIdRef.current ?? '',
+            template_id: templateId,
+            scheduled_date: null,
+            recurrence_rule_id: rule.id,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+          }
+        }
+        await commit(
+          [
+            { store: 'rules', row: rule },
+            { store: 'schedules', row: schedule },
+          ],
+          [upsert('recurrence_rules', rule), upsert('schedule_items', schedule)],
+        )
+      },
+
+      async deleteSchedule(id) {
+        const schedule = await readOne<ScheduleItemRow>('schedules', id)
+        const ops: OutboxOp[] = [{ kind: 'delete', table: 'schedule_items', id }]
+        if (schedule?.recurrence_rule_id) {
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' &&
+              op.table === 'recurrence_rules' &&
+              String(op.row.id) === schedule.recurrence_rule_id,
+          )
+          await removeFrom('rules', schedule.recurrence_rule_id)
+          ops.push({ kind: 'delete', table: 'recurrence_rules', id: schedule.recurrence_rule_id })
+        }
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'schedule_items' && String(op.row.id) === id,
+        )
+        await removeFrom('schedules', id)
+        await appendOps(ops)
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      // ------------------------------------------------------------ sessions
+
+      async startSession(input) {
+        const all = await readAll()
+        const template = input.templateId
+          ? all.templates.find((t) => t.id === input.templateId)
+          : undefined
+        const items = template
+          ? all.templateItems
+              .filter((i) => i.template_id === template.id)
+              .sort((a, b) => a.position - b.position)
+          : []
+
+        const sessionId = newId()
+        const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = items.map((item) => {
+          const exercise = all.exercises.find((e) => e.id === item.exercise_id)
+          return {
+            id: newId(),
+            session_id: sessionId,
+            exercise_id: item.exercise_id,
+            name_snapshot: exercise?.name ?? 'Exercise',
+            measurement_snapshot: exercise?.measurement ?? 'weight_reps',
+            position: item.position,
+            planned_sets: item.planned_sets,
+            rest_seconds: item.rest_seconds,
+            notes: null,
+            superset_group: item.superset_group,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+            sets: [],
+          }
+        })
+
+        const doc: SessionDoc = {
+          id: sessionId,
+          owner_id: userIdRef.current ?? '',
+          template_id: template?.id ?? null,
+          schedule_item_id: input.scheduleItemId ?? null,
+          name: input.name ?? template?.name ?? 'Workout',
+          status: 'in_progress',
+          planned_date: input.plannedDate ?? null,
+          started_at: nowIso(),
+          ended_at: null,
+          notes: null,
+          rpe: null,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+          session_exercises: exercises,
+        }
+
+        const ops: OutboxOp[] = [upsert('workout_sessions', stripNested(doc))]
+        for (const se of exercises) {
+          ops.push(upsert('session_exercises', { ...se, sets: undefined }))
+        }
+        await commit([{ store: 'sessions', row: doc }], ops)
+        return doc
+      },
+
+      async updateSessionMeta(id, patch) {
+        const doc = await readOne<SessionDoc>('sessions', id)
+        if (!doc) throw new Error('Session not found.')
+        const row: SessionDoc = { ...doc, ...patch, updated_at: nowIso() }
+        await commit([{ store: 'sessions', row }], [upsert('workout_sessions', stripNested(row))])
+      },
+
+      async finishSession(id, summary) {
+        const doc = await readOne<SessionDoc>('sessions', id)
+        if (!doc) throw new Error('Session not found.')
+        const row: SessionDoc = {
+          ...doc,
+          status: 'completed',
+          ended_at: nowIso(),
+          notes: summary.notes ?? doc.notes,
+          rpe: summary.rpe ?? doc.rpe,
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'sessions', row }], [upsert('workout_sessions', stripNested(row))])
+      },
+
+      async discardSession(id) {
+        const doc = await readOne<SessionDoc>('sessions', id)
+        if (!doc) return
+        const exerciseIds = doc.session_exercises.map((se) => se.id)
+        const setIds = doc.session_exercises.flatMap((se) => se.sets.map((s) => s.id))
+
+        // Drop queued upserts for the whole tree, then enqueue one session
+        // delete — server-side cascades clean children if they were synced.
+        await removeMatchingOps((op) => {
+          if (op.kind !== 'upsert') return false
+          if (op.table === 'workout_sessions' && String(op.row.id) === id) return true
+          if (op.table === 'session_exercises' && exerciseIds.includes(String(op.row.id))) return true
+          if (op.table === 'workout_sets' && setIds.includes(String(op.row.id))) return true
+          return false
+        })
+        await removeFrom('sessions', id)
+        await appendOps([{ kind: 'delete', table: 'workout_sessions', id }])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async addSessionExercise(sessionId, exerciseId) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
+        if (!doc || !exercise) throw new Error('Session or exercise not found.')
+        const maxPos = doc.session_exercises.reduce((m, se) => Math.max(m, se.position), -1)
+        const se: SessionExerciseRow & { sets: SetRow[] } = {
+          id: newId(),
+          session_id: sessionId,
+          exercise_id: exercise.id,
+          name_snapshot: exercise.name,
+          measurement_snapshot: exercise.measurement,
+          position: maxPos + 1,
+          planned_sets: 3,
+          rest_seconds: null,
+          notes: null,
+          superset_group: null,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+          sets: [],
+        }
+        const row: SessionDoc = {
+          ...doc,
+          session_exercises: [...doc.session_exercises, se],
+          updated_at: nowIso(),
+        }
+        await commit(
+          [{ store: 'sessions', row }],
+          [upsert('session_exercises', { ...se, sets: undefined })],
+        )
+      },
+
+      async removeSessionExercise(sessionId, sessionExerciseId) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error('Session not found.')
+        const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
+        if (!target) return
+        const setIds = target.sets.map((s) => s.id)
+        await removeMatchingOps((op) => {
+          if (op.kind !== 'upsert') return false
+          if (op.table === 'session_exercises' && String(op.row.id) === sessionExerciseId) return true
+          if (op.table === 'workout_sets' && setIds.includes(String(op.row.id))) return true
+          return false
+        })
+        const row: SessionDoc = {
+          ...doc,
+          session_exercises: doc.session_exercises.filter((se) => se.id !== sessionExerciseId),
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'sessions', row }], [
+          { kind: 'delete', table: 'session_exercises', id: sessionExerciseId },
+        ])
+      },
+
+      async swapSessionExercise(sessionId, sessionExerciseId, exerciseId) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
+        if (!doc || !exercise) throw new Error('Session or exercise not found.')
+        const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
+        if (!target) return
+
+        const ops: OutboxOp[] = []
+        const updated = {
+          ...target,
+          exercise_id: exercise.id,
+          name_snapshot: exercise.name,
+          measurement_snapshot: exercise.measurement,
+          updated_at: nowIso(),
+        }
+        let nextExercises: (SessionExerciseRow & { sets: SetRow[] })[]
+
+        if (target.measurement_snapshot === exercise.measurement) {
+          nextExercises = doc.session_exercises.map((se) =>
+            se.id === sessionExerciseId ? updated : se,
+          )
+        } else {
+          // Measurement changed: old values would be meaningless — drop the sets.
+          for (const set of target.sets) {
+            await removeMatchingOps(
+              (op) => op.kind === 'upsert' && op.table === 'workout_sets' && String(op.row.id) === set.id,
+            )
+            ops.push({ kind: 'delete', table: 'workout_sets', id: set.id })
+          }
+          nextExercises = doc.session_exercises.map((se) =>
+            se.id === sessionExerciseId ? { ...updated, sets: [] } : se,
+          )
+        }
+        const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
+        ops.push(upsert('session_exercises', { ...updated, sets: undefined }))
+        await commit([{ store: 'sessions', row }], ops)
+      },
+
+      async reorderSessionExercises(sessionId, orderedIds) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error('Session not found.')
+        const oldPositions = new Map(doc.session_exercises.map((se) => [se.id, se.position]))
+        const byId = new Map(doc.session_exercises.map((se) => [se.id, se]))
+        const reordered = orderedIds
+          .map((id) => byId.get(id))
+          .filter((se): se is SessionExerciseRow & { sets: SetRow[] } => Boolean(se))
+          .map((se, index) =>
+            oldPositions.get(se.id) === index ? se : { ...se, position: index, updated_at: nowIso() },
+          )
+        const changed = reordered.filter((se) => oldPositions.get(se.id) !== se.position)
+        const row: SessionDoc = { ...doc, session_exercises: reordered, updated_at: nowIso() }
+        const ops = changed.map((se) => upsert('session_exercises', { ...se, sets: undefined }))
+        await commit([{ store: 'sessions', row }], ops)
+      },
+
+      async upsertSet(sessionId, set) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error('Session not found.')
+        let found = false
+        const nextExercises = doc.session_exercises.map((se) => {
+          if (se.id !== set.session_exercise_id) return se
+          found = true
+          const exists = se.sets.some((s) => s.id === set.id)
+          const sets = exists ? se.sets.map((s) => (s.id === set.id ? set : s)) : [...se.sets, set]
+          return { ...se, sets: sets.sort((a, b) => a.position - b.position), updated_at: nowIso() }
+        })
+        if (!found) throw new Error('Session exercise not found.')
+        const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
+        await commit([{ store: 'sessions', row }], [upsert('workout_sets', set)])
+      },
+
+      async deleteSet(sessionId, sessionExerciseId, setId) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error('Session not found.')
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'workout_sets' && String(op.row.id) === setId,
+        )
+        const nextExercises = doc.session_exercises.map((se) =>
+          se.id === sessionExerciseId
+            ? { ...se, sets: se.sets.filter((s) => s.id !== setId), updated_at: nowIso() }
+            : se,
+        )
+        const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
+        await commit([{ store: 'sessions', row }], [
+          { kind: 'delete', table: 'workout_sets', id: setId },
+        ])
+      },
+
+      // ------------------------------------------------------------ profile
+
+      async updateProfile(patch) {
+        const existing = await readProfile()
+        const base: ProfileRow = existing ?? {
+          id: userIdRef.current ?? '',
+          ...DEFAULT_PROFILE,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        const row: ProfileRow = { ...base, ...patch, updated_at: nowIso() }
+        await putDirty('profiles', row)
+        await appendOps([upsert('profiles', row)])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      // ------------------------------------------------------------ auth-related
+
+      async attemptSync() {
+        if (!navigator.onLine) return false
+        await performSync()
+        return (await pendingCount()) === 0
+      },
+
+      async forceWipeAndSignOut() {
+        await wipeLocalData()
+        await signOut()
+      },
+    }
+  }
+
+  return (
+    <StoreContext.Provider value={{ ...state, ...(actionsRef.current as StoreActions) }}>
+      {children}
+    </StoreContext.Provider>
+  )
+}
+
+/** The outbox only stores flat rows; nested sets travel as their own ops. */
+function stripNested(doc: SessionDoc): Record<string, unknown> {
+  const { session_exercises: _nested, ...flat } = doc
+  return flat
+}
+
+export function useStore(): StoreState {
+  const ctx = useContext(StoreContext)
+  if (!ctx) throw new Error('useStore must be used inside StoreProvider')
+  return ctx
+}

@@ -1,0 +1,555 @@
+// Active workout screen: elapsed timer, previous values, set logging for all
+// measurement types, automatic rest timer, RPE, notes, reorder/swap/remove,
+// finish (works fully offline — everything lands in IndexedDB + outbox).
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useStore, newId } from '../lib/store'
+import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
+import { formatDuration, formatWeight, formatDistance } from '../lib/units'
+import { previousSetsForExercise } from '../lib/metrics'
+import { EmptyState, Loader, Modal } from '../components/ui'
+import { ExercisePicker } from '../components/ExercisePicker'
+import { SetEditor, AddSetButton } from '../components/SetEditor'
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconPlay,
+  IconPlus,
+  IconSwap,
+  IconTimer,
+  IconTrash,
+} from '../components/Icons'
+import './workout.css'
+
+interface StartState {
+  templateId?: string | null
+  scheduleItemId?: string | null
+  plannedDate?: string | null
+}
+
+export function Workout() {
+  const store = useStore()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const startState = (location.state ?? null) as StartState | null
+
+  const [busy, setBusy] = useState(false)
+  const [conflict, setConflict] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'add' | null>(null)
+  const [swapTarget, setSwapTarget] = useState<string | null>(null)
+  const [finishOpen, setFinishOpen] = useState(false)
+  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+
+  const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
+  const startingRef = useRef(false)
+
+  useEffect(() => {
+    if (!startState || startingRef.current) return
+    startingRef.current = true
+    if (active) {
+      setConflict(true)
+      return
+    }
+    void (async () => {
+      setBusy(true)
+      try {
+        await store.startSession({
+          templateId: startState.templateId ?? null,
+          scheduleItemId: startState.scheduleItemId ?? null,
+          plannedDate: startState.plannedDate ?? null,
+        })
+        navigate('/workout', { replace: true })
+      } finally {
+        setBusy(false)
+      }
+    })()
+    // Start only from the state carried by this navigation, on mount.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (!store.ready) return <Loader />
+  if (busy) return <Loader label="Preparing workout…" />
+
+  if (!active) {
+    return <StartScreen onStarted={() => navigate('/workout', { replace: true })} />
+  }
+
+  return (
+    <div className="workout-page">
+      <header className="workout-header">
+        <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
+          ← Back
+        </button>
+        <div className="workout-title">
+          <strong>{active.name}</strong>
+          <span className="muted mono">
+            <Elapsed startedAt={active.started_at} /> ·{' '}
+            {countCompletedSets(active)} sets done
+          </span>
+        </div>
+        <button
+          type="button"
+          className="btn btn--small btn--accent"
+          onClick={() => setFinishOpen(true)}
+        >
+          Finish
+        </button>
+      </header>
+
+      {active.session_exercises.length === 0 ? (
+        <EmptyState
+          title="No exercises yet"
+          hint="Add the first exercise to start logging."
+          action={
+            <button type="button" className="btn btn--primary" onClick={() => setPickerMode('add')}>
+              <IconPlus width={18} height={18} /> Add exercise
+            </button>
+          }
+        />
+      ) : (
+        <div className="stack">
+          {active.session_exercises.map((se, index) => (
+            <ExerciseCard
+              key={se.id}
+              session={active}
+              exercise={se}
+              index={index}
+              total={active.session_exercises.length}
+              onSwap={() => setSwapTarget(se.id)}
+              onRestStart={(seconds) => setRestRemaining(seconds)}
+            />
+          ))}
+          <button type="button" className="btn" onClick={() => setPickerMode('add')}>
+            <IconPlus width={18} height={18} /> Add exercise
+          </button>
+        </div>
+      )}
+
+      {restRemaining !== null ? (
+        <RestChip
+          remaining={restRemaining}
+          onTick={setRestRemaining}
+          onDone={() => setRestRemaining(null)}
+        />
+      ) : null}
+
+      {pickerMode === 'add' ? (
+        <ExercisePicker
+          title="Add exercise"
+          onClose={() => setPickerMode(null)}
+          onSelect={(exerciseId) => void store.addSessionExercise(active.id, exerciseId)}
+        />
+      ) : null}
+
+      {swapTarget ? (
+        <ExercisePicker
+          title="Swap exercise"
+          onClose={() => setSwapTarget(null)}
+          onSelect={(exerciseId) =>
+            void store.swapSessionExercise(active.id, swapTarget, exerciseId)
+          }
+        />
+      ) : null}
+
+      {finishOpen ? (
+        <FinishModal
+          session={active}
+          onClose={() => setFinishOpen(false)}
+          onFinish={async (summary) => {
+            setFinishOpen(false)
+            await store.finishSession(active.id, summary)
+            void navigate(`/history/${active.id}`)
+          }}
+        />
+      ) : null}
+
+      {conflict ? (
+        <Modal title="Workout already in progress" onClose={() => setConflict(false)}>
+          <p>
+            You have an active workout (<strong>{active.name}</strong>). Only one workout can run at
+            a time.
+          </p>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn btn--primary btn--block"
+              onClick={() => {
+                setConflict(false)
+                navigate('/workout', { replace: true, state: null })
+              }}
+            >
+              Resume current workout
+            </button>
+            <button
+              type="button"
+              className="btn btn--danger btn--block"
+              onClick={() => {
+                void store.discardSession(active.id).then(() => {
+                  setConflict(false)
+                  void store.startSession({
+                    templateId: startState?.templateId ?? null,
+                    scheduleItemId: startState?.scheduleItemId ?? null,
+                    plannedDate: startState?.plannedDate ?? null,
+                  })
+                })
+                navigate('/workout', { replace: true })
+              }}
+            >
+              Discard it and start the new one
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+    </div>
+  )
+}
+
+function StartScreen({ onStarted }: { onStarted(): void }) {
+  const store = useStore()
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+
+  return (
+    <div className="workout-page">
+      <header className="workout-header">
+        <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
+          ← Back
+        </button>
+        <div className="workout-title">
+          <strong>Start a workout</strong>
+        </div>
+        <span aria-hidden="true" />
+      </header>
+
+      <div className="stack">
+        <button
+          type="button"
+          className="btn btn--primary btn--block"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true)
+            void store.startSession({}).then(() => {
+              setBusy(false)
+              onStarted()
+            })
+          }}
+        >
+          <IconPlay width={18} height={18} /> Empty workout
+        </button>
+
+        {store.templates.length > 0 ? (
+          <>
+            <div className="section-title">Start from a routine</div>
+            {store.templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className="card exercise-card"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true)
+                  void store.startSession({ templateId: template.id }).then(() => {
+                    setBusy(false)
+                    onStarted()
+                  })
+                }}
+              >
+                <span className="row row--between">
+                  <strong>{template.name}</strong>
+                  <span className="badge badge--neutral">
+                    {store.templateItems.filter((i) => i.template_id === template.id).length}{' '}
+                    exercises
+                  </span>
+                </span>
+              </button>
+            ))}
+          </>
+        ) : (
+          <p className="muted">No routines yet — start empty or create one under Routines.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Elapsed({ startedAt }: { startedAt: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000))
+  return <>{formatDuration(seconds)}</>
+}
+
+function countCompletedSets(session: SessionDoc): number {
+  return session.session_exercises.reduce(
+    (sum, se) => sum + se.sets.filter((s) => s.completed_at !== null).length,
+    0,
+  )
+}
+
+function ExerciseCard({
+  session,
+  exercise,
+  index,
+  total,
+  onSwap,
+  onRestStart,
+}: {
+  session: SessionDoc
+  exercise: SessionExerciseDoc
+  index: number
+  total: number
+  onSwap(): void
+  onRestStart(seconds: number): void
+}) {
+  const store = useStore()
+  const units = store.profile?.unit_system ?? 'metric'
+
+  const previous = useMemo(
+    () =>
+      previousSetsForExercise(
+        store.sessions,
+        exercise.exercise_id ?? '',
+        exercise.name_snapshot,
+        session.id,
+      ),
+    [store.sessions, exercise.exercise_id, exercise.name_snapshot, session.id],
+  )
+
+  function handleSetChange(next: SetRow) {
+    void store.upsertSet(session.id, next)
+  }
+
+  function handleComplete(next: SetRow) {
+    const wasCompleted = exercise.sets.find((s) => s.id === next.id)?.completed_at !== null
+    void store.upsertSet(session.id, next)
+    if (!wasCompleted && next.completed_at !== null) {
+      onRestStart(exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90)
+    }
+  }
+
+  function addSet() {
+    const position = exercise.sets.reduce((m, s) => Math.max(m, s.position), 0) + 1
+    const set: SetRow = {
+      id: newId(),
+      session_exercise_id: exercise.id,
+      position,
+      weight_kg: null,
+      reps: null,
+      duration_s: null,
+      distance_m: null,
+      rpe: null,
+      notes: null,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    void store.upsertSet(session.id, set)
+  }
+
+  const supersetCount =
+    exercise.superset_group !== null
+      ? session.session_exercises.filter((se) => se.superset_group === exercise.superset_group).length
+      : 0
+
+  return (
+    <section className={`card workout-exercise ${exercise.superset_group ? 'workout-exercise--superset' : ''}`}>
+      <div className="row row--between">
+        <div>
+          <strong>{exercise.name_snapshot}</strong>
+          {supersetCount > 1 ? (
+            <span className="badge badge--in-progress" style={{ marginLeft: '0.5rem' }}>
+              Superset
+            </span>
+          ) : null}
+        </div>
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn--icon btn--small"
+            aria-label={`Move ${exercise.name_snapshot} up`}
+            disabled={index === 0}
+            onClick={() => {
+              const ids = session.session_exercises.map((se) => se.id)
+              const target = index - 1
+              ;[ids[index], ids[target]] = [ids[target] ?? '', ids[index] ?? '']
+              void store.reorderSessionExercises(
+                session.id,
+                ids.filter(Boolean),
+              )
+            }}
+          >
+            <IconArrowUp width={16} height={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon btn--small"
+            aria-label={`Move ${exercise.name_snapshot} down`}
+            disabled={index === total - 1}
+            onClick={() => {
+              const ids = session.session_exercises.map((se) => se.id)
+              const target = index + 1
+              ;[ids[index], ids[target]] = [ids[target] ?? '', ids[index] ?? '']
+              void store.reorderSessionExercises(
+                session.id,
+                ids.filter(Boolean),
+              )
+            }}
+          >
+            <IconArrowDown width={16} height={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon btn--small"
+            aria-label={`Swap ${exercise.name_snapshot} for another exercise`}
+            onClick={onSwap}
+          >
+            <IconSwap width={16} height={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon btn--small btn--danger"
+            aria-label={`Remove ${exercise.name_snapshot} from workout`}
+            onClick={() => void store.removeSessionExercise(session.id, exercise.id)}
+          >
+            <IconTrash width={16} height={16} />
+          </button>
+        </div>
+      </div>
+
+      {previous ? (
+        <small className="muted">
+          Previous:{' '}
+          {previous
+            .map((set) => {
+              if (exercise.measurement_snapshot === 'weight_reps') {
+                return `${formatWeight(set.weight_kg ?? 0, units)} × ${set.reps ?? '–'}`
+              }
+              if (exercise.measurement_snapshot === 'reps') return `${set.reps ?? '–'} reps`
+              if (exercise.measurement_snapshot === 'duration')
+                return formatDuration(set.duration_s ?? 0)
+              return `${formatDistance(set.distance_m ?? 0, units)} in ${formatDuration(set.duration_s ?? 0)}`
+            })
+            .join(', ')}
+        </small>
+      ) : (
+        <small className="muted">First time with this exercise — no history yet.</small>
+      )}
+
+      <div className="stack" style={{ gap: '0.35rem', marginTop: '0.5rem' }}>
+        {exercise.sets.map((set, setIndex) => (
+          <SetEditor
+            key={set.id}
+            index={setIndex}
+            set={set}
+            measurement={exercise.measurement_snapshot}
+            units={units}
+            onChange={handleSetChange}
+            onComplete={handleComplete}
+            onDelete={() => void store.deleteSet(session.id, exercise.id, set.id)}
+          />
+        ))}
+        <AddSetButton onAdd={addSet} />
+        {exercise.planned_sets > exercise.sets.length ? (
+          <small className="muted">
+            {exercise.planned_sets - exercise.sets.length} more set(s) planned
+          </small>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+function FinishModal({
+  session,
+  onClose,
+  onFinish,
+}: {
+  session: SessionDoc
+  onClose(): void
+  onFinish(summary: { notes: string | null; rpe: number | null }): Promise<void>
+}) {
+  const [notes, setNotes] = useState(session.notes ?? '')
+  const [rpe, setRpe] = useState<string>(session.rpe === null ? '' : String(session.rpe))
+  const completed = countCompletedSets(session)
+
+  async function submit() {
+    if (completed === 0 && !window.confirm('Finish without any completed sets?')) return
+    await onFinish({
+      notes: notes.trim() === '' ? null : notes.trim(),
+      rpe: rpe === '' ? null : Number(rpe),
+    })
+  }
+
+  return (
+    <Modal title="Finish workout" onClose={onClose}>
+      <div className="field">
+        <label htmlFor="finish-notes">Workout notes</label>
+        <textarea
+          id="finish-notes"
+          className="input"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="How did it go?"
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="finish-rpe">Session RPE (1–10)</label>
+        <select id="finish-rpe" className="input" value={rpe} onChange={(e) => setRpe(e.target.value)}>
+          <option value="">Not set</option>
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="muted">
+        {completed} completed set(s). {formatDuration(elapsedOf(session))} total.
+      </p>
+      <button type="button" className="btn btn--accent btn--block" onClick={() => void submit()}>
+        Finish workout
+      </button>
+    </Modal>
+  )
+}
+
+function elapsedOf(session: SessionDoc): number {
+  const end = session.ended_at ? new Date(session.ended_at).getTime() : Date.now()
+  return Math.max(0, Math.floor((end - new Date(session.started_at).getTime()) / 1000))
+}
+
+function RestChip({
+  remaining,
+  onTick,
+  onDone,
+}: {
+  remaining: number
+  onTick(value: number): void
+  onDone(): void
+}) {
+  useEffect(() => {
+    if (remaining <= 0) {
+      onDone()
+      return
+    }
+    const timer = window.setTimeout(() => onTick(remaining - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [remaining, onTick, onDone])
+
+  return (
+    <div className="rest-chip" role="status">
+      <IconTimer width={18} height={18} />
+      <span className="mono">Rest {formatDuration(remaining)}</span>
+      <button type="button" className="btn btn--small" onClick={() => onTick(remaining + 15)}>
+        +15s
+      </button>
+      <button type="button" className="btn btn--small btn--ghost" onClick={onDone}>
+        Skip
+      </button>
+    </div>
+  )
+}

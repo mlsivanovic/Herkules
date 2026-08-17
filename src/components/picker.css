@@ -1,0 +1,34 @@
+/* Exercise picker + generic pickers */
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-s);
+  background: var(--c-card);
+  color: var(--c-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-item:active {
+  background: var(--c-bg-raised);
+}
+
+.picker-name {
+  font-weight: 600;
+}

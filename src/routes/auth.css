@@ -1,0 +1,39 @@
+/* Auth screens */
+
+.auth-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  gap: 1.25rem;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.auth-card {
+  width: min(100%, 420px);
+}
+
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.auth-notice {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-s);
+  background: var(--c-success-soft);
+  color: var(--c-success);
+  font-weight: 600;
+}

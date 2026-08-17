@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dev-dist/
+
+# Local env — never commit keys
+.env
+.env.local
+.env.*.local
+
+# Test project credentials (remote Supabase test instance)
+.env.test
+.env.test.local
+
+# Supabase CLI local artifacts
+supabase/.temp/
+supabase/.branches/
+
+# Playwright
+test-results/
+playwright-report/
+.blob-store/
+
+# OS / editor noise
+.DS_Store
+*.log
+.idea/
+.vscode/

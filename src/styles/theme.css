@@ -1,0 +1,53 @@
+/* Design tokens — slate/navy base with blue/teal accents, light & dark */
+
+:root {
+  color-scheme: light;
+  --c-bg: #f1f5f9;
+  --c-bg-raised: #e2e8f0;
+  --c-card: #ffffff;
+  --c-text: #0f172a;
+  --c-muted: #475569;
+  --c-border: #d8e0ea;
+  --c-primary: #1d4ed8;
+  --c-primary-soft: #dbeafe;
+  --c-on-primary: #ffffff;
+  --c-accent: #0f766e;
+  --c-accent-soft: #ccfbf1;
+  --c-success: #15803d;
+  --c-success-soft: #dcfce7;
+  --c-warning: #b45309;
+  --c-warning-soft: #fef3c7;
+  --c-danger: #b91c1c;
+  --c-danger-soft: #fee2e2;
+  --c-track: #cbd5e1;
+  --shadow: 0 1px 3px rgb(15 23 42 / 0.08), 0 4px 16px rgb(15 23 42 / 0.06);
+  --radius: 14px;
+  --radius-s: 10px;
+  --font:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --control-h: 44px;
+  --bottom-nav-h: 60px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: #0b1220;
+  --c-bg-raised: #101a2e;
+  --c-card: #16203a;
+  --c-text: #e6edf7;
+  --c-muted: #9aa8bd;
+  --c-border: #263450;
+  --c-primary: #4f83f1;
+  --c-primary-soft: #1c2f57;
+  --c-on-primary: #ffffff;
+  --c-accent: #2dd4bf;
+  --c-accent-soft: #113b38;
+  --c-success: #4ade80;
+  --c-success-soft: #123324;
+  --c-warning: #fbbf24;
+  --c-warning-soft: #372a10;
+  --c-danger: #f87171;
+  --c-danger-soft: #3b1a1a;
+  --c-track: #2c3a58;
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
+}

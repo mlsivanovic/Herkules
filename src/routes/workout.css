@@ -1,0 +1,60 @@
+/* Active workout screen */
+
+.workout-page {
+  min-height: 100dvh;
+  padding-bottom: 5.5rem;
+}
+
+.workout-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  padding-top: calc(0.6rem + env(safe-area-inset-top, 0px));
+  background: color-mix(in srgb, var(--c-bg) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--c-border);
+  margin: -1rem -1rem 1rem;
+}
+
+.workout-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.workout-title strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workout-exercise--superset {
+  border-left: 4px solid var(--c-accent);
+}
+
+.rest-chip {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bottom-nav-h) + 14px + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  background: #101a2e;
+  color: #e6edf7;
+  box-shadow: var(--shadow);
+  font-weight: 700;
+}
+
+.workout-page .rest-chip .btn {
+  min-height: 34px;
+}

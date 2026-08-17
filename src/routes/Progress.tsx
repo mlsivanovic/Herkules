@@ -1,0 +1,252 @@
+// Progress: totals, streak, adherence, weekly volume, sets per muscle group,
+// personal records and per-exercise trend charts.
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useStore } from '../lib/store'
+import { addDays, startOfWeek, todayKey } from '../lib/dates'
+import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
+import {
+  adherence,
+  exerciseProgress,
+  personalRecords,
+  sessionTotals,
+  setsPerMuscleGroup,
+  weeklyVolume,
+} from '../lib/metrics'
+import { formatWeight, formatDistance, formatDuration } from '../lib/units'
+import { BarChart, LineChart } from '../components/Chart'
+import { EmptyState, Loader } from '../components/ui'
+import { IconTrophy } from '../components/Icons'
+import './progress.css'
+
+const WEEKS_SHOWN = 12
+
+export function Progress() {
+  const navigate = useNavigate()
+  const { sessions, exercises, schedules, rules, profile, ready } = useStore()
+  const [exerciseId, setExerciseId] = useState<string>('')
+
+  const today = todayKey()
+  const weekStartDay = profile?.week_start ?? 'monday'
+  const units = profile?.unit_system ?? 'metric'
+
+  const stats = useMemo(() => {
+    const totals = sessionTotals(sessions)
+
+    // adherence window: last 4 complete weeks + current week
+    const windowStart = addDays(startOfWeek(today, weekStartDay), -7 * 4)
+    const refs: ScheduleRef[] = schedules.map((schedule) => ({
+      schedule,
+      rule: schedule.recurrence_rule_id
+        ? rules.find((r) => r.id === schedule.recurrence_rule_id) ?? null
+        : null,
+    }))
+    const planned = occurrencesInRange(refs, windowStart, today).length
+    const plan = adherence(planned, sessions, windowStart, today)
+
+    const volumeByWeek = weeklyVolume(sessions, WEEKS_SHOWN, weekStartDay, today)
+    const muscleSets = setsPerMuscleGroup(sessions, exercises, addDays(today, -30))
+    const records = personalRecords(sessions)
+
+    return { totals, plan, volumeByWeek, muscleSets, records }
+  }, [sessions, exercises, schedules, rules, today, weekStartDay])
+
+  const trackedExercises = useMemo(() => {
+    const used = new Set(
+      sessions.flatMap((s) => s.session_exercises.map((se) => se.exercise_id ?? se.name_snapshot)),
+    )
+    return exercises
+      .filter((e) => used.has(e.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [exercises, sessions])
+
+  const selected = trackedExercises.find((e) => e.id === exerciseId) ?? trackedExercises[0]
+  const selectedProgress = selected ? exerciseProgress(sessions, selected) : []
+
+  if (!ready) return <Loader />
+
+  if (sessions.length === 0) {
+    return (
+      <div>
+        <h1>Progress</h1>
+        <EmptyState
+          title="No workouts logged yet"
+          hint="Finish your first workout and the charts will light up."
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h1>Progress</h1>
+
+      <div className="stat-grid">
+        <div className="card stat-card">
+          <strong>{stats.totals.workouts}</strong>
+          <span>Workouts</span>
+        </div>
+        <div className="card stat-card">
+          <strong>{stats.plan.percent}%</strong>
+          <span>Plan followed (4w)</span>
+        </div>
+        <div className="card stat-card">
+          <strong>{formatDuration(stats.totals.avgMinutes * 60)}</strong>
+          <span>Avg duration</span>
+        </div>
+        <div className="card stat-card">
+          <strong>{formatWeight(stats.totals.volume, units)}</strong>
+          <span>Total volume</span>
+        </div>
+      </div>
+
+      <div className="section-title">Weekly volume</div>
+      <div className="card">
+        <LineChart
+          points={stats.volumeByWeek.map((week) => ({
+            label: week.weekStart.slice(5),
+            value: Math.round(week.volume),
+          }))}
+          formatValue={(value) => `${value} kg volume`}
+          ariaLabel="Weekly training volume over the last 12 weeks"
+        />
+      </div>
+
+      <div className="section-title">Sets per muscle group (30 days)</div>
+      <div className="card">
+        <BarChart
+          bars={stats.muscleSets.slice(0, 10).map((entry) => ({
+            label: entry.group,
+            value: entry.sets,
+          }))}
+          formatValue={(value) => `${value} sets`}
+          ariaLabel="Completed sets per muscle group over the last 30 days"
+        />
+      </div>
+
+      <div className="section-title">Per-exercise trend</div>
+      <div className="field">
+        <label htmlFor="progress-exercise">Exercise</label>
+        <select
+          id="progress-exercise"
+          className="input"
+          value={selected?.id ?? ''}
+          onChange={(e) => setExerciseId(e.target.value)}
+        >
+          {trackedExercises.map((exercise) => (
+            <option key={exercise.id} value={exercise.id}>
+              {exercise.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {selected ? (
+        <div className="card">
+          {selected.measurement === 'weight_reps' ? (
+            <LineChart
+              points={selectedProgress.map((row) => ({
+                label: row.date.slice(5),
+                value: Math.round(row.bestE1RM ?? 0),
+              }))}
+              formatValue={(value) => `${value} kg estimated 1RM`}
+              ariaLabel={`Estimated 1RM trend for ${selected.name}`}
+            />
+          ) : selectedProgress[0] ? (
+            <p className="muted">
+              {selectedProgress.length} session(s) with {selected.name}. Latest:{' '}
+              {selected.measurement === 'distance_duration'
+                ? formatDistance(selectedProgress[0]?.topSet?.distance_m ?? 0, units)
+                : formatDuration(selectedProgress[0]?.topSet?.duration_s ?? 0)}
+              .
+            </p>
+          ) : (
+            <p className="muted">No completed sets yet.</p>
+          )}
+          <ul className="history-list">
+            {selectedProgress.slice(0, 5).map((row) => (
+              <li key={row.sessionId} className="row row--between">
+                <button
+                  type="button"
+                  className="btn btn--small btn--ghost"
+                  onClick={() => void navigate(`/history/${row.sessionId}`)}
+                >
+                  {row.date}
+                </button>
+                <small className="muted">
+                  {row.completedSets} sets
+                  {row.topSet
+                    ? ` · best ${
+                        selected.measurement === 'weight_reps'
+                          ? formatWeight(row.topSet.weight_kg ?? 0, units)
+                          : selected.measurement === 'distance_duration'
+                            ? formatDistance(row.topSet.distance_m ?? 0, units)
+                            : formatDuration(row.topSet.duration_s ?? 0)
+                      }`
+                    : ''}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="muted">Exercises will appear here once you log them.</p>
+      )}
+
+      <div className="section-title">
+        <IconTrophy width={16} height={16} /> Personal records
+      </div>
+      {stats.records.length === 0 ? (
+        <p className="muted">Complete a few sets and your PRs will show up here.</p>
+      ) : (
+        <ul className="history-list">
+          {stats.records.map((record) => (
+            <li key={`${record.exerciseName}-${record.kind}`} className="card">
+              <div className="row row--between">
+                <strong>{record.exerciseName}</strong>
+                <span className="badge badge--planned">{prLabel(record.kind)}</span>
+              </div>
+              <span className="mono">{formatPrValue(record, units)}</span>
+              <small className="muted"> · {record.date}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function prLabel(kind: string): string {
+  switch (kind) {
+    case 'e1rm':
+      return 'Best e1RM'
+    case 'weight':
+      return 'Heaviest'
+    case 'reps':
+      return 'Most reps'
+    case 'distance':
+      return 'Longest distance'
+    case 'duration':
+      return 'Longest time'
+    default:
+      return kind
+  }
+}
+
+function formatPrValue(
+  record: { kind: string; value: number },
+  units: 'metric' | 'imperial',
+): string {
+  switch (record.kind) {
+    case 'e1rm':
+    case 'weight':
+      return formatWeight(record.value, units)
+    case 'reps':
+      return `${record.value} reps`
+    case 'distance':
+      return formatDistance(record.value, units)
+    case 'duration':
+      return formatDuration(record.value)
+    default:
+      return String(record.value)
+  }
+}

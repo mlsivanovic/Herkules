@@ -1,0 +1,37 @@
+/* Today dashboard */
+
+.today-stats {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.today-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--radius-s);
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  min-width: 72px;
+}
+
+.today-stat strong {
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.today-stat span {
+  font-size: 0.7rem;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.today-active {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  border-left: 4px solid var(--c-accent);
+}

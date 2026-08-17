@@ -1,0 +1,115 @@
+// Sync transport: push the outbox (idempotent upserts/deletes in FK order),
+// then pull the server snapshot and reconcile it into the local mirror.
+// Triggered on app start, connectivity regain, focus and after a debounce.
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type {
+  ExerciseRow,
+  ProfileRow,
+  RecurrenceRuleRow,
+  ScheduleItemRow,
+  SessionDoc,
+  SessionExerciseDoc,
+  SetRow,
+  TemplateItemRow,
+  TemplateRow,
+} from '../types/db'
+import { appendOps, listOps, removeOps } from './db'
+import { planFlush } from './outbox'
+
+export class SyncError extends Error {}
+
+/** Push everything queued. Returns the number of flushed ops. */
+export async function flushOutbox(client: SupabaseClient): Promise<number> {
+  const ops = await listOps()
+  if (ops.length === 0) return 0
+  const batches = planFlush(ops)
+  const doneSeqs: number[] = []
+
+  for (const batch of batches) {
+    if (batch.kind === 'upsert') {
+      const { error } = await client.from(batch.table).upsert(batch.rows, {
+        onConflict: 'id',
+      })
+      if (error) {
+        throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
+      }
+    } else {
+      const { error } = await client.from(batch.table).delete().in('id', batch.ids)
+      if (error) {
+        throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
+      }
+    }
+    doneSeqs.push(...batch.seqs)
+  }
+
+  await removeOps(doneSeqs)
+  return doneSeqs.length
+}
+
+export interface ServerSnapshot {
+  profile: ProfileRow | null
+  exercises: ExerciseRow[]
+  templates: TemplateRow[]
+  templateItems: TemplateItemRow[]
+  rules: RecurrenceRuleRow[]
+  schedules: ScheduleItemRow[]
+  sessions: SessionDoc[]
+}
+
+interface NestedSession
+  extends Omit<SessionDoc, 'session_exercises'> {
+  session_exercises: (Omit<SessionExerciseDoc, 'sets'> & {
+    workout_sets: SetRow[]
+  })[] | null
+}
+
+function normalizeSession(row: NestedSession): SessionDoc {
+  return {
+    ...row,
+    session_exercises: (row.session_exercises ?? []).map((se) => ({
+      ...se,
+      sets: (se.workout_sets ?? []).sort((a, b) => a.position - b.position),
+    })),
+  }
+}
+
+export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnapshot> {
+  const [profileRes, exercisesRes, templatesRes, itemsRes, rulesRes, schedulesRes, sessionsRes] =
+    await Promise.all([
+      client.from('profiles').select('*').maybeSingle(),
+      client.from('exercises').select('*').order('name'),
+      client.from('workout_templates').select('*').order('created_at'),
+      client.from('template_items').select('*'),
+      client.from('recurrence_rules').select('*'),
+      client.from('schedule_items').select('*'),
+      client
+        .from('workout_sessions')
+        .select('*, session_exercises(*, workout_sets(*))')
+        .order('started_at', { ascending: false }),
+    ])
+
+  const firstError =
+    profileRes.error ??
+    exercisesRes.error ??
+    templatesRes.error ??
+    itemsRes.error ??
+    rulesRes.error ??
+    schedulesRes.error ??
+    sessionsRes.error
+  if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
+
+  return {
+    profile: (profileRes.data as ProfileRow | null) ?? null,
+    exercises: exercisesRes.data as ExerciseRow[],
+    templates: templatesRes.data as TemplateRow[],
+    templateItems: itemsRes.data as TemplateItemRow[],
+    rules: rulesRes.data as RecurrenceRuleRow[],
+    schedules: schedulesRes.data as ScheduleItemRow[],
+    sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
+  }
+}
+
+/** Queue ops without touching the network (used by store actions). */
+export async function enqueue(ops: Parameters<typeof appendOps>[0]): Promise<void> {
+  await appendOps(ops)
+}

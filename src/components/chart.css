@@ -1,0 +1,12 @@
+/* Charts */
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-label {
+  font-size: 11px;
+  fill: var(--c-muted);
+}

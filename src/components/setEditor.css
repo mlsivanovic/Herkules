@@ -1,0 +1,64 @@
+/* Set rows inside an exercise card */
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.35rem;
+  border-radius: var(--radius-s);
+}
+
+.set-row--done {
+  background: var(--c-success-soft);
+}
+
+.set-index {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--c-bg-raised);
+  color: var(--c-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.set-row--done .set-index {
+  background: var(--c-success);
+  color: #fff;
+}
+
+.set-inputs {
+  flex: 1;
+  display: flex;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.set-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.set-field .input {
+  width: 100%;
+}
+
+.set-field--rpe {
+  flex: 0 0 76px;
+}
+
+.set-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+@media (max-width: 400px) {
+  .set-field--rpe {
+    display: none;
+  }
+}

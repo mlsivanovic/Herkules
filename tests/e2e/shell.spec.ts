@@ -61,6 +61,55 @@ test.describe('app shell', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   })
 
+  test('update toast follows the current theme', async ({ page }) => {
+    async function injectToast() {
+      await page.evaluate(() => {
+        document.getElementById('herkules-toast')?.remove()
+        const wrap = document.createElement('div')
+        wrap.className = 'toast-wrap'
+        wrap.id = 'herkules-toast'
+        const toast = document.createElement('div')
+        toast.className = 'toast'
+        const text = document.createElement('span')
+        text.textContent = 'A new version is available.'
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'btn btn--primary btn--small'
+        button.textContent = 'Update'
+        toast.append(text, button)
+        wrap.appendChild(toast)
+        document.body.appendChild(wrap)
+      })
+    }
+
+    async function toastColors() {
+      return page.locator('.toast').evaluate((el) => {
+        const button = el.querySelector('button')
+        if (!button) throw new Error('toast button missing')
+        const toast = getComputedStyle(el)
+        const action = getComputedStyle(button)
+        return { toastBg: toast.backgroundColor, btnBg: action.backgroundColor }
+      })
+    }
+
+    await page.goto('/#/login')
+    await page.evaluate(() => localStorage.setItem('herkules:theme', 'light'))
+    await page.reload()
+    await injectToast()
+    await expect.poll(toastColors).toEqual({
+      toastBg: 'rgb(255, 255, 255)',
+      btnBg: 'rgb(29, 78, 216)',
+    })
+
+    await page.evaluate(() => localStorage.setItem('herkules:theme', 'dark'))
+    await page.reload()
+    await injectToast()
+    await expect.poll(toastColors).toEqual({
+      toastBg: 'rgb(22, 32, 58)',
+      btnBg: 'rgb(79, 131, 241)',
+    })
+  })
+
   test('PWA basics: manifest, icons and service worker are served', async ({ page, request }) => {
     const manifest = await request.get('/Herkules/manifest.webmanifest')
     expect(manifest.ok()).toBeTruthy()

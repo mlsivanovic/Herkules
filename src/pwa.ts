@@ -16,6 +16,7 @@ function showToast(message: string, action: string, onAction: () => void): void 
   text.textContent = message
   const button = document.createElement('button')
   button.type = 'button'
+  button.className = 'btn btn--primary btn--small'
   button.textContent = action
   button.addEventListener('click', () => {
     dismissToast()

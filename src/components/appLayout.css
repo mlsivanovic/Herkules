@@ -44,28 +44,23 @@
   justify-content: flex-end;
 }
 
-.app-brand {
+.app-brand-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-weight: 800;
-  font-size: 1.1rem;
-  letter-spacing: 0.01em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 8px;
+  line-height: 0;
 }
 
-.app-brand--mobile {
+.app-brand-btn--mobile {
   margin-right: auto;
 }
 
-.app-brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background:
-    linear-gradient(to bottom, transparent 42%, var(--c-accent) 42%, var(--c-accent) 58%, transparent 58%),
-    linear-gradient(to bottom, var(--c-primary), var(--c-primary));
-  box-shadow: inset 0 0 0 2px var(--c-bg), inset 0 0 0 3px var(--c-primary);
-}
+
 
 /* --- bottom navigation (mobile) --- */
 
@@ -155,7 +150,7 @@
     color: var(--c-primary);
   }
 
-  .app-brand--mobile {
+  .app-brand-btn--mobile {
     display: none;
   }
 }

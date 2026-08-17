@@ -6,6 +6,7 @@ export type ExerciseMeasurement = 'weight_reps' | 'reps' | 'duration' | 'distanc
 export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
 export type SessionStatus = 'in_progress' | 'completed' | 'skipped'
+export type Sex = 'male' | 'female' | 'other'
 
 export interface ProfileRow {
   id: string
@@ -13,6 +14,19 @@ export interface ProfileRow {
   unit_system: UnitSystem
   week_start: WeekStart
   default_rest_seconds: number
+  height_cm: number | null
+  sex: Sex | null
+  birth_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BodyWeightRow {
+  id: string
+  owner_id: string
+  recorded_on: string
+  weight_kg: number
+  notes: string | null
   created_at: string
   updated_at: string
 }
@@ -147,6 +161,7 @@ export type SyncTable =
   | 'workout_sessions'
   | 'session_exercises'
   | 'workout_sets'
+  | 'body_weight_entries'
 
 export type OutboxOp =
   | { kind: 'upsert'; table: SyncTable; row: Record<string, unknown> }

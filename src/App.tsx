@@ -48,9 +48,9 @@ export default function App() {
                   <Route path="/exercises/:id" element={<ExerciseEditor />} />
                   <Route path="/progress" element={<Progress />} />
                   <Route path="/history/:id" element={<HistoryDetail />} />
+                  <Route path="/settings" element={<Settings />} />
                 </Route>
                 <Route path="/workout" element={<Workout />} />
-                <Route path="/settings" element={<Settings />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

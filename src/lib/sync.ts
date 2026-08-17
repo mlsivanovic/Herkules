@@ -3,6 +3,7 @@
 // Triggered on app start, connectivity regain, focus and after a debounce.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
+  BodyWeightRow,
   ExerciseRow,
   ProfileRow,
   RecurrenceRuleRow,
@@ -70,6 +71,7 @@ export interface ServerSnapshot {
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
+  bodyWeights: BodyWeightRow[]
 }
 
 interface NestedSession
@@ -90,19 +92,28 @@ function normalizeSession(row: NestedSession): SessionDoc {
 }
 
 export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnapshot> {
-  const [profileRes, exercisesRes, templatesRes, itemsRes, rulesRes, schedulesRes, sessionsRes] =
-    await Promise.all([
-      client.from('profiles').select('*').maybeSingle(),
-      client.from('exercises').select('*').order('name'),
-      client.from('workout_templates').select('*').order('created_at'),
-      client.from('template_items').select('*'),
-      client.from('recurrence_rules').select('*'),
-      client.from('schedule_items').select('*'),
-      client
-        .from('workout_sessions')
-        .select('*, session_exercises(*, workout_sets(*))')
-        .order('started_at', { ascending: false }),
-    ])
+  const [
+    profileRes,
+    exercisesRes,
+    templatesRes,
+    itemsRes,
+    rulesRes,
+    schedulesRes,
+    sessionsRes,
+    weightsRes,
+  ] = await Promise.all([
+    client.from('profiles').select('*').maybeSingle(),
+    client.from('exercises').select('*').order('name'),
+    client.from('workout_templates').select('*').order('created_at'),
+    client.from('template_items').select('*'),
+    client.from('recurrence_rules').select('*'),
+    client.from('schedule_items').select('*'),
+    client
+      .from('workout_sessions')
+      .select('*, session_exercises(*, workout_sets(*))')
+      .order('started_at', { ascending: false }),
+    client.from('body_weight_entries').select('*').order('recorded_on', { ascending: false }),
+  ])
 
   const firstError =
     profileRes.error ??
@@ -111,7 +122,8 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     itemsRes.error ??
     rulesRes.error ??
     schedulesRes.error ??
-    sessionsRes.error
+    sessionsRes.error ??
+    weightsRes.error
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {
@@ -122,6 +134,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     rules: rulesRes.data as RecurrenceRuleRow[],
     schedules: schedulesRes.data as ScheduleItemRow[],
     sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
+    bodyWeights: (weightsRes.data as BodyWeightRow[]) ?? [],
   }
 }
 

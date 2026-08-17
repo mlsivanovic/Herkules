@@ -22,9 +22,11 @@ import type {
   SessionDoc,
   SessionExerciseRow,
   SetRow,
+  Sex,
   SyncTable,
   TemplateItemRow,
   TemplateRow,
+  BodyWeightRow,
 } from '../types/db'
 import { backendConfigured, supabase } from './supabase'
 import { useAuth } from './auth'
@@ -110,6 +112,7 @@ export interface StoreData {
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
+  bodyWeights: BodyWeightRow[]
 }
 
 export interface StoreActions {
@@ -160,9 +163,20 @@ export interface StoreActions {
   // profile
   updateProfile(
     patch: Partial<
-      Pick<ProfileRow, 'display_name' | 'unit_system' | 'week_start' | 'default_rest_seconds'>
+      Pick<
+        ProfileRow,
+        | 'display_name'
+        | 'unit_system'
+        | 'week_start'
+        | 'default_rest_seconds'
+        | 'height_cm'
+        | 'sex'
+        | 'birth_date'
+      >
     >,
   ): Promise<void>
+  logWeight(date: string, weightKg: number, notes?: string | null): Promise<void>
+  deleteWeight(id: string): Promise<void>
 
   // auth-related
   attemptSync(): Promise<boolean>
@@ -175,10 +189,13 @@ const StoreContext = createContext<StoreState | null>(null)
 
 const DEFAULT_PROFILE = {
   display_name: '',
-  unit_system: 'metric',
-  week_start: 'monday',
+  unit_system: 'metric' as const,
+  week_start: 'monday' as const,
   default_rest_seconds: 90,
-} as const
+  height_cm: null as number | null,
+  sex: null as Sex | null,
+  birth_date: null as string | null,
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { session, signOut } = useAuth()
@@ -199,6 +216,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     rules: [] as RecurrenceRuleRow[],
     schedules: [] as ScheduleItemRow[],
     sessions: [] as SessionDoc[],
+    bodyWeights: [] as BodyWeightRow[],
   })
 
   const syncingRef = useRef(false)
@@ -236,6 +254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('rules', snapshot.rules),
         reconcileStore('schedules', snapshot.schedules),
         reconcileStore('sessions', snapshot.sessions),
+        reconcileStore('bodyWeights', snapshot.bodyWeights),
       ])
       await reloadFromDb()
       setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
@@ -270,6 +289,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         rules: [],
         schedules: [],
         sessions: [],
+        bodyWeights: [],
         pending: 0,
         pendingByTable: [],
         lastSyncedAt: null,
@@ -939,6 +959,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const row: ProfileRow = { ...base, ...patch, updated_at: nowIso() }
         await putDirty('profiles', row)
         await appendOps([upsert('profiles', row)])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async logWeight(date, weightKg, notes = null) {
+        const all = await readAll()
+        const existing = all.bodyWeights.find((row) => row.recorded_on === date)
+        const stamp = nowIso()
+        const row: BodyWeightRow = existing
+          ? { ...existing, weight_kg: weightKg, notes, updated_at: stamp }
+          : {
+              id: newId(),
+              owner_id: userIdRef.current ?? '',
+              recorded_on: date,
+              weight_kg: weightKg,
+              notes,
+              created_at: stamp,
+              updated_at: stamp,
+            }
+        await commit([{ store: 'bodyWeights', row }], [upsert('body_weight_entries', row)])
+      },
+
+      async deleteWeight(id) {
+        await removeMatchingOps(
+          (op) =>
+            op.kind === 'upsert' &&
+            op.table === 'body_weight_entries' &&
+            String(op.row.id) === id,
+        )
+        await removeFrom('bodyWeights', id)
+        await appendOps([{ kind: 'delete', table: 'body_weight_entries', id }])
         await reloadFromDb()
         scheduleDebouncedSync()
       },

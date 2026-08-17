@@ -1,18 +1,27 @@
-// App shell: mobile-first with bottom navigation; desktop (≥768px) gets a
-// sidebar instead. Auth gating happens in RequireAuth (App.tsx); this layout
-// only renders for signed-in users.
+// App shell: mobile-first with bottom nav; desktop (≥768px) gets a sidebar.
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
+import {
+  applyTheme,
+  currentTheme,
+  followSystemTheme,
+  saveTheme,
+  type Theme,
+} from '../lib/theme'
 import {
   IconCalendar,
   IconCloudOff,
   IconExercises,
+  IconMoon,
   IconProgress,
   IconRoutines,
+  IconSun,
   IconSync,
   IconToday,
   IconUser,
 } from './Icons'
+import { BrandLogo } from './BrandLogo'
 import './appLayout.css'
 
 const TABS = [
@@ -26,14 +35,27 @@ const TABS = [
 export function AppLayout() {
   const { pending, syncing, online, ready } = useStore()
   const navigate = useNavigate()
+  const [theme, setTheme] = useState<Theme>(currentTheme)
+
+  useEffect(() => followSystemTheme(setTheme), [])
+
+  function toggleTheme() {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+    applyTheme(next)
+    saveTheme(next)
+    setTheme(next)
+  }
+
+  function goHome() {
+    void navigate('/')
+  }
 
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <div className="app-brand">
-          <span className="app-brand-mark" aria-hidden="true" />
-          Herkules
-        </div>
+        <button type="button" className="app-brand-btn" onClick={goHome} aria-label="Go to Today">
+          <BrandLogo theme={theme} size="sidebar" />
+        </button>
         <nav aria-label="Main navigation">
           {TABS.map(({ to, label, Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className="app-nav-link">
@@ -46,10 +68,14 @@ export function AppLayout() {
 
       <div className="app-main">
         <header className="app-topbar">
-          <div className="app-brand app-brand--mobile">
-            <span className="app-brand-mark" aria-hidden="true" />
-            Herkules
-          </div>
+          <button
+            type="button"
+            className="app-brand-btn app-brand-btn--mobile"
+            onClick={goHome}
+            aria-label="Go to Today"
+          >
+            <BrandLogo theme={theme} size="bar" />
+          </button>
           <div className="app-topbar-status" role="status">
             {!online ? (
               <span className="badge badge--skipped">
@@ -67,6 +93,14 @@ export function AppLayout() {
               <span className="badge badge--completed">All changes saved</span>
             ) : null}
           </div>
+          <button
+            type="button"
+            className="btn btn--icon"
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? <IconSun /> : <IconMoon />}
+          </button>
           <button
             type="button"
             className="btn btn--icon"

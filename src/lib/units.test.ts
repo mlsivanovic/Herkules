@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   formatDistance,
   formatDuration,
+  formatHeight,
   formatWeight,
+  ageYears,
+  bodyMassIndex,
+  heightToCm,
   kmToM,
   lbToKg,
   mToKm,
@@ -83,5 +87,28 @@ describe('duration formatting', () => {
 
   it('clamps negative input', () => {
     expect(formatDuration(-5)).toBe('0:00')
+  })
+})
+
+describe('body stats', () => {
+  it('computes age from a birthday that has already happened this year', () => {
+    expect(ageYears('1990-01-01', '2026-08-17')).toBe(36)
+  })
+
+  it('computes age from a birthday still ahead this year', () => {
+    expect(ageYears('1990-12-01', '2026-08-17')).toBe(35)
+  })
+
+  it('formats height in both systems', () => {
+    expect(formatHeight(180, 'metric')).toBe('180 cm')
+    expect(formatHeight(180, 'imperial')).toBe('5\'11"')
+  })
+
+  it('converts display inches back to cm', () => {
+    expect(heightToCm(70, 'imperial')).toBeCloseTo(177.8, 1)
+  })
+
+  it('computes BMI', () => {
+    expect(bodyMassIndex(80, 180)).toBe(24.7)
   })
 })

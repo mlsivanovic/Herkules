@@ -23,7 +23,7 @@ const WEEKS_SHOWN = 12
 
 export function Progress() {
   const navigate = useNavigate()
-  const { sessions, exercises, schedules, rules, profile, ready } = useStore()
+  const { sessions, exercises, schedules, rules, profile, ready, bodyWeights } = useStore()
   const [exerciseId, setExerciseId] = useState<string>('')
 
   const today = todayKey()
@@ -99,6 +99,24 @@ export function Progress() {
           <span>Total volume</span>
         </div>
       </div>
+
+      {bodyWeights.length > 0 ? (
+        <>
+          <div className="section-title">Body weight</div>
+          <div className="card">
+            <LineChart
+              points={[...bodyWeights]
+                .sort((a, b) => (a.recorded_on < b.recorded_on ? -1 : 1))
+                .map((row) => ({
+                  label: row.recorded_on.slice(5),
+                  value: row.weight_kg,
+                }))}
+              formatValue={(value) => formatWeight(value, units)}
+              ariaLabel="Body weight over time"
+            />
+          </div>
+        </>
+      ) : null}
 
       <div className="section-title">Weekly volume</div>
       <div className="card">

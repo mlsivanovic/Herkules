@@ -10,6 +10,27 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+.brand-logo {
+  display: block;
+  height: 32px;
+  width: auto;
+  max-width: min(188px, 52vw);
+  object-fit: contain;
+  object-position: left center;
+  border-radius: 6px;
+}
+
+.brand-logo--sidebar {
+  height: 36px;
+  max-width: 196px;
+}
+
+.brand-logo--auth {
+  height: 56px;
+  max-width: min(280px, 86vw);
+  border-radius: 10px;
+}
+
 body {
   margin: 0;
   font-family: var(--font);

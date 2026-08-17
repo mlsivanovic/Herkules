@@ -1,12 +1,25 @@
-// Settings: profile preferences (units, week start, default rest, display
-// name), theme, password change and sign-out with pending-sync protection.
-import { useEffect, useRef, useState } from 'react'
+// Settings: profile (name, sex, birth date, height), body weight, units,
+// sync, CSV import/export, password and sign-out.
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
-import { applyTheme, currentTheme, followSystemTheme, saveTheme, type Theme } from '../lib/theme'
+import { todayKey } from '../lib/dates'
+import {
+  ageYears,
+  bodyMassIndex,
+  formatWeight,
+  heightForInput,
+  heightToCm,
+  heightUnitLabel,
+  weightForInput,
+  weightToKg,
+  weightUnitLabel,
+} from '../lib/units'
+import { parseNonNegative } from '../lib/validation'
+import type { Sex } from '../types/db'
+import { LineChart } from '../components/Chart'
 import { Modal } from '../components/ui'
-import { IconMoon, IconSun } from '../components/Icons'
 
 export function Settings() {
   const navigate = useNavigate()
@@ -19,22 +32,24 @@ export function Settings() {
   const [logoutConfirm, setLogoutConfirm] = useState(false)
   const [logoutBusy, setLogoutBusy] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
-  const [theme, setTheme] = useState<Theme>(currentTheme)
   const [syncBusy, setSyncBusy] = useState(false)
+  const [weightInput, setWeightInput] = useState('')
+  const [weightDate, setWeightDate] = useState(todayKey())
+  const [weightBusy, setWeightBusy] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  function toggleTheme() {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    applyTheme(next)
-    saveTheme(next)
-    setTheme(next)
-  }
-
-  // Follow the OS theme until an explicit choice exists
-  useEffect(() => followSystemTheme(setTheme), [])
+  const units = profile?.unit_system ?? 'metric'
+  const weights = useMemo(
+    () => [...store.bodyWeights].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1)),
+    [store.bodyWeights],
+  )
+  const latestWeight = weights[0] ?? null
+  const bmi =
+    latestWeight && profile?.height_cm
+      ? bodyMassIndex(latestWeight.weight_kg, profile.height_cm)
+      : null
 
   async function saveProfile() {
     await store.updateProfile({ display_name: displayName })
@@ -91,6 +106,63 @@ export function Settings() {
             onBlur={() => void saveProfile()}
           />
         </div>
+        <div className="field">
+          <label htmlFor="settings-sex">Sex</label>
+          <select
+            id="settings-sex"
+            className="input"
+            value={profile?.sex ?? ''}
+            onChange={(e) => {
+              const value = e.target.value
+              void store.updateProfile({
+                sex: value === '' ? null : (value as Sex),
+              })
+            }}
+          >
+            <option value="">Prefer not to say</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="settings-birth">Date of birth</label>
+          <input
+            id="settings-birth"
+            className="input"
+            type="date"
+            max={todayKey()}
+            value={profile?.birth_date ?? ''}
+            onChange={(e) =>
+              void store.updateProfile({
+                birth_date: e.target.value === '' ? null : e.target.value,
+              })
+            }
+          />
+          {profile?.birth_date ? (
+            <small className="muted">{ageYears(profile.birth_date, todayKey())} years old</small>
+          ) : null}
+        </div>
+        <div className="field">
+          <label htmlFor="settings-height">Height ({heightUnitLabel(profile?.unit_system ?? 'metric')})</label>
+          <input
+            id="settings-height"
+            className="input"
+            type="number"
+            min={0}
+            step="0.1"
+            value={heightForInput(profile?.height_cm ?? null, profile?.unit_system ?? 'metric')}
+            onChange={(e) => {
+              const parsed = parseNonNegative(e.target.value)
+              void store.updateProfile({
+                height_cm:
+                  parsed === null
+                    ? null
+                    : heightToCm(parsed, profile?.unit_system ?? 'metric'),
+              })
+            }}
+          />
+        </div>
         <small className="muted">Signed in as {session?.user.email}</small>
         {saved ? <small className="badge badge--completed">Saved</small> : null}
       </div>
@@ -141,6 +213,96 @@ export function Settings() {
             }
           />
         </div>
+      </div>
+
+      <div className="section-title">Body weight</div>
+      <div className="card stack">
+        {latestWeight ? (
+          <p style={{ margin: 0 }}>
+            Latest: <strong>{formatWeight(latestWeight.weight_kg, units)}</strong>
+            <small className="muted"> · {latestWeight.recorded_on}</small>
+            {bmi !== null ? (
+              <small className="muted"> · BMI {bmi}</small>
+            ) : null}
+          </p>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>
+            Log your first weigh-in. Entries are stored in kg and shown in your unit system.
+          </p>
+        )}
+        <div className="field">
+          <label htmlFor="settings-weight-date">Date</label>
+          <input
+            id="settings-weight-date"
+            className="input"
+            type="date"
+            max={todayKey()}
+            value={weightDate}
+            onChange={(e) => {
+              const next = e.target.value || todayKey()
+              setWeightDate(next)
+              const existing = store.bodyWeights.find((row) => row.recorded_on === next)
+              setWeightInput(existing ? weightForInput(existing.weight_kg, units) : '')
+            }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="settings-weight">Weight ({weightUnitLabel(units)})</label>
+          <input
+            id="settings-weight"
+            className="input"
+            type="number"
+            min={0}
+            step="0.1"
+            value={weightInput}
+            onChange={(e) => setWeightInput(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={weightBusy}
+          onClick={() => {
+            const parsed = parseNonNegative(weightInput)
+            if (parsed === null || parsed === 0) return
+            setWeightBusy(true)
+            void store
+              .logWeight(weightDate, weightToKg(parsed, units))
+              .then(() => setWeightInput(''))
+              .finally(() => setWeightBusy(false))
+          }}
+        >
+          {weightBusy ? 'Saving…' : 'Save weigh-in'}
+        </button>
+        {weights.length > 1 ? (
+          <LineChart
+            points={[...weights].reverse().map((row) => ({
+              label: row.recorded_on.slice(5),
+              value: row.weight_kg,
+            }))}
+            formatValue={(value) => formatWeight(value, units)}
+            ariaLabel="Body weight over time"
+          />
+        ) : null}
+        {weights.length > 0 ? (
+          <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {weights.slice(0, 8).map((row) => (
+              <li key={row.id} className="row row--between">
+                <span>
+                  {row.recorded_on} · {formatWeight(row.weight_kg, units)}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--small btn--danger"
+                  aria-label={`Delete weigh-in from ${row.recorded_on}`}
+                  onClick={() => void store.deleteWeight(row.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div className="section-title">Sync</div>
@@ -262,20 +424,6 @@ export function Settings() {
             {importError}
           </p>
         ) : null}
-      </div>
-
-      <div className="section-title">Appearance</div>
-      <div className="card row row--between">
-        <span>Theme</span>
-        <button
-          type="button"
-          className="btn"
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-          onClick={toggleTheme}
-        >
-          {theme === 'dark' ? <IconSun width={18} height={18} /> : <IconMoon width={18} height={18} />}
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-        </button>
       </div>
 
       <div className="section-title">Account</div>

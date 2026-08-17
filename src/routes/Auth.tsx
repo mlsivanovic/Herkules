@@ -5,14 +5,15 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { backendConfigured } from '../lib/supabase'
 import { validateEmail, validatePassword } from '../lib/validation'
+import { currentTheme } from '../lib/theme'
+import { BrandLogo } from '../components/BrandLogo'
 import './auth.css'
 
 function AuthCard({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <span className="app-brand-mark" aria-hidden="true" />
-        Herkules
+        <BrandLogo theme={currentTheme()} size="auth" />
       </div>
       <div className="card auth-card">{children}</div>
     </div>

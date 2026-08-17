@@ -92,3 +92,51 @@ export function distanceUnitLabel(units: UnitSystem): string {
 export function weightUnitLabel(units: UnitSystem): string {
   return units === 'imperial' ? 'lb' : 'kg'
 }
+
+const CM_PER_IN = 2.54
+
+export function cmToIn(cm: number): number {
+  return cm / CM_PER_IN
+}
+
+export function inToCm(inches: number): number {
+  return Math.round(inches * CM_PER_IN * 10) / 10
+}
+
+export function formatHeight(heightCm: number, units: UnitSystem): string {
+  if (units === 'imperial') {
+    const totalIn = cmToIn(heightCm)
+    const feet = Math.floor(totalIn / 12)
+    const inches = Math.round(totalIn - feet * 12)
+    return `${feet}'${inches}"`
+  }
+  return `${trimDecimals(heightCm, 1)} cm`
+}
+
+export function heightForInput(heightCm: number | null, units: UnitSystem): string {
+  if (heightCm === null) return ''
+  return units === 'imperial' ? trimDecimals(cmToIn(heightCm), 1) : trimDecimals(heightCm, 1)
+}
+
+export function heightToCm(displayValue: number, units: UnitSystem): number {
+  return units === 'imperial' ? inToCm(displayValue) : Math.round(displayValue * 10) / 10
+}
+
+export function heightUnitLabel(units: UnitSystem): string {
+  return units === 'imperial' ? 'in' : 'cm'
+}
+
+export function ageYears(birthDate: string, today: string): number {
+  const born = birthDate.slice(0, 10)
+  const [by, bm, bd] = born.split('-').map(Number)
+  const [ty, tm, td] = today.slice(0, 10).split('-').map(Number)
+  let age = (ty ?? 0) - (by ?? 0)
+  if ((tm ?? 0) < (bm ?? 0) || ((tm ?? 0) === (bm ?? 0) && (td ?? 0) < (bd ?? 0))) age -= 1
+  return age
+}
+
+export function bodyMassIndex(weightKg: number, heightCm: number): number | null {
+  if (heightCm <= 0 || weightKg <= 0) return null
+  const meters = heightCm / 100
+  return Math.round((weightKg / (meters * meters)) * 10) / 10
+}

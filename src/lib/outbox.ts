@@ -15,6 +15,7 @@ const UPSERT_ORDER: SyncTable[] = [
   'workout_sessions',
   'session_exercises',
   'workout_sets',
+  'body_weight_entries',
 ]
 
 /** Children before parents so deletes never violate FKs. */

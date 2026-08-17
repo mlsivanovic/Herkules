@@ -5,6 +5,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { collapseOps, uniqueOpCount } from './outbox'
 import type {
+  BodyWeightRow,
   ExerciseRow,
   OutboxOp,
   ProfileRow,
@@ -23,6 +24,7 @@ export type StoreName =
   | 'rules'
   | 'schedules'
   | 'sessions'
+  | 'bodyWeights'
 
 interface DirtyRow {
   value: Record<string, unknown>
@@ -38,31 +40,37 @@ interface HerkulesDB extends DBSchema {
   rules: { key: string; value: DirtyRow }
   schedules: { key: string; value: DirtyRow }
   sessions: { key: string; value: DirtyRow }
+  bodyWeights: { key: string; value: DirtyRow }
   outbox: { key: number; value: OutboxOp & { seq: number }; autoIncrement: true }
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
 export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
   if (!dbPromise) {
     dbPromise = openDB<HerkulesDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        db.createObjectStore('meta')
-        for (const name of [
-          'profiles',
-          'exercises',
-          'templates',
-          'templateItems',
-          'rules',
-          'schedules',
-          'sessions',
-        ] as const) {
-          db.createObjectStore(name, { keyPath: 'value.id' })
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore('meta')
+          for (const name of [
+            'profiles',
+            'exercises',
+            'templates',
+            'templateItems',
+            'rules',
+            'schedules',
+            'sessions',
+          ] as const) {
+            db.createObjectStore(name, { keyPath: 'value.id' })
+          }
+          db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
         }
-        db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true })
+        if (oldVersion < 2 && !db.objectStoreNames.contains('bodyWeights')) {
+          db.createObjectStore('bodyWeights', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -94,16 +102,19 @@ export async function readAll(): Promise<{
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
+  bodyWeights: BodyWeightRow[]
 }> {
   const db = await getDb()
-  const [exercises, templates, templateItems, rules, schedules, sessions] = await Promise.all([
-    db.getAll('exercises'),
-    db.getAll('templates'),
-    db.getAll('templateItems'),
-    db.getAll('rules'),
-    db.getAll('schedules'),
-    db.getAll('sessions'),
-  ])
+  const [exercises, templates, templateItems, rules, schedules, sessions, bodyWeights] =
+    await Promise.all([
+      db.getAll('exercises'),
+      db.getAll('templates'),
+      db.getAll('templateItems'),
+      db.getAll('rules'),
+      db.getAll('schedules'),
+      db.getAll('sessions'),
+      db.getAll('bodyWeights'),
+    ])
   const pick = <T>(rows: DirtyRow[]): T[] => rows.map((r) => r.value as unknown as T)
   return {
     exercises: pick(exercises),
@@ -112,6 +123,7 @@ export async function readAll(): Promise<{
     rules: pick(rules),
     schedules: pick(schedules),
     sessions: pick(sessions),
+    bodyWeights: pick(bodyWeights),
   }
 }
 
@@ -191,6 +203,7 @@ export async function clearDirtyFlags(): Promise<void> {
     'rules',
     'schedules',
     'sessions',
+    'bodyWeights',
   ]
   const tx = db.transaction(stores, 'readwrite')
   for (const store of stores) {
@@ -269,6 +282,7 @@ export async function wipeLocalData(): Promise<void> {
     'rules',
     'schedules',
     'sessions',
+    'bodyWeights',
     'outbox',
   ] as const
   const tx = db.transaction(stores, 'readwrite')

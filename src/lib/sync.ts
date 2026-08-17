@@ -39,7 +39,19 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
   let removed = 0
 
   for (const batch of batches) {
-    if (batch.kind === 'upsert') {
+    if (batch.kind === 'upsert' && batch.table === 'profiles') {
+      // Profiles are created by the auth trigger. Upsert would need INSERT,
+      // which is revoked — so we UPDATE the existing row.
+      for (const raw of batch.rows) {
+        const row = sanitizeRow(raw)
+        const id = String(row.id ?? '')
+        if (!id) throw new SyncError('Sync failed on profiles: missing id')
+        const { error } = await client.from('profiles').update(row).eq('id', id)
+        if (error) {
+          throw new SyncError(`Sync failed on profiles: ${error.message}`)
+        }
+      }
+    } else if (batch.kind === 'upsert') {
       const { error } = await client.from(batch.table).upsert(
         batch.rows.map(sanitizeRow),
         { onConflict: 'id' },

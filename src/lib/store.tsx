@@ -51,7 +51,8 @@ import {
 } from './db'
 import { flushOutbox, fetchSnapshot } from './sync'
 import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv } from './csv'
-import { HYBRID_TEMPLATES, hybridTemplatesFrom } from './programs/hybrid4day'
+import { HYBRID_TEMPLATES, hybridRolePatches, hybridTemplatesFrom } from './programs/hybrid4day'
+import { normalizeBlockRole } from './blockRole'
 import {
   rotationOccurrences,
   type TrainingFrequency,
@@ -93,6 +94,7 @@ export interface TemplateItemInput {
   rest_seconds: number | null
   notes: string | null
   superset_group: string | null
+  block_role: TemplateItemRow['block_role']
 }
 
 export interface StartSessionInput {
@@ -134,6 +136,7 @@ export interface StoreActions {
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
   installHybridProgram(): Promise<{ created: boolean }>
+  ensureHybridBlockRoles(): Promise<void>
 
   // scheduling
   scheduleSingleDate(templateId: string, date: string): Promise<void>
@@ -269,6 +272,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('bodyWeights', snapshot.bodyWeights),
       ])
       await reloadFromDb()
+      await actionsRef.current?.ensureHybridBlockRoles()
       setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sync failed.'
@@ -317,6 +321,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (cancelled) return
       await reloadFromDb()
+      await actionsRef.current?.ensureHybridBlockRoles()
       void performSync()
     })()
     return () => {
@@ -453,6 +458,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             rest_seconds: item.rest_seconds,
             notes: item.notes,
             superset_group: item.superset_group,
+            block_role: normalizeBlockRole(item.block_role),
             created_at: nowIso(),
             updated_at: nowIso(),
           }
@@ -521,6 +527,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               rest_seconds: item.restSeconds ?? null,
               notes: item.notes ?? null,
               superset_group: group,
+              block_role: item.blockRole ?? 'gym',
               created_at: stamp,
               updated_at: stamp,
             }
@@ -530,7 +537,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         await commit(writes, ops)
+        await setMeta('hybridBlockRolesApplied', true)
         return { created: true }
+      },
+
+      async ensureHybridBlockRoles() {
+        if ((await getMeta<boolean>('hybridBlockRolesApplied')) === true) return
+        const all = await readAll()
+        if (!hybridTemplatesFrom(all.templates)) return
+        const patches = hybridRolePatches(all.templates, all.templateItems)
+        if (patches.length > 0) {
+          const stamp = nowIso()
+          const writes: { store: StoreName; row: object }[] = []
+          const ops: OutboxOp[] = []
+          for (const patch of patches) {
+            const existing = all.templateItems.find((item) => item.id === patch.id)
+            if (!existing) continue
+            const row: TemplateItemRow = {
+              ...existing,
+              block_role: patch.block_role,
+              updated_at: stamp,
+            }
+            writes.push({ store: 'templateItems', row })
+            ops.push(upsert('template_items', row))
+          }
+          if (writes.length > 0) await commit(writes, ops)
+        }
+        await setMeta('hybridBlockRolesApplied', true)
       },
 
       // ------------------------------------------------------------ scheduling
@@ -684,6 +717,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             rest_seconds: item.rest_seconds,
             notes: item.notes,
             superset_group: item.superset_group,
+            block_role: normalizeBlockRole(item.block_role),
             created_at: nowIso(),
             updated_at: nowIso(),
             sets: [],
@@ -876,6 +910,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               rest_seconds: null,
               notes: null,
               superset_group: null,
+              block_role: 'gym',
               created_at: stamp,
               updated_at: stamp,
               sets,
@@ -926,6 +961,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rest_seconds: null,
           notes: null,
           superset_group: null,
+          block_role: 'gym',
           created_at: nowIso(),
           updated_at: nowIso(),
           sets: [],

@@ -7,6 +7,7 @@ import type { SessionDoc, SetRow } from '../types/db'
 import { formatDateLong } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { sessionVolume } from '../lib/metrics'
+import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import { IconTrash } from '../components/Icons'
@@ -120,7 +121,7 @@ export function HistoryDetail() {
 
       <div className="stack">
         {session.session_exercises.map((se) => (
-          <section key={se.id} className="card">
+          <section key={se.id} className={`card ${blockRoleClass(se.block_role)}`}>
             <div className="row row--between">
               <strong>{se.name_snapshot}</strong>
               <small className="muted">{se.sets.filter((s) => s.completed_at !== null).length} sets</small>

@@ -29,6 +29,7 @@ function session(overrides: Partial<SessionDoc> = {}): SessionDoc {
         rest_seconds: 90,
         notes: null,
         superset_group: null,
+        block_role: 'gym',
         created_at: '2026-08-17T10:00:00.000Z',
         updated_at: '2026-08-17T10:00:00.000Z',
         sets: [

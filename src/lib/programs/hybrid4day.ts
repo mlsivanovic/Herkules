@@ -2,7 +2,8 @@
 // install — notes are English defaults, visible to every account that adds
 // the program, and fully editable afterwards (not locked system text).
 
-import type { TemplateRow } from '../../types/db'
+import type { ExerciseBlockRole, TemplateItemRow, TemplateRow } from '../../types/db'
+import { normalizeBlockRole } from '../blockRole'
 import type { HybridSlot } from './rotate'
 
 export const HYBRID_PROGRAM_TAG = 'Program: Hybrid 4-day'
@@ -59,6 +60,8 @@ export interface ProgramItem {
   notes?: string | null
   /** Items sharing a key become one circuit / superset on install. */
   circuit?: string | null
+  /** Default gym. Cardio = machine/zone-2/intervals; tendon = slow cuff/forearm/calf. */
+  blockRole?: ExerciseBlockRole
 }
 
 export interface ProgramTemplate {
@@ -83,6 +86,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetDurationS: 210,
         restSeconds: 0,
         notes: 'Warm-up. 3–4 min easy rower or bike.',
+        blockRole: 'cardio',
       },
       {
         exerciseId: SYS.bodyweightSquat,
@@ -123,6 +127,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 30,
         circuit: 'warmup',
         notes: 'Band. 12 per side. Elbow pinned. This is also rotator-cuff work, not just a warm-up.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.gobletSquat,
@@ -167,6 +172,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 60,
         notes:
           'Tendon A. Cable. 12–15 per arm. Tempo 2s out / 3s back. Elbow against the ribs (towel helps). Controlled, not to a burn.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.wristExtension,
@@ -174,6 +180,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 45,
         notes: 'Tendon A. Per arm. Forearm supported. 3–4 s eccentric. Only the hand moves.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.isometricHammerCurl,
@@ -181,6 +188,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetDurationS: 25,
         restSeconds: 45,
         notes: 'Tendon A. 20–30 s. Elbow ~90°, hammer grip. Strong but controlled — not a max hold. No pain.',
+        blockRole: 'tendon',
       },
     ],
   },
@@ -195,6 +203,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetDurationS: 210,
         restSeconds: 0,
         notes: 'Warm-up. 3–4 min easy bike.',
+        blockRole: 'cardio',
       },
       {
         exerciseId: SYS.gluteBridge,
@@ -235,6 +244,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 30,
         circuit: 'warmup',
         notes: 'Band. 12 per side. Elbow pinned.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.trapBarDeadlift,
@@ -281,6 +291,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 60,
         notes:
           'Conditioning. 6 rounds: 30 s hard / 60 s easy. “Hard” is about RPE 8, not an all-out sprint. Bike or SkiErg is fine.',
+        blockRole: 'cardio',
       },
       {
         exerciseId: SYS.facePull,
@@ -288,6 +299,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 45,
         notes: 'Tendon B. Controlled. Externally rotate at the end.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.externalRotation,
@@ -295,6 +307,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 45,
         notes: 'Tendon B. Cable or band. 15 per arm. Slow.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.tricepsPushdown,
@@ -302,6 +315,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 12,
         restSeconds: 45,
         notes: 'Tendon B. Tempo 1–2 s extend / 4 s return.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.wristPronationSupination,
@@ -309,6 +323,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 12,
         restSeconds: 45,
         notes: 'Tendon B. Light DB. 12+12 per arm. Elbow 90°, forearm supported. Rotate the forearm only.',
+        blockRole: 'tendon',
       },
     ],
   },
@@ -404,6 +419,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 60,
         circuit: 'finisher',
         notes: 'Finisher. 200 m, then 60 s rest before the next round.',
+        blockRole: 'cardio',
       },
     ],
   },
@@ -458,6 +474,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         restSeconds: 60,
         notes:
           'Zone 2. 25–30 min bike, incline treadmill, or rower. Talk test: you can speak in sentences but you are training. Do not chase a heart-rate number yet.',
+        blockRole: 'cardio',
       },
       {
         exerciseId: SYS.externalRotation,
@@ -465,6 +482,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 45,
         notes: 'Tendon day. Cable. 15 per arm. Elbow pinned. Slow. Progress later toward 90/90 if it stays comfortable.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.scaptionRaise,
@@ -472,6 +490,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 12,
         restSeconds: 45,
         notes: 'Very light. Arms 30–45° between front and side, thumbs up, to shoulder height.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.wristExtension,
@@ -479,6 +498,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 45,
         notes: 'Reverse wrist curl. Forearm fully supported. Tempo 1–2 s up / 4 s down.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.hammerCurl,
@@ -486,6 +506,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 10,
         restSeconds: 60,
         notes: 'Tempo 2 s up / 4 s down. No swinging.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.tricepsPushdown,
@@ -493,6 +514,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 12,
         restSeconds: 60,
         notes: '10–12. Tempo 2 s extend / 4 s return. RPE ~7.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.wristPronationSupination,
@@ -500,6 +522,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 12,
         restSeconds: 45,
         notes: '12 each way per arm. Very light (1–3 kg). Hold one end of the DB to lengthen the lever.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.deadHang,
@@ -507,6 +530,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetDurationS: 30,
         restSeconds: 60,
         notes: '20–40 s. Only if the shoulder is fully comfortable. Keep a little scapular tone if a dead hang feels bad.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.standingCalfRaise,
@@ -514,6 +538,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 10,
         restSeconds: 60,
         notes: '8–12. Heavier. Tempo 2 s up → 1 s hold → 3 s down.',
+        blockRole: 'tendon',
       },
       {
         exerciseId: SYS.seatedCalfRaise,
@@ -521,6 +546,7 @@ export const HYBRID_TEMPLATES: ProgramTemplate[] = [
         targetReps: 15,
         restSeconds: 60,
         notes: '12–15. Tempo 2-1-3. Soleus / Achilles work — tendon day is not only shoulders and elbows.',
+        blockRole: 'tendon',
       },
     ],
   },
@@ -560,4 +586,33 @@ export function isHybridProgramInstalled(
   templates: Pick<TemplateRow, 'id' | 'name' | 'notes'>[],
 ): boolean {
   return hybridTemplatesFrom(templates) !== null
+}
+
+export function plannedBlockRole(item: ProgramItem): ExerciseBlockRole {
+  return item.blockRole ?? 'gym'
+}
+
+/** One-time patches so already-installed Hybrid copies pick up roles. */
+export function hybridRolePatches(
+  templates: Pick<TemplateRow, 'id' | 'name' | 'notes'>[],
+  items: Pick<TemplateItemRow, 'id' | 'template_id' | 'exercise_id' | 'position' | 'block_role'>[],
+): { id: string; block_role: ExerciseBlockRole }[] {
+  const installed = hybridTemplatesFrom(templates)
+  if (!installed) return []
+  const patches: { id: string; block_role: ExerciseBlockRole }[] = []
+  for (const definition of HYBRID_TEMPLATES) {
+    const template = installed[definition.slot]
+    const current = items.filter((item) => item.template_id === template.id)
+    definition.items.forEach((planned, index) => {
+      const row = current.find(
+        (item) => item.position === index && item.exercise_id === planned.exerciseId,
+      )
+      if (!row) return
+      const role = plannedBlockRole(planned)
+      if (normalizeBlockRole(row.block_role) !== role) {
+        patches.push({ id: row.id, block_role: role })
+      }
+    })
+  }
+  return patches
 }

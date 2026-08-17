@@ -48,8 +48,22 @@
   gap: 0.45rem;
 }
 
-.workout-exercise--superset {
-  border-left: 4px solid var(--c-accent);
+.workout-exercise--logged {
+  background: color-mix(in srgb, var(--c-success-soft) 70%, var(--c-card));
+}
+
+.exercise-head__toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .workout-exercise-notes {

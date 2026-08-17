@@ -12,6 +12,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
+import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { formatDuration, formatWeight, formatDistance } from '../lib/units'
 import { previousSetsForExercise } from '../lib/metrics'
 import { moveIndex, supersetPartners } from '../lib/reorder'
@@ -52,6 +53,12 @@ export function Workout() {
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const startingRef = useRef(false)
   const [announce, setAnnounce] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const activeId = active?.id
+
+  useEffect(() => {
+    if (activeId) setExpandedIds(readExpanded(activeId))
+  }, [activeId])
 
   const moveExercise = useCallback(
     (from: number, to: number) => {
@@ -162,6 +169,17 @@ export function Workout() {
                 reorder.active.over === index &&
                 reorder.active.from !== index
               }
+              expanded={expandedIds.has(se.id)}
+              onToggleExpand={() => {
+                if (!active) return
+                setExpandedIds((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(se.id)) next.delete(se.id)
+                  else next.add(se.id)
+                  writeExpanded(active.id, next)
+                  return next
+                })
+              }}
               onSwap={() => setSwapTarget(se.id)}
               onRestStart={(seconds) => setRestRemaining(seconds)}
             />
@@ -355,6 +373,29 @@ function Elapsed({ startedAt }: { startedAt: string }) {
   return <>{formatDuration(seconds)}</>
 }
 
+function expandedStorageKey(sessionId: string): string {
+  return `herkules:expanded:${sessionId}`
+}
+
+function readExpanded(sessionId: string): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(expandedStorageKey(sessionId))
+    if (!raw) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string')) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function writeExpanded(sessionId: string, ids: Set<string>): void {
+  try {
+    sessionStorage.setItem(expandedStorageKey(sessionId), JSON.stringify([...ids]))
+  } catch {
+    /* private mode / quota — expand still works for this mount */
+  }
+}
+
 function countCompletedSets(session: SessionDoc): number {
   return session.session_exercises.reduce(
     (sum, se) => sum + se.sets.filter((s) => s.completed_at !== null).length,
@@ -371,6 +412,8 @@ function ExerciseCard({
   onMoveBy,
   dragging,
   dropTarget,
+  expanded,
+  onToggleExpand,
   onSwap,
   onRestStart,
 }: {
@@ -382,6 +425,8 @@ function ExerciseCard({
   onMoveBy(delta: number): void
   dragging: boolean
   dropTarget: boolean
+  expanded: boolean
+  onToggleExpand(): void
   onSwap(): void
   onRestStart(seconds: number): void
 }) {
@@ -439,11 +484,13 @@ function ExerciseCard({
     exercise,
     (se) => se.name_snapshot,
   )
+  const logged = exercise.sets.some((set) => set.completed_at !== null)
+  const role = normalizeBlockRole(exercise.block_role)
 
   return (
     <section
       ref={itemRef}
-      className={`card workout-exercise exercise-card-item${exercise.superset_group ? ' workout-exercise--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+      className={`card workout-exercise exercise-card-item ${blockRoleClass(role)}${logged ? ' workout-exercise--logged' : ''}${expanded ? ' workout-exercise--expanded' : ' workout-exercise--collapsed'}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
     >
       <div className="exercise-head">
         <div className="exercise-head__drag" {...handleProps}>
@@ -464,7 +511,14 @@ function ExerciseCard({
           >
             <IconGrip width={16} height={16} />
           </button>
-          <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
+          <button
+            type="button"
+            className="exercise-head__toggle"
+            aria-expanded={expanded}
+            onClick={onToggleExpand}
+          >
+            <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
+          </button>
         </div>
         {catalogVideo ? (
           <a
@@ -473,6 +527,7 @@ function ExerciseCard({
             rel="noreferrer noopener"
             className="form-chip"
             aria-label={`Form video for ${exercise.name_snapshot}`}
+            onClick={(event) => event.stopPropagation()}
           >
             Form ↗
           </a>
@@ -486,6 +541,8 @@ function ExerciseCard({
         </div>
       ) : null}
 
+      {expanded ? (
+        <>
       <div className="exercise-meta-row">
         {exercise.notes ? (
           <button
@@ -564,6 +621,8 @@ function ExerciseCard({
           </small>
         ) : null}
       </div>
+        </>
+      ) : null}
     </section>
   )
 }

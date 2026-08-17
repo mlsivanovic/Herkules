@@ -56,6 +56,7 @@ function makeSessionEx(
     rest_seconds: null,
     notes: null,
     superset_group: null,
+    block_role: 'gym',
     created_at: '2026-08-15T10:00:00Z',
     updated_at: '2026-08-15T10:00:00Z',
     sets,

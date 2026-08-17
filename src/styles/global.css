@@ -397,6 +397,40 @@ textarea.input {
   overflow: clip;
 }
 
+.block-role--gym {
+  border: 2px solid var(--c-primary);
+}
+
+.block-role--cardio {
+  border: 2px solid var(--c-danger);
+}
+
+.block-role--tendon {
+  border: 2px solid var(--c-success);
+}
+
+.role-chip {
+  border-width: 2px;
+}
+
+.role-chip--gym.is-selected {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+
+.role-chip--cardio.is-selected {
+  border-color: var(--c-danger);
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+
+.role-chip--tendon.is-selected {
+  border-color: var(--c-success);
+  background: var(--c-success-soft);
+  color: var(--c-success);
+}
+
 .exercise-card-item.is-dragging {
   opacity: 0.62;
   box-shadow: var(--shadow);

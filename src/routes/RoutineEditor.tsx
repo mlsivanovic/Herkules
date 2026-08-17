@@ -7,6 +7,7 @@ import type { ExerciseMeasurement } from '../types/db'
 import { EmptyState, Modal } from '../components/ui'
 import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { validateRequiredName } from '../lib/validation'
+import { BLOCK_ROLES, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import {
@@ -29,6 +30,7 @@ function newItem(exerciseId: string, position: number): TemplateItemInput {
     rest_seconds: 90,
     notes: null,
     superset_group: null,
+    block_role: 'gym',
   }
 }
 
@@ -59,7 +61,7 @@ export function RoutineEditor() {
         templateItems
           .filter((i) => i.template_id === template.id)
           .sort((a, b) => a.position - b.position)
-          .map((i) => ({ ...i })),
+          .map((i) => ({ ...i, block_role: normalizeBlockRole(i.block_role) })),
       )
       setLoadedFor(template.id)
     }
@@ -201,7 +203,7 @@ export function RoutineEditor() {
               <li
                 key={item.id ?? `draft-${index}`}
                 ref={reorder.setItemRef(index)}
-                className={`exercise-card-item${item.superset_group ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
               >
                 <div className="exercise-head">
                   <div className="exercise-head__drag" {...reorder.getHandleProps(index)}>
@@ -245,6 +247,20 @@ export function RoutineEditor() {
                     <span className="exercise-superset__with">with {partners.join(', ')}</span>
                   </div>
                 ) : null}
+                <div className="row row--wrap" role="group" aria-label={`Role for ${name}`}>
+                  {BLOCK_ROLES.map((role) => (
+                    <button
+                      key={role.value}
+                      type="button"
+                      className={`btn btn--small role-chip role-chip--${role.value}${normalizeBlockRole(item.block_role) === role.value ? ' is-selected' : ''}`}
+                      aria-pressed={normalizeBlockRole(item.block_role) === role.value}
+                      onClick={() => update(index, { block_role: role.value })}
+                    >
+                      {role.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="exercise-meta-row">
                   <small className="muted">
                     {exercise?.category} · {MEASUREMENT_LABELS(measurement)}

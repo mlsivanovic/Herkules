@@ -22,7 +22,7 @@
 }
 
 .routine-item--superset {
-  border-left: 4px solid var(--c-accent);
+  box-shadow: inset 4px 0 0 var(--c-accent);
 }
 
 .routine-grid {

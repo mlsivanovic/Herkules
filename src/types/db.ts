@@ -3,6 +3,7 @@
 
 export type ExerciseCategory = 'strength' | 'cardio' | 'mobility'
 export type ExerciseMeasurement = 'weight_reps' | 'reps' | 'duration' | 'distance_duration'
+export type ExerciseBlockRole = 'gym' | 'cardio' | 'tendon'
 export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
 export type SessionStatus = 'in_progress' | 'completed' | 'skipped'
@@ -69,6 +70,7 @@ export interface TemplateItemRow {
   rest_seconds: number | null
   notes: string | null
   superset_group: string | null
+  block_role: ExerciseBlockRole
   created_at: string
   updated_at: string
 }
@@ -122,6 +124,7 @@ export interface SessionExerciseRow {
   rest_seconds: number | null
   notes: string | null
   superset_group: string | null
+  block_role: ExerciseBlockRole
   created_at: string
   updated_at: string
 }

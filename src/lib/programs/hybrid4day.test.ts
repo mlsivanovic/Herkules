@@ -3,9 +3,11 @@ import {
   HYBRID_PROGRAM_TAG,
   HYBRID_TEMPLATES,
   SYS,
+  hybridRolePatches,
   hybridSlotFromNotes,
   hybridTemplatesFrom,
   isHybridProgramInstalled,
+  plannedBlockRole,
 } from './hybrid4day'
 
 describe('hybrid program tags', () => {
@@ -39,5 +41,51 @@ describe('hybrid program tags', () => {
     for (const id of used) expect(catalog.has(id)).toBe(true)
     expect(SYS.bodyweightSquat).toBe('11111111-1111-4111-8111-111111111215')
     expect(SYS.wristPronationSupination).toBe('11111111-1111-4111-8111-111111111231')
+  })
+
+  it('marks tendon and cardio slots on every day', () => {
+    const roles = Object.fromEntries(
+      HYBRID_TEMPLATES.map((t) => [
+        t.slot,
+        t.items.reduce(
+          (acc, item) => {
+            acc[plannedBlockRole(item)] += 1
+            return acc
+          },
+          { gym: 0, cardio: 0, tendon: 0 },
+        ),
+      ]),
+    )
+    expect(roles.A?.cardio).toBeGreaterThan(0)
+    expect(roles.A?.tendon).toBeGreaterThan(0)
+    expect(roles.B?.cardio).toBeGreaterThan(0)
+    expect(roles.B?.tendon).toBeGreaterThan(0)
+    expect(roles.C?.cardio).toBe(1)
+    expect(roles.D?.cardio).toBe(1)
+    expect(roles.D?.tendon).toBeGreaterThanOrEqual(8)
+  })
+
+  it('patches already-installed hybrid items that still default to gym', () => {
+    const templates = HYBRID_TEMPLATES.map((t) => ({
+      id: `t-${t.slot}`,
+      name: t.name,
+      notes: t.notes,
+    }))
+    const items = HYBRID_TEMPLATES.flatMap((t) =>
+      t.items.map((item, index) => ({
+        id: `${t.slot}-${index}`,
+        template_id: `t-${t.slot}`,
+        exercise_id: item.exerciseId,
+        position: index,
+        block_role: 'gym' as const,
+      })),
+    )
+    const patches = hybridRolePatches(templates, items)
+    expect(patches.some((p) => p.block_role === 'cardio')).toBe(true)
+    expect(patches.some((p) => p.block_role === 'tendon')).toBe(true)
+    expect(hybridRolePatches(templates, items.map((item) => {
+      const patch = patches.find((p) => p.id === item.id)
+      return patch ? { ...item, block_role: patch.block_role } : item
+    }))).toEqual([])
   })
 })

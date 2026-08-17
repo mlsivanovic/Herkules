@@ -340,6 +340,19 @@ export function RoutineEditor() {
                   </label>
                 </div>
 
+                <label className="field">
+                  <span>Notes</span>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    placeholder="Tempo, RPE, cues, per side…"
+                    value={item.notes ?? ''}
+                    onChange={(e) =>
+                      update(index, { notes: e.target.value === '' ? null : e.target.value })
+                    }
+                  />
+                </label>
+
                 <button
                   type="button"
                   className={`btn btn--small ${item.superset_group ? 'btn--accent' : ''}`}

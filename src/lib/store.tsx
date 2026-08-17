@@ -51,6 +51,11 @@ import {
 } from './db'
 import { flushOutbox, fetchSnapshot } from './sync'
 import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv } from './csv'
+import { HYBRID_TEMPLATES, hybridTemplatesFrom } from './programs/hybrid4day'
+import {
+  rotationOccurrences,
+  type TrainingFrequency,
+} from './programs/rotate'
 
 const SYNC_DEBOUNCE_MS = 2500
 
@@ -128,9 +133,16 @@ export interface StoreActions {
   updateTemplate(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
+  installHybridProgram(): Promise<{ created: boolean }>
 
   // scheduling
   scheduleSingleDate(templateId: string, date: string): Promise<void>
+  scheduleHybridRotation(input: {
+    frequency: TrainingFrequency
+    weekdays: number[]
+    startDate: string
+    weeks: number
+  }): Promise<number>
   scheduleWeekly(
     templateId: string,
     weekdays: number[],
@@ -462,6 +474,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit(writes, ops)
       },
 
+      async installHybridProgram() {
+        const all = await readAll()
+        if (hybridTemplatesFrom(all.templates)) return { created: false }
+
+        const owner = userIdRef.current ?? ''
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+
+        for (const definition of HYBRID_TEMPLATES) {
+          const templateId = newId()
+          const template: TemplateRow = {
+            id: templateId,
+            owner_id: owner,
+            name: definition.name,
+            notes: definition.notes,
+            created_at: stamp,
+            updated_at: stamp,
+          }
+          writes.push({ store: 'templates', row: template })
+          ops.push(upsert('workout_templates', template))
+
+          const groups = new Map<string, string>()
+          definition.items.forEach((item, index) => {
+            let group: string | null = null
+            if (item.circuit) {
+              const existing = groups.get(item.circuit)
+              if (existing) {
+                group = existing
+              } else {
+                group = newId()
+                groups.set(item.circuit, group)
+              }
+            }
+            const row: TemplateItemRow = {
+              id: newId(),
+              template_id: templateId,
+              exercise_id: item.exerciseId,
+              position: index,
+              planned_sets: item.plannedSets,
+              target_weight_kg: null,
+              target_reps: item.targetReps ?? null,
+              target_duration_s: item.targetDurationS ?? null,
+              target_distance_m: item.targetDistanceM ?? null,
+              rest_seconds: item.restSeconds ?? null,
+              notes: item.notes ?? null,
+              superset_group: group,
+              created_at: stamp,
+              updated_at: stamp,
+            }
+            writes.push({ store: 'templateItems', row })
+            ops.push(upsert('template_items', row))
+          })
+        }
+
+        await commit(writes, ops)
+        return { created: true }
+      },
+
       // ------------------------------------------------------------ scheduling
 
       async scheduleSingleDate(templateId, date) {
@@ -475,6 +546,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updated_at: nowIso(),
         }
         await commit([{ store: 'schedules', row }], [upsert('schedule_items', row)])
+      },
+
+      async scheduleHybridRotation(input) {
+        const all = await readAll()
+        const installed = hybridTemplatesFrom(all.templates)
+        if (!installed) throw new Error('Add the Hybrid 4-day program first.')
+
+        const occurrences = rotationOccurrences({
+          frequency: input.frequency,
+          weekdays: input.weekdays,
+          start: input.startDate,
+          weeks: input.weeks,
+        })
+        if (occurrences.length === 0) return 0
+
+        const owner = userIdRef.current ?? ''
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        for (const occurrence of occurrences) {
+          const row: ScheduleItemRow = {
+            id: newId(),
+            owner_id: owner,
+            template_id: installed[occurrence.slot].id,
+            scheduled_date: occurrence.date,
+            recurrence_rule_id: null,
+            created_at: stamp,
+            updated_at: stamp,
+          }
+          writes.push({ store: 'schedules', row })
+          ops.push(upsert('schedule_items', row))
+        }
+        await commit(writes, ops)
+        return occurrences.length
       },
 
       async scheduleWeekly(templateId, weekdays, startDate, endDate, scheduleId) {
@@ -577,7 +682,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             position: item.position,
             planned_sets: item.planned_sets,
             rest_seconds: item.rest_seconds,
-            notes: null,
+            notes: item.notes,
             superset_group: item.superset_group,
             created_at: nowIso(),
             updated_at: nowIso(),

@@ -38,3 +38,11 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.routine-items .field > span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--c-muted);
+}

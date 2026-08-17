@@ -466,6 +466,8 @@ function ExerciseCard({
         </div>
       </div>
 
+      {exercise.notes ? <p className="workout-exercise-notes">{exercise.notes}</p> : null}
+
       {previous ? (
         <small className="muted">
           Previous:{' '}

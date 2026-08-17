@@ -9,8 +9,8 @@ Live: https://mlsivanovic.github.io/Herkules/
 - **Auth** — email/password sign-up with email confirmation, password reset, persistent sessions
 - **Today** — today's plan, active workout resume, week snapshot and streak
 - **Calendar** — single-date and weekly repeating plans (optional end date); days show `planned / in-progress / completed / skipped`; editing a rule affects only future workouts — history is frozen
-- **Routines** — reusable templates with exercise order, planned sets, target values, rest, notes and superset/circuit grouping
-- **Exercises** — 15 seeded system exercises (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with four measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`)
+- **Routines** — reusable templates with exercise order, planned sets, target values, rest, notes and superset/circuit grouping; optional **Hybrid 4-day** starter (A–D) with an A→B→C→D rotation planner
+- **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with four measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`)
 - **Active workout** — elapsed timer, previous values per exercise, RPE 1–10, notes, add/remove/reorder/swap exercises, automatic rest timer; only one active workout at a time
 - **Offline-first** — every change is saved to IndexedDB immediately and synced through an idempotent operation queue when connectivity returns (`Pending sync` indicator); workouts can be finished fully offline
 - **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM)

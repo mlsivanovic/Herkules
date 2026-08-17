@@ -38,6 +38,13 @@
   border-left: 4px solid var(--c-accent);
 }
 
+.workout-exercise-notes {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  color: var(--c-muted);
+  white-space: pre-wrap;
+}
+
 .rest-chip {
   position: fixed;
   left: 50%;

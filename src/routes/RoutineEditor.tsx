@@ -209,6 +209,7 @@ export function RoutineEditor() {
                       type="button"
                       className="exercise-grip"
                       aria-label={`Reorder ${name}`}
+                      {...reorder.getHandleProps(index, { immediate: true })}
                       onKeyDown={(event) => {
                         if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
                           event.preventDefault()
@@ -234,7 +235,7 @@ export function RoutineEditor() {
                       className="form-chip"
                       aria-label={`Form video for ${name}`}
                     >
-                      Form
+                      Form ↗
                     </a>
                   ) : null}
                 </div>

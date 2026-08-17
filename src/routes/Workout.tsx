@@ -154,6 +154,7 @@ export function Workout() {
               exercise={se}
               itemRef={reorder.setItemRef(index)}
               handleProps={reorder.getHandleProps(index)}
+              gripProps={reorder.getHandleProps(index, { immediate: true })}
               onMoveBy={(delta) => reorder.moveBy(index, delta)}
               dragging={reorder.active?.from === index}
               dropTarget={
@@ -366,6 +367,7 @@ function ExerciseCard({
   exercise,
   itemRef,
   handleProps,
+  gripProps,
   onMoveBy,
   dragging,
   dropTarget,
@@ -376,6 +378,7 @@ function ExerciseCard({
   exercise: SessionExerciseDoc
   itemRef: (el: HTMLElement | null) => void
   handleProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
+  gripProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
   onMoveBy(delta: number): void
   dragging: boolean
   dropTarget: boolean
@@ -448,6 +451,7 @@ function ExerciseCard({
             type="button"
             className="exercise-grip"
             aria-label={`Reorder ${exercise.name_snapshot}`}
+            {...gripProps}
             onKeyDown={(event) => {
               if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
                 event.preventDefault()
@@ -470,7 +474,7 @@ function ExerciseCard({
             className="form-chip"
             aria-label={`Form video for ${exercise.name_snapshot}`}
           >
-            Form
+            Form ↗
           </a>
         ) : null}
       </div>

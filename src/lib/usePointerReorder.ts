@@ -1,9 +1,15 @@
-// Press-and-hold pointer reorder for mobile-first lists. HTML5 DnD is not
-// used — it does not work on iOS and fights vertical scroll.
+// Pointer reorder for mobile-first lists. HTML5 DnD is not used — it does
+// not work on iOS and fights vertical scroll.
+//
+// Grip (immediate): touch-action:none + drag starts on pointerdown.
+// Title (hold): long-press so the list can still scroll from the title.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-const HOLD_MS = 200
-const CANCEL_MOVE_PX = 8
+const MOUSE_HOLD_MS = 180
+const TOUCH_HOLD_MS = 380
+const MOUSE_SLOP_PX = 12
+const TOUCH_SLOP_PX = 32
+const SCROLL_EDGE_PX = 72
 
 export interface ReorderActive {
   from: number
@@ -20,15 +26,21 @@ export function usePointerReorder(options: {
   const itemRefs = useRef<(HTMLElement | null)[]>([])
   const dragRef = useRef<ReorderActive | null>(null)
   const holdTimer = useRef<number | null>(null)
+  const scrollRaf = useRef<number | null>(null)
+  const lastY = useRef(0)
   const pending = useRef<{
     index: number
     pointerId: number
     startX: number
     startY: number
+    slop: number
+    captureEl: HTMLElement
   } | null>(null)
   const listeners = useRef<{
     move: (event: PointerEvent) => void
     up: (event: PointerEvent) => void
+    cancel: (event: PointerEvent) => void
+    touchMove: (event: TouchEvent) => void
   } | null>(null)
 
   const setItemRef = useCallback((index: number) => {
@@ -48,11 +60,19 @@ export function usePointerReorder(options: {
     }
   }, [])
 
+  const stopAutoScroll = useCallback(() => {
+    if (scrollRaf.current !== null) {
+      window.cancelAnimationFrame(scrollRaf.current)
+      scrollRaf.current = null
+    }
+  }, [])
+
   const detach = useCallback(() => {
     if (!listeners.current) return
     document.removeEventListener('pointermove', listeners.current.move)
     document.removeEventListener('pointerup', listeners.current.up)
-    document.removeEventListener('pointercancel', listeners.current.up)
+    document.removeEventListener('pointercancel', listeners.current.cancel)
+    document.removeEventListener('touchmove', listeners.current.touchMove, true)
     listeners.current = null
   }, [])
 
@@ -73,10 +93,55 @@ export function usePointerReorder(options: {
     return best
   }, [])
 
+  const tickAutoScroll = useCallback(() => {
+    scrollRaf.current = null
+    if (!dragRef.current) return
+    const y = lastY.current
+    const view = window.innerHeight
+    let dy = 0
+    if (y < SCROLL_EDGE_PX) dy = -Math.max(4, Math.ceil((SCROLL_EDGE_PX - y) / 3))
+    else if (y > view - SCROLL_EDGE_PX)
+      dy = Math.max(4, Math.ceil((y - (view - SCROLL_EDGE_PX)) / 3))
+    if (dy === 0) return
+    window.scrollBy(0, dy)
+    const over = indexFromY(lastY.current)
+    const drag = dragRef.current
+    if (drag && over !== drag.over) {
+      const next = { from: drag.from, over }
+      dragRef.current = next
+      setActive(next)
+    }
+    scrollRaf.current = window.requestAnimationFrame(tickAutoScroll)
+  }, [indexFromY])
+
+  const beginDrag = useCallback((index: number, captureEl: HTMLElement, pointerId: number) => {
+    clearHold()
+    try {
+      captureEl.setPointerCapture(pointerId)
+    } catch {
+      // Pointer may already have been released.
+    }
+    dragRef.current = { from: index, over: index }
+    setActive({ from: index, over: index })
+    document.body.classList.add('is-reordering')
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10)
+    }
+  }, [clearHold])
+
   const finish = useCallback(
     (commit: boolean) => {
       const drag = dragRef.current
+      const waiting = pending.current
+      if (waiting) {
+        try {
+          waiting.captureEl.releasePointerCapture(waiting.pointerId)
+        } catch {
+          // Already released.
+        }
+      }
       clearHold()
+      stopAutoScroll()
       pending.current = null
       dragRef.current = null
       setActive(null)
@@ -87,7 +152,7 @@ export function usePointerReorder(options: {
         announce?.(`Moved to position ${drag.over + 1}`)
       }
     },
-    [announce, clearHold, detach, onMove],
+    [announce, clearHold, detach, onMove, stopAutoScroll],
   )
 
   const finishRef = useRef(finish)
@@ -116,7 +181,7 @@ export function usePointerReorder(options: {
   )
 
   const getHandleProps = useCallback(
-    (index: number) => {
+    (index: number, opts?: { immediate?: boolean }) => {
       return {
         onPointerDown(event: ReactPointerEvent<HTMLElement>) {
           if (event.button !== 0 || itemCount < 2) return
@@ -125,19 +190,36 @@ export function usePointerReorder(options: {
             return
           }
 
+          const fromGrip = Boolean(target.closest('.exercise-grip'))
+          const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen'
+          const immediate = Boolean(opts?.immediate || fromGrip)
+          const slop = isTouch ? TOUCH_SLOP_PX : MOUSE_SLOP_PX
+          const holdMs = isTouch ? TOUCH_HOLD_MS : MOUSE_HOLD_MS
+          const captureEl = event.currentTarget
+
+          if (immediate) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+
           pending.current = {
             index,
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
+            slop,
+            captureEl,
           }
+          lastY.current = event.clientY
 
           const onMovePointer = (moveEvent: PointerEvent) => {
+            if (moveEvent.pointerId !== pending.current?.pointerId && !dragRef.current) return
+            lastY.current = moveEvent.clientY
             const waiting = pending.current
             if (!dragRef.current && waiting) {
               const dx = moveEvent.clientX - waiting.startX
               const dy = moveEvent.clientY - waiting.startY
-              if (Math.hypot(dx, dy) > CANCEL_MOVE_PX) {
+              if (Math.hypot(dx, dy) > waiting.slop) {
                 clearHold()
                 pending.current = null
                 detach()
@@ -153,28 +235,49 @@ export function usePointerReorder(options: {
               dragRef.current = next
               setActive(next)
             }
+            if (scrollRaf.current === null) {
+              scrollRaf.current = window.requestAnimationFrame(tickAutoScroll)
+            }
           }
 
-          const onUp = () => {
+          const onUp = (upEvent: PointerEvent) => {
+            if (pending.current && upEvent.pointerId !== pending.current.pointerId) return
             finish(Boolean(dragRef.current))
           }
 
-          listeners.current = { move: onMovePointer, up: onUp }
+          const onCancel = () => {
+            finish(false)
+          }
+
+          const onTouchMove = (touchEvent: TouchEvent) => {
+            if (!dragRef.current) return
+            touchEvent.preventDefault()
+          }
+
+          listeners.current = {
+            move: onMovePointer,
+            up: onUp,
+            cancel: onCancel,
+            touchMove: onTouchMove,
+          }
           document.addEventListener('pointermove', onMovePointer, { passive: false })
           document.addEventListener('pointerup', onUp)
-          document.addEventListener('pointercancel', onUp)
+          document.addEventListener('pointercancel', onCancel)
+          document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
 
-          holdTimer.current = window.setTimeout(() => {
-            const waiting = pending.current
-            if (!waiting || waiting.index !== index) return
-            dragRef.current = { from: index, over: index }
-            setActive({ from: index, over: index })
-            document.body.classList.add('is-reordering')
-          }, HOLD_MS)
+          if (immediate) {
+            beginDrag(index, captureEl, event.pointerId)
+          } else {
+            holdTimer.current = window.setTimeout(() => {
+              const waiting = pending.current
+              if (!waiting || waiting.index !== index) return
+              beginDrag(index, waiting.captureEl, waiting.pointerId)
+            }, holdMs)
+          }
         },
       }
     },
-    [clearHold, detach, finish, indexFromY, itemCount],
+    [beginDrag, clearHold, detach, finish, indexFromY, itemCount, tickAutoScroll],
   )
 
   return { active, setItemRef, getHandleProps, moveBy }

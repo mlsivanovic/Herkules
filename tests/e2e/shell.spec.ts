@@ -31,6 +31,36 @@ test.describe('app shell', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   })
 
+  test('system theme follows the device color scheme', async ({ page }) => {
+    await signUpFresh(page, 'theme-sys')
+    await page.getByRole('button', { name: 'Open settings' }).click()
+    await page.getByLabel('Theme').selectOption('system')
+    await expect(page.getByLabel('Theme')).toHaveValue('system')
+
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+    await page.emulateMedia({ colorScheme: 'light' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  })
+
+  test('top bar theme toggle overrides system and persists', async ({ page }) => {
+    await signUpFresh(page, 'theme-ovr')
+    await page.getByRole('button', { name: 'Open settings' }).click()
+    await page.getByLabel('Theme').selectOption('system')
+    await page.emulateMedia({ colorScheme: 'light' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+
+    await page.getByRole('button', { name: 'Switch to dark theme' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByLabel('Theme')).toHaveValue('dark')
+
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await page.emulateMedia({ colorScheme: 'light' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  })
+
   test('PWA basics: manifest, icons and service worker are served', async ({ page, request }) => {
     const manifest = await request.get('/Herkules/manifest.webmanifest')
     expect(manifest.ok()).toBeTruthy()

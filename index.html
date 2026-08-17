@@ -20,10 +20,14 @@
       ;(function () {
         try {
           var izbor = localStorage.getItem('herkules:theme')
-          if (!izbor) {
+          if (!izbor || izbor === 'system') {
             izbor = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          } else if (izbor !== 'dark' && izbor !== 'light') {
+            izbor = 'light'
           }
           document.documentElement.dataset.theme = izbor
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', izbor === 'dark' ? '#101a2e' : '#f1f5f9')
         } catch (e) {
           document.documentElement.dataset.theme = 'light'
         }

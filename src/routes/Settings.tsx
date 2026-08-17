@@ -1,5 +1,5 @@
 // Settings: profile (name, sex, birth date, height), body weight, units,
-// sync, CSV import/export, password and sign-out.
+// theme (light / dark / system), sync, CSV import/export, password and sign-out.
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
@@ -17,6 +17,7 @@ import {
   weightUnitLabel,
 } from '../lib/units'
 import { parseNonNegative } from '../lib/validation'
+import { useTheme, type ThemePreference } from '../lib/theme'
 import type { Sex } from '../types/db'
 import { LineChart } from '../components/Chart'
 import { Modal } from '../components/ui'
@@ -26,6 +27,7 @@ export function Settings() {
   const store = useStore()
   const { session } = useAuth()
   const profile = store.profile
+  const { preference, setPreference } = useTheme()
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [saved, setSaved] = useState(false)
@@ -169,6 +171,19 @@ export function Settings() {
 
       <div className="section-title">Preferences</div>
       <div className="card stack">
+        <div className="field">
+          <label htmlFor="settings-theme">Theme</label>
+          <select
+            id="settings-theme"
+            className="input"
+            value={preference}
+            onChange={(e) => setPreference(e.target.value as ThemePreference)}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System</option>
+          </select>
+        </div>
         <div className="field">
           <label htmlFor="settings-units">Units</label>
           <select

@@ -5,15 +5,16 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { backendConfigured } from '../lib/supabase'
 import { validateEmail, validatePassword } from '../lib/validation'
-import { currentTheme } from '../lib/theme'
+import { useTheme } from '../lib/theme'
 import { BrandLogo } from '../components/BrandLogo'
 import './auth.css'
 
 function AuthCard({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme()
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <BrandLogo theme={currentTheme()} size="auth" />
+        <BrandLogo theme={theme} size="auth" />
       </div>
       <div className="card auth-card">{children}</div>
     </div>

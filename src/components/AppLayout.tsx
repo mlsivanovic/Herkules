@@ -1,14 +1,7 @@
 // App shell: mobile-first with bottom nav; desktop (≥768px) gets a sidebar.
-import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import {
-  applyTheme,
-  currentTheme,
-  followSystemTheme,
-  saveTheme,
-  type Theme,
-} from '../lib/theme'
+import { useTheme } from '../lib/theme'
 import {
   IconCalendar,
   IconCloudOff,
@@ -35,15 +28,10 @@ const TABS = [
 export function AppLayout() {
   const { pending, syncing, online, ready } = useStore()
   const navigate = useNavigate()
-  const [theme, setTheme] = useState<Theme>(currentTheme)
-
-  useEffect(() => followSystemTheme(setTheme), [])
+  const { theme, setPreference } = useTheme()
 
   function toggleTheme() {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    applyTheme(next)
-    saveTheme(next)
-    setTheme(next)
+    setPreference(theme === 'dark' ? 'light' : 'dark')
   }
 
   function goHome() {

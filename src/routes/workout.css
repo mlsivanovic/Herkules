@@ -2,7 +2,8 @@
 
 .workout-page {
   min-height: 100dvh;
-  padding-bottom: 5.5rem;
+  padding: 0 1rem 5.5rem;
+  overflow-x: clip;
 }
 
 .workout-header {
@@ -12,12 +13,17 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  min-width: 0;
   padding: 0.6rem 1rem;
   padding-top: calc(0.6rem + env(safe-area-inset-top, 0px));
   background: color-mix(in srgb, var(--c-bg) 90%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--c-border);
-  margin: -1rem -1rem 1rem;
+  margin: 0 -1rem 1rem;
+}
+
+.workout-header > .row {
+  flex-shrink: 0;
 }
 
 .workout-title {
@@ -32,6 +38,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.workout-exercise {
+  min-width: 0;
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .workout-exercise--superset {

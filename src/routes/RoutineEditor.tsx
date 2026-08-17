@@ -1,17 +1,19 @@
 // Routine editor: exercise order, planned sets, targets, rest, notes and
 // superset/circuit grouping.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore, newId, type TemplateItemInput } from '../lib/store'
 import type { ExerciseMeasurement } from '../types/db'
 import { EmptyState, Modal } from '../components/ui'
 import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { validateRequiredName } from '../lib/validation'
+import { moveIndex, supersetPartners } from '../lib/reorder'
+import { usePointerReorder } from '../lib/usePointerReorder'
 import {
   distanceUnitLabel,
   weightUnitLabel,
 } from '../lib/units'
-import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '../components/Icons'
+import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
 import './routineEditor.css'
 
 function newItem(exerciseId: string, position: number): TemplateItemInput {
@@ -46,6 +48,8 @@ export function RoutineEditor() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const [openNotes, setOpenNotes] = useState<Record<number, boolean>>({})
+  const [announce, setAnnounce] = useState('')
 
   useEffect(() => {
     if (template && loadedFor !== template.id) {
@@ -66,23 +70,23 @@ export function RoutineEditor() {
     [exercises],
   )
 
+  const moveTo = useCallback((from: number, to: number) => {
+    setItems((prev) => moveIndex(prev, from, to))
+    setOpenNotes({})
+  }, [])
+
+  const reorder = usePointerReorder({
+    itemCount: items.length,
+    onMove: moveTo,
+    announce: setAnnounce,
+  })
+
   if (ready && !isNew && !template) {
     return <EmptyState title="Routine not found" hint="It may have been deleted." />
   }
 
   function update(index: number, patch: Partial<TemplateItemInput>) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)))
-  }
-
-  function move(index: number, delta: -1 | 1) {
-    setItems((prev) => {
-      const next = [...prev]
-      const target = index + delta
-      if (target < 0 || target >= next.length) return prev
-      const [moved] = next.splice(index, 1)
-      if (moved) next.splice(target, 0, moved)
-      return next
-    })
   }
 
   /** Toggle superset grouping on an item: consecutive items sharing a group
@@ -183,42 +187,77 @@ export function RoutineEditor() {
           {items.map((item, index) => {
             const exercise = exerciseById.get(item.exercise_id)
             const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
+            const name = exercise?.name ?? 'Unknown exercise'
+            const partners = supersetPartners(items, item, (row) => {
+              return exerciseById.get(row.exercise_id)?.name ?? 'Unknown exercise'
+            })
+            const notesOpen = Boolean(openNotes[index])
+            const dragging = reorder.active?.from === index
+            const dropTarget =
+              reorder.active !== null &&
+              reorder.active.over === index &&
+              reorder.active.from !== index
             return (
-              <li key={item.id ?? `draft-${index}`} className={item.superset_group ? 'routine-item--superset' : ''}>
-                <div className="row row--between">
-                  <strong>{exercise?.name ?? 'Unknown exercise'}</strong>
-                  <div className="row">
+              <li
+                key={item.id ?? `draft-${index}`}
+                ref={reorder.setItemRef(index)}
+                className={`exercise-card-item${item.superset_group ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+              >
+                <div className="exercise-head">
+                  <div className="exercise-head__drag" {...reorder.getHandleProps(index)}>
                     <button
                       type="button"
-                      className="btn btn--icon btn--small"
-                      aria-label={`Move ${exercise?.name ?? 'exercise'} up`}
-                      onClick={() => move(index, -1)}
-                      disabled={index === 0}
+                      className="exercise-grip"
+                      aria-label={`Reorder ${name}`}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
+                          event.preventDefault()
+                          reorder.moveBy(index, -1)
+                        } else if (
+                          event.key === 'ArrowDown' ||
+                          (event.altKey && event.key === 'ArrowDown')
+                        ) {
+                          event.preventDefault()
+                          reorder.moveBy(index, 1)
+                        }
+                      }}
                     >
-                      <IconArrowUp width={16} height={16} />
+                      <IconGrip width={16} height={16} />
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn--icon btn--small"
-                      aria-label={`Move ${exercise?.name ?? 'exercise'} down`}
-                      onClick={() => move(index, 1)}
-                      disabled={index === items.length - 1}
-                    >
-                      <IconArrowDown width={16} height={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--icon btn--small btn--danger"
-                      aria-label={`Remove ${exercise?.name ?? 'exercise'}`}
-                      onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
-                    >
-                      <IconTrash width={16} height={16} />
-                    </button>
+                    <strong className="exercise-head__title">{name}</strong>
                   </div>
+                  {exercise?.video_url ? (
+                    <a
+                      href={exercise.video_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="form-chip"
+                      aria-label={`Form video for ${name}`}
+                    >
+                      Form
+                    </a>
+                  ) : null}
                 </div>
-                <small className="muted">
-                  {exercise?.category} · {MEASUREMENT_LABELS(measurement)}
-                </small>
+                {partners.length > 0 ? (
+                  <div className="exercise-superset">
+                    <span className="badge badge--in-progress">Superset</span>
+                    <span className="exercise-superset__with">with {partners.join(', ')}</span>
+                  </div>
+                ) : null}
+                <div className="exercise-meta-row">
+                  <small className="muted">
+                    {exercise?.category} · {MEASUREMENT_LABELS(measurement)}
+                  </small>
+                  <button
+                    type="button"
+                    className="btn btn--icon btn--small btn--danger"
+                    data-no-drag
+                    aria-label={`Remove ${name}`}
+                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    <IconTrash width={16} height={16} />
+                  </button>
+                </div>
 
                 <div className="routine-grid">
                   <label className="field">
@@ -340,18 +379,30 @@ export function RoutineEditor() {
                   </label>
                 </div>
 
-                <label className="field">
-                  <span>Notes</span>
-                  <textarea
-                    className="input"
-                    rows={2}
-                    placeholder="Tempo, RPE, cues, per side…"
-                    value={item.notes ?? ''}
-                    onChange={(e) =>
-                      update(index, { notes: e.target.value === '' ? null : e.target.value })
-                    }
-                  />
-                </label>
+                <button
+                  type="button"
+                  className={`notes-chip${item.notes ? ' notes-chip--filled' : ''}`}
+                  aria-expanded={notesOpen}
+                  onClick={() =>
+                    setOpenNotes((prev) => ({ ...prev, [index]: !prev[index] }))
+                  }
+                >
+                  Notes
+                </button>
+                {notesOpen ? (
+                  <label className="field">
+                    <span>Notes</span>
+                    <textarea
+                      className="input"
+                      rows={2}
+                      placeholder="Tempo, RPE, cues, per side…"
+                      value={item.notes ?? ''}
+                      onChange={(e) =>
+                        update(index, { notes: e.target.value === '' ? null : e.target.value })
+                      }
+                    />
+                  </label>
+                ) : null}
 
                 <button
                   type="button"
@@ -366,6 +417,9 @@ export function RoutineEditor() {
           })}
         </ol>
       )}
+      <span className="visually-hidden" aria-live="polite">
+        {announce}
+      </span>
 
       <button type="button" className="btn" style={{ marginTop: '0.75rem' }} onClick={() => setPickerOpen(true)}>
         <IconPlus width={18} height={18} /> Add exercise

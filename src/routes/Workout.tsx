@@ -1,18 +1,26 @@
 // Active workout screen: elapsed timer, previous values, set logging for all
 // measurement types, automatic rest timer, RPE, notes, reorder/swap/remove,
 // finish (works fully offline — everything lands in IndexedDB + outbox).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { formatDuration, formatWeight, formatDistance } from '../lib/units'
 import { previousSetsForExercise } from '../lib/metrics'
+import { moveIndex, supersetPartners } from '../lib/reorder'
+import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
-  IconArrowDown,
-  IconArrowUp,
+  IconGrip,
   IconPlay,
   IconPlus,
   IconSwap,
@@ -43,6 +51,27 @@ export function Workout() {
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const startingRef = useRef(false)
+  const [announce, setAnnounce] = useState('')
+
+  const moveExercise = useCallback(
+    (from: number, to: number) => {
+      const session = store.sessions.find((s) => s.status === 'in_progress')
+      if (!session) return
+      const ids = moveIndex(
+        session.session_exercises.map((se) => se.id),
+        from,
+        to,
+      )
+      void store.reorderSessionExercises(session.id, ids)
+    },
+    [store],
+  )
+
+  const reorder = usePointerReorder({
+    itemCount: active?.session_exercises.length ?? 0,
+    onMove: moveExercise,
+    announce: setAnnounce,
+  })
 
   useEffect(() => {
     if (!startState || startingRef.current) return
@@ -123,8 +152,15 @@ export function Workout() {
               key={se.id}
               session={active}
               exercise={se}
-              index={index}
-              total={active.session_exercises.length}
+              itemRef={reorder.setItemRef(index)}
+              handleProps={reorder.getHandleProps(index)}
+              onMoveBy={(delta) => reorder.moveBy(index, delta)}
+              dragging={reorder.active?.from === index}
+              dropTarget={
+                reorder.active !== null &&
+                reorder.active.over === index &&
+                reorder.active.from !== index
+              }
               onSwap={() => setSwapTarget(se.id)}
               onRestStart={(seconds) => setRestRemaining(seconds)}
             />
@@ -134,6 +170,9 @@ export function Workout() {
           </button>
         </div>
       )}
+      <span className="visually-hidden" aria-live="polite">
+        {announce}
+      </span>
 
       {restRemaining !== null ? (
         <RestChip
@@ -325,20 +364,27 @@ function countCompletedSets(session: SessionDoc): number {
 function ExerciseCard({
   session,
   exercise,
-  index,
-  total,
+  itemRef,
+  handleProps,
+  onMoveBy,
+  dragging,
+  dropTarget,
   onSwap,
   onRestStart,
 }: {
   session: SessionDoc
   exercise: SessionExerciseDoc
-  index: number
-  total: number
+  itemRef: (el: HTMLElement | null) => void
+  handleProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
+  onMoveBy(delta: number): void
+  dragging: boolean
+  dropTarget: boolean
   onSwap(): void
   onRestStart(seconds: number): void
 }) {
   const store = useStore()
   const units = store.profile?.unit_system ?? 'metric'
+  const [notesOpen, setNotesOpen] = useState(false)
   const catalogVideo = exercise.exercise_id
     ? store.exercises.find((row) => row.id === exercise.exercise_id)?.video_url
     : null
@@ -385,71 +431,75 @@ function ExerciseCard({
     void store.upsertSet(session.id, set)
   }
 
-  const supersetCount =
-    exercise.superset_group !== null
-      ? session.session_exercises.filter((se) => se.superset_group === exercise.superset_group).length
-      : 0
+  const partners = supersetPartners(
+    session.session_exercises,
+    exercise,
+    (se) => se.name_snapshot,
+  )
 
   return (
-    <section className={`card workout-exercise ${exercise.superset_group ? 'workout-exercise--superset' : ''}`}>
-      <div className="row row--between">
-        <div>
-          <strong>{exercise.name_snapshot}</strong>
-          {catalogVideo ? (
-            <a
-              href={catalogVideo}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="muted"
-              style={{ marginLeft: '0.5rem', fontSize: '0.85em' }}
-            >
-              Form ↗
-            </a>
-          ) : null}
-          {supersetCount > 1 ? (
-            <span className="badge badge--in-progress" style={{ marginLeft: '0.5rem' }}>
-              Superset
-            </span>
-          ) : null}
+    <section
+      ref={itemRef}
+      className={`card workout-exercise exercise-card-item${exercise.superset_group ? ' workout-exercise--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+    >
+      <div className="exercise-head">
+        <div className="exercise-head__drag" {...handleProps}>
+          <button
+            type="button"
+            className="exercise-grip"
+            aria-label={`Reorder ${exercise.name_snapshot}`}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
+                event.preventDefault()
+                onMoveBy(-1)
+              } else if (event.key === 'ArrowDown' || (event.altKey && event.key === 'ArrowDown')) {
+                event.preventDefault()
+                onMoveBy(1)
+              }
+            }}
+          >
+            <IconGrip width={16} height={16} />
+          </button>
+          <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
         </div>
+        {catalogVideo ? (
+          <a
+            href={catalogVideo}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="form-chip"
+            aria-label={`Form video for ${exercise.name_snapshot}`}
+          >
+            Form
+          </a>
+        ) : null}
+      </div>
+
+      {partners.length > 0 ? (
+        <div className="exercise-superset">
+          <span className="badge badge--in-progress">Superset</span>
+          <span className="exercise-superset__with">with {partners.join(', ')}</span>
+        </div>
+      ) : null}
+
+      <div className="exercise-meta-row">
+        {exercise.notes ? (
+          <button
+            type="button"
+            className="notes-chip"
+            aria-expanded={notesOpen}
+            onClick={() => setNotesOpen((open) => !open)}
+          >
+            Notes
+          </button>
+        ) : (
+          <span />
+        )}
         <div className="row">
           <button
             type="button"
             className="btn btn--icon btn--small"
-            aria-label={`Move ${exercise.name_snapshot} up`}
-            disabled={index === 0}
-            onClick={() => {
-              const ids = session.session_exercises.map((se) => se.id)
-              const target = index - 1
-              ;[ids[index], ids[target]] = [ids[target] ?? '', ids[index] ?? '']
-              void store.reorderSessionExercises(
-                session.id,
-                ids.filter(Boolean),
-              )
-            }}
-          >
-            <IconArrowUp width={16} height={16} />
-          </button>
-          <button
-            type="button"
-            className="btn btn--icon btn--small"
-            aria-label={`Move ${exercise.name_snapshot} down`}
-            disabled={index === total - 1}
-            onClick={() => {
-              const ids = session.session_exercises.map((se) => se.id)
-              const target = index + 1
-              ;[ids[index], ids[target]] = [ids[target] ?? '', ids[index] ?? '']
-              void store.reorderSessionExercises(
-                session.id,
-                ids.filter(Boolean),
-              )
-            }}
-          >
-            <IconArrowDown width={16} height={16} />
-          </button>
-          <button
-            type="button"
-            className="btn btn--icon btn--small"
+            data-no-drag
             aria-label={`Swap ${exercise.name_snapshot} for another exercise`}
             onClick={onSwap}
           >
@@ -458,6 +508,7 @@ function ExerciseCard({
           <button
             type="button"
             className="btn btn--icon btn--small btn--danger"
+            data-no-drag
             aria-label={`Remove ${exercise.name_snapshot} from workout`}
             onClick={() => void store.removeSessionExercise(session.id, exercise.id)}
           >
@@ -466,7 +517,9 @@ function ExerciseCard({
         </div>
       </div>
 
-      {exercise.notes ? <p className="workout-exercise-notes">{exercise.notes}</p> : null}
+      {notesOpen && exercise.notes ? (
+        <p className="workout-exercise-notes">{exercise.notes}</p>
+      ) : null}
 
       {previous ? (
         <small className="muted">
@@ -487,7 +540,7 @@ function ExerciseCard({
         <small className="muted">First time with this exercise — no history yet.</small>
       )}
 
-      <div className="stack" style={{ gap: '0.35rem', marginTop: '0.5rem' }}>
+      <div className="stack" style={{ gap: '0.35rem' }}>
         {exercise.sets.map((set, setIndex) => (
           <SetEditor
             key={set.id}

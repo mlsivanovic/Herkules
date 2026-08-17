@@ -15,7 +15,7 @@ import {
 import { dayStatus, occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
-import { IconChevronLeft, IconChevronRight, IconPlus } from '../components/Icons'
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
 import './calendar.css'
 
 const WEEKDAY_LABELS_MON = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -282,34 +282,39 @@ function DayDetail({
         )
       })}
 
-      {sessions.map((session) => (
-        <div key={session.id} className="card stack">
-          <div className="row row--between">
-            <span>{session.name}</span>
-            <StatusBadge status={sessionBadge(session.status)} />
-          </div>
-          <div className="row">
-            {session.status !== 'skipped' ? (
+      {sessions.map((session) => {
+        const canOpen = session.status !== 'skipped'
+        const canDelete = session.status === 'completed' || session.status === 'skipped'
+        return (
+          <div key={session.id} className="card calendar-session">
+            {canOpen ? (
               <button
                 type="button"
-                className="btn btn--small"
+                className="calendar-session-open"
                 onClick={() => void navigate(`/history/${session.id}`)}
               >
-                Open
+                <span>{session.name}</span>
+                <StatusBadge status={sessionBadge(session.status)} />
               </button>
-            ) : null}
-            {session.status === 'completed' || session.status === 'skipped' ? (
+            ) : (
+              <div className="calendar-session-open calendar-session-open--static">
+                <span>{session.name}</span>
+                <StatusBadge status={sessionBadge(session.status)} />
+              </div>
+            )}
+            {canDelete ? (
               <button
                 type="button"
-                className="btn btn--small btn--danger"
+                className="btn btn--icon btn--small btn--danger"
+                aria-label={`Delete ${session.name}`}
                 onClick={() => setPendingDelete(session.id)}
               >
-                Delete
+                <IconTrash width={16} height={16} />
               </button>
             ) : null}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       <button type="button" className="btn btn--block" onClick={onSchedule}>
         <IconPlus width={18} height={18} /> Schedule a routine on this day

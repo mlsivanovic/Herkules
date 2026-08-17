@@ -7,8 +7,9 @@ import type { SessionDoc, SetRow } from '../types/db'
 import { formatDateLong } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { sessionVolume } from '../lib/metrics'
-import { EmptyState, Loader, StatusBadge } from '../components/ui'
+import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
+import { IconTrash } from '../components/Icons'
 import './history.css'
 
 export function HistoryDetail() {
@@ -18,6 +19,7 @@ export function HistoryDetail() {
   const session = store.sessions.find((s) => s.id === id) ?? null
   const [notes, setNotes] = useState(session?.notes ?? '')
   const [notesDirty, setNotesDirty] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(false)
 
   const duration = useMemo(() => {
     if (!session?.ended_at) return null
@@ -71,15 +73,27 @@ export function HistoryDetail() {
             {formatWeight(sessionVolume(session), units)} volume
           </small>
         </div>
-        <StatusBadge
-          status={
-            session.status === 'in_progress'
-              ? 'in-progress'
-              : session.status === 'skipped'
-                ? 'skipped'
-                : 'completed'
-          }
-        />
+        <div className="row">
+          {session.status === 'completed' || session.status === 'skipped' ? (
+            <button
+              type="button"
+              className="btn btn--icon btn--danger"
+              aria-label={`Delete ${session.name}`}
+              onClick={() => setPendingDelete(true)}
+            >
+              <IconTrash width={18} height={18} />
+            </button>
+          ) : null}
+          <StatusBadge
+            status={
+              session.status === 'in_progress'
+                ? 'in-progress'
+                : session.status === 'skipped'
+                  ? 'skipped'
+                  : 'completed'
+            }
+          />
+        </div>
       </div>
 
       <div className="field">
@@ -111,6 +125,11 @@ export function HistoryDetail() {
               <strong>{se.name_snapshot}</strong>
               <small className="muted">{se.sets.filter((s) => s.completed_at !== null).length} sets</small>
             </div>
+            {se.notes ? (
+              <p className="muted" style={{ margin: '0.35rem 0 0', whiteSpace: 'pre-wrap' }}>
+                {se.notes}
+              </p>
+            ) : null}
             <div className="stack" style={{ gap: '0.35rem', marginTop: '0.5rem' }}>
               {se.sets.length === 0 ? (
                 <small className="muted">No sets logged.</small>
@@ -139,6 +158,28 @@ export function HistoryDetail() {
           Back
         </button>
       </div>
+
+      {pendingDelete ? (
+        <Modal title="Delete this workout?" onClose={() => setPendingDelete(false)}>
+          <p>This removes the logged workout from history. The routine itself stays in your library.</p>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn btn--danger btn--block"
+              onClick={() => {
+                void store.deleteSession(session.id)
+                setPendingDelete(false)
+                void navigate(-1)
+              }}
+            >
+              Delete workout
+            </button>
+            <button type="button" className="btn btn--block" onClick={() => setPendingDelete(false)}>
+              Keep it
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   )
 }

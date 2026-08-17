@@ -109,3 +109,30 @@
 .calendar-dot--skipped {
   background: var(--c-muted);
 }
+
+.calendar-session {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.calendar-session-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-session-open--static {
+  cursor: default;
+}

@@ -76,6 +76,7 @@ export function Calendar() {
         daySessions.filter((s) => s.status === 'completed').length,
         activeKey === key && key === today,
         today,
+        daySessions.filter((s) => s.status === 'skipped').length,
       )
       if (status) statuses.set(key, status)
     }
@@ -200,6 +201,12 @@ export function Calendar() {
   )
 }
 
+function sessionBadge(status: string): 'in-progress' | 'completed' | 'skipped' {
+  if (status === 'in_progress') return 'in-progress'
+  if (status === 'skipped') return 'skipped'
+  return 'completed'
+}
+
 function DayDetail({
   dayKey,
   planned,
@@ -209,55 +216,125 @@ function DayDetail({
 }: {
   dayKey: DateKey
   planned: { scheduleId: string; template: { id: string; name: string } | undefined }[]
-  sessions: { id: string; name: string; status: string }[]
+  sessions: { id: string; name: string; status: string; schedule_item_id: string | null }[]
   onStart(templateId: string, scheduleId: string): void
   onSchedule(): void
 }) {
-  const { deleteSchedule } = useStore()
+  const { deleteSchedule, deleteSession, skipOccurrence, unskipOccurrence } = useStore()
+  const navigate = useNavigate()
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+
   return (
     <div className="stack">
       {planned.length === 0 && sessions.length === 0 ? (
         <EmptyState title="Nothing planned" hint="Schedule a routine for this day." />
       ) : null}
 
-      {planned.map((entry) => (
-        <div key={entry.scheduleId} className="card row row--between">
-          <span>
-            <strong>{entry.template?.name ?? 'Routine'}</strong>{' '}
-            <small className="muted">· {dayKey < todayKey() ? 'skipped' : 'planned'}</small>
-          </span>
-          <span className="row">
-            {dayKey >= todayKey() ? (
+      {planned.map((entry) => {
+        const match = sessions.find((s) => s.schedule_item_id === entry.scheduleId)
+        const skipped = match?.status === 'skipped'
+        const completed = match?.status === 'completed'
+        const label = completed ? 'completed' : skipped ? 'skipped' : dayKey < todayKey() ? 'skipped' : 'planned'
+        return (
+          <div key={entry.scheduleId} className="card row row--between">
+            <span>
+              <strong>{entry.template?.name ?? 'Routine'}</strong>{' '}
+              <small className="muted">· {label}</small>
+            </span>
+            <span className="row">
+              {!completed && dayKey >= todayKey() ? (
+                <button
+                  type="button"
+                  className="btn btn--small btn--primary"
+                  onClick={() => entry.template && onStart(entry.template.id, entry.scheduleId)}
+                >
+                  Start
+                </button>
+              ) : null}
+              {!completed && !skipped && !match ? (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={() => void skipOccurrence(entry.scheduleId, dayKey)}
+                >
+                  Skip
+                </button>
+              ) : null}
+              {skipped && match ? (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={() => void unskipOccurrence(match.id)}
+                >
+                  Undo skip
+                </button>
+              ) : null}
               <button
                 type="button"
-                className="btn btn--small btn--primary"
-                onClick={() => entry.template && onStart(entry.template.id, entry.scheduleId)}
+                className="btn btn--small btn--danger"
+                aria-label={`Unschedule ${entry.template?.name ?? 'routine'}`}
+                onClick={() => void deleteSchedule(entry.scheduleId)}
               >
-                Start
+                Remove
               </button>
-            ) : null}
-            <button
-              type="button"
-              className="btn btn--small btn--danger"
-              aria-label={`Unschedule ${entry.template?.name ?? 'routine'}`}
-              onClick={() => void deleteSchedule(entry.scheduleId)}
-            >
-              Remove
-            </button>
-          </span>
-        </div>
-      ))}
+            </span>
+          </div>
+        )
+      })}
 
       {sessions.map((session) => (
-        <div key={session.id} className="card row row--between">
-          <span>{session.name}</span>
-          <StatusBadge status={session.status === 'in_progress' ? 'in-progress' : 'completed'} />
+        <div key={session.id} className="card stack">
+          <div className="row row--between">
+            <span>{session.name}</span>
+            <StatusBadge status={sessionBadge(session.status)} />
+          </div>
+          <div className="row">
+            {session.status !== 'skipped' ? (
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={() => void navigate(`/history/${session.id}`)}
+              >
+                Open
+              </button>
+            ) : null}
+            {session.status === 'completed' || session.status === 'skipped' ? (
+              <button
+                type="button"
+                className="btn btn--small btn--danger"
+                onClick={() => setPendingDelete(session.id)}
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
         </div>
       ))}
 
       <button type="button" className="btn btn--block" onClick={onSchedule}>
         <IconPlus width={18} height={18} /> Schedule a routine on this day
       </button>
+
+      {pendingDelete ? (
+        <Modal title="Delete this workout?" onClose={() => setPendingDelete(null)}>
+          <p>This removes the logged workout from history. The routine itself stays in your library.</p>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn btn--danger btn--block"
+              onClick={() => {
+                void deleteSession(pendingDelete)
+                setPendingDelete(null)
+              }}
+            >
+              Delete workout
+            </button>
+            <button type="button" className="btn btn--block" onClick={() => setPendingDelete(null)}>
+              Keep it
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   )
 }

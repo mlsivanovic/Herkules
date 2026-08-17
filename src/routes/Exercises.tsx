@@ -108,10 +108,11 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
   const details = [exercise.category, MEASUREMENT_LABELS(exercise.measurement)]
   if (exercise.muscle_groups.length > 0) details.push(exercise.muscle_groups.join(', '))
   return (
-    <li>
+    <li className="card" style={{ padding: '0.75rem 0.9rem' }}>
       <button
         type="button"
-        className="card exercise-card"
+        className="exercise-card"
+        style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, padding: 0 }}
         onClick={() => void navigate(`/exercises/${exercise.id}`)}
       >
         <span className="row row--between">
@@ -127,6 +128,13 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
         </span>
         <small className="muted">{details.join(' · ')}</small>
       </button>
+      {exercise.video_url ? (
+        <small style={{ display: 'block', marginTop: '0.35rem' }}>
+          <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
+            Form videos ↗
+          </a>
+        </small>
+      ) : null}
     </li>
   )
 }

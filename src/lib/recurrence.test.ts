@@ -120,4 +120,10 @@ describe('day status derivation', () => {
   it('returns null for rest days', () => {
     expect(dayStatus('2026-08-10', 0, 0, false, today)).toBe(null)
   })
+
+  it('explicit skip marks today as skipped, but completed still wins', () => {
+    expect(dayStatus(today, 1, 0, false, today, 1)).toBe('skipped')
+    expect(dayStatus(today, 1, 1, false, today, 1)).toBe('completed')
+    expect(dayStatus(today, 1, 0, true, today, 1)).toBe('in-progress')
+  })
 })

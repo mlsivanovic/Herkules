@@ -33,6 +33,7 @@ import {
   clearDirtyFlags,
   clearProfileDirty,
   getMeta,
+  pendingBreakdown,
   pendingCount,
   putDirty,
   readAll,
@@ -47,6 +48,7 @@ import {
   type StoreName,
 } from './db'
 import { flushOutbox, fetchSnapshot } from './sync'
+import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv } from './csv'
 
 const SYNC_DEBOUNCE_MS = 2500
 
@@ -98,6 +100,8 @@ export interface StoreData {
   online: boolean
   syncing: boolean
   pending: number
+  pendingByTable: { table: string; count: number }[]
+  lastSyncedAt: string | null
   syncError: string | null
   profile: ProfileRow | null
   exercises: ExerciseRow[]
@@ -132,6 +136,8 @@ export interface StoreActions {
     scheduleId?: string,
   ): Promise<void>
   deleteSchedule(id: string): Promise<void>
+  skipOccurrence(scheduleId: string, date: string): Promise<void>
+  unskipOccurrence(sessionId: string): Promise<void>
 
   // sessions
   startSession(input: StartSessionInput): Promise<SessionDoc>
@@ -141,6 +147,9 @@ export interface StoreActions {
   ): Promise<void>
   finishSession(id: string, summary: { notes?: string | null; rpe?: number | null }): Promise<void>
   discardSession(id: string): Promise<void>
+  deleteSession(id: string): Promise<void>
+  exportWorkoutsCsv(): Promise<string>
+  importWorkoutsCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
   addSessionExercise(sessionId: string, exerciseId: string): Promise<void>
   removeSessionExercise(sessionId: string, sessionExerciseId: string): Promise<void>
   swapSessionExercise(sessionId: string, sessionExerciseId: string, exerciseId: string): Promise<void>
@@ -180,6 +189,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     online: navigator.onLine,
     syncing: false,
     pending: 0,
+    pendingByTable: [] as { table: string; count: number }[],
+    lastSyncedAt: null as string | null,
     syncError: null as string | null,
     profile: null as ProfileRow | null,
     exercises: [] as ExerciseRow[],
@@ -198,9 +209,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   if (backendConfigured && userId) clientRef.current = supabase()
 
   const reloadFromDb = useCallback(async () => {
-    const [all, profile] = await Promise.all([readAll(), readProfile()])
-    const pending = await pendingCount()
-    setState((prev) => ({ ...prev, ...all, profile, pending, ready: true }))
+    const [all, profile, pending, byTable] = await Promise.all([
+      readAll(),
+      readProfile(),
+      pendingCount(),
+      pendingBreakdown(),
+    ])
+    setState((prev) => ({ ...prev, ...all, profile, pending, pendingByTable: byTable, ready: true }))
   }, [])
 
   const performSync = useCallback(async () => {
@@ -223,7 +238,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('sessions', snapshot.sessions),
       ])
       await reloadFromDb()
-      setState((prev) => ({ ...prev, syncError: null }))
+      setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sync failed.'
       setState((prev) => ({ ...prev, syncError: message }))
@@ -256,6 +271,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         schedules: [],
         sessions: [],
         pending: 0,
+        pendingByTable: [],
+        lastSyncedAt: null,
+        syncError: null,
       }))
       return
     }
@@ -519,6 +537,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : []
 
         const sessionId = newId()
+        if (input.scheduleItemId && input.plannedDate) {
+          const skipped = all.sessions.find(
+            (s) =>
+              s.status === 'skipped' &&
+              s.schedule_item_id === input.scheduleItemId &&
+              (s.planned_date ?? s.started_at.slice(0, 10)) === input.plannedDate,
+          )
+          if (skipped) await actionsRef.current?.deleteSession(skipped.id)
+        }
         const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = items.map((item) => {
           const exercise = all.exercises.find((e) => e.id === item.exercise_id)
           return {
@@ -557,7 +584,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const ops: OutboxOp[] = [upsert('workout_sessions', stripNested(doc))]
         for (const se of exercises) {
-          ops.push(upsert('session_exercises', { ...se, sets: undefined }))
+          ops.push(upsert('session_exercises', stripSessionExercise(se)))
         }
         await commit([{ store: 'sessions', row: doc }], ops)
         return doc
@@ -585,6 +612,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async discardSession(id) {
+        await actionsRef.current?.deleteSession(id)
+      },
+
+      async deleteSession(id) {
         const doc = await readOne<SessionDoc>('sessions', id)
         if (!doc) return
         const exerciseIds = doc.session_exercises.map((se) => se.id)
@@ -603,6 +634,155 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await appendOps([{ kind: 'delete', table: 'workout_sessions', id }])
         await reloadFromDb()
         scheduleDebouncedSync()
+      },
+
+      async skipOccurrence(scheduleId, date) {
+        const all = await readAll()
+        const already = all.sessions.find(
+          (s) =>
+            s.schedule_item_id === scheduleId &&
+            (s.planned_date ?? s.started_at.slice(0, 10)) === date &&
+            (s.status === 'skipped' || s.status === 'completed' || s.status === 'in_progress'),
+        )
+        if (already) {
+          if (already.status === 'skipped') return
+          throw new Error('This day already has a workout. Delete it before skipping.')
+        }
+        const schedule = all.schedules.find((s) => s.id === scheduleId)
+        const template = schedule
+          ? all.templates.find((t) => t.id === schedule.template_id)
+          : undefined
+        const stamp = nowIso()
+        const doc: SessionDoc = {
+          id: newId(),
+          owner_id: userIdRef.current ?? '',
+          template_id: template?.id ?? schedule?.template_id ?? null,
+          schedule_item_id: scheduleId,
+          name: template?.name ?? 'Workout',
+          status: 'skipped',
+          planned_date: date,
+          started_at: `${date}T12:00:00.000Z`,
+          ended_at: stamp,
+          notes: null,
+          rpe: null,
+          created_at: stamp,
+          updated_at: stamp,
+          session_exercises: [],
+        }
+        await commit([{ store: 'sessions', row: doc }], [upsert('workout_sessions', stripNested(doc))])
+      },
+
+      async unskipOccurrence(sessionId) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc || doc.status !== 'skipped') return
+        await actionsRef.current?.deleteSession(sessionId)
+      },
+
+      async exportWorkoutsCsv() {
+        return serializeWorkoutCsv((await readAll()).sessions)
+      },
+
+      async importWorkoutsCsv(text) {
+        const parsed = parseWorkoutCsv(text)
+        if (parsed.length === 0) throw new Error('No workouts found in that file.')
+        const catalog = [...(await readAll()).exercises]
+        let createdExercises = 0
+        let setCount = 0
+        const uuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+        for (const incoming of parsed) {
+          const existing = uuid.test(incoming.sessionId)
+            ? await readOne<SessionDoc>('sessions', incoming.sessionId)
+            : null
+          if (existing) await actionsRef.current?.deleteSession(existing.id)
+
+          const sessionId = uuid.test(incoming.sessionId) ? incoming.sessionId : newId()
+          const stamp = nowIso()
+          const started = `${incoming.date}T12:00:00.000Z`
+          const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = []
+
+          for (const [index, item] of incoming.exercises.entries()) {
+            let exercise = matchExercise(item.name, catalog)
+            if (!exercise) {
+              exercise = {
+                id: newId(),
+                owner_id: userIdRef.current,
+                name: item.name,
+                category: item.measurement === 'weight_reps' || item.measurement === 'reps' ? 'strength' : 'cardio',
+                measurement: item.measurement,
+                muscle_groups: [],
+                equipment: [],
+                instructions: null,
+                video_url: null,
+                is_archived: false,
+                created_at: stamp,
+                updated_at: stamp,
+              }
+              catalog.push(exercise)
+              await commit([{ store: 'exercises', row: exercise }], [upsert('exercises', exercise)])
+              createdExercises += 1
+            }
+
+            const sessionExerciseId = newId()
+            const sets: SetRow[] = item.sets.map((set) => ({
+              id: newId(),
+              session_exercise_id: sessionExerciseId,
+              position: set.position,
+              weight_kg: set.weight_kg,
+              reps: set.reps,
+              duration_s: set.duration_s,
+              distance_m: set.distance_m,
+              rpe: set.rpe,
+              notes: set.notes,
+              completed_at: set.completed_at,
+              created_at: stamp,
+              updated_at: stamp,
+            }))
+            setCount += sets.length
+            exercises.push({
+              id: sessionExerciseId,
+              session_id: sessionId,
+              exercise_id: exercise.id,
+              name_snapshot: exercise.name,
+              measurement_snapshot: exercise.measurement,
+              position: index,
+              planned_sets: Math.max(sets.length, 1),
+              rest_seconds: null,
+              notes: null,
+              superset_group: null,
+              created_at: stamp,
+              updated_at: stamp,
+              sets,
+            })
+          }
+
+          const status = incoming.status === 'in_progress' ? 'completed' : incoming.status
+          const doc: SessionDoc = {
+            id: sessionId,
+            owner_id: userIdRef.current ?? '',
+            template_id: null,
+            schedule_item_id: null,
+            name: incoming.name,
+            status,
+            planned_date: incoming.date,
+            started_at: started,
+            ended_at: stamp,
+            notes: incoming.notes,
+            rpe: incoming.rpe,
+            created_at: stamp,
+            updated_at: stamp,
+            session_exercises: exercises,
+          }
+          const ops: OutboxOp[] = [upsert('workout_sessions', stripNested(doc))]
+          for (const se of exercises) {
+            ops.push(upsert('session_exercises', stripSessionExercise(se)))
+            for (const set of se.sets) ops.push(upsert('workout_sets', set))
+          }
+          await commit([{ store: 'sessions', row: doc }], ops)
+        }
+
+        return { sessions: parsed.length, sets: setCount, createdExercises }
       },
 
       async addSessionExercise(sessionId, exerciseId) {
@@ -632,7 +812,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         await commit(
           [{ store: 'sessions', row }],
-          [upsert('session_exercises', { ...se, sets: undefined })],
+          [upsert('session_exercises', stripSessionExercise(se))],
         )
       },
 
@@ -692,7 +872,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           )
         }
         const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
-        ops.push(upsert('session_exercises', { ...updated, sets: undefined }))
+        ops.push(upsert('session_exercises', stripSessionExercise(updated)))
         await commit([{ store: 'sessions', row }], ops)
       },
 
@@ -709,7 +889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           )
         const changed = reordered.filter((se) => oldPositions.get(se.id) !== se.position)
         const row: SessionDoc = { ...doc, session_exercises: reordered, updated_at: nowIso() }
-        const ops = changed.map((se) => upsert('session_exercises', { ...se, sets: undefined }))
+        const ops = changed.map((se) => upsert('session_exercises', stripSessionExercise(se)))
         await commit([{ store: 'sessions', row }], ops)
       },
 
@@ -788,6 +968,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 /** The outbox only stores flat rows; nested sets travel as their own ops. */
 function stripNested(doc: SessionDoc): Record<string, unknown> {
   const { session_exercises: _nested, ...flat } = doc
+  return flat
+}
+
+function stripSessionExercise(row: SessionExerciseRow & { sets?: SetRow[] }): Record<string, unknown> {
+  const { sets: _sets, ...flat } = row
   return flat
 }
 

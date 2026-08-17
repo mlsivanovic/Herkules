@@ -1,6 +1,6 @@
 // Settings: profile preferences (units, week start, default rest, display
 // name), theme, password change and sign-out with pending-sync protection.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
@@ -20,6 +20,11 @@ export function Settings() {
   const [logoutBusy, setLogoutBusy] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [theme, setTheme] = useState<Theme>(currentTheme)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   function toggleTheme() {
     const next: Theme = theme === 'dark' ? 'light' : 'dark'
@@ -136,6 +141,127 @@ export function Settings() {
             }
           />
         </div>
+      </div>
+
+      <div className="section-title">Sync</div>
+      <div className="card stack">
+        <div className="row row--between">
+          <span>{store.online ? 'Online' : 'Offline'}</span>
+          <span className="muted">
+            {store.syncing
+              ? 'Syncing…'
+              : store.pending > 0
+                ? `${store.pending} change${store.pending === 1 ? '' : 's'} waiting`
+                : 'All changes saved'}
+          </span>
+        </div>
+        {store.lastSyncedAt ? (
+          <small className="muted">
+            Last successful sync{' '}
+            {new Date(store.lastSyncedAt).toLocaleString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              day: 'numeric',
+              month: 'short',
+            })}
+          </small>
+        ) : (
+          <small className="muted">No successful sync on this device yet.</small>
+        )}
+        {store.pendingByTable.length > 0 ? (
+          <ul className="muted" style={{ margin: 0, paddingLeft: '1.1rem' }}>
+            {store.pendingByTable.map((entry) => (
+              <li key={entry.table}>
+                {entry.table.replace(/_/g, ' ')} — {entry.count}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {store.syncError ? (
+          <p className="field-error" role="alert">
+            {store.syncError}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="btn"
+          disabled={syncBusy || !store.online}
+          onClick={() => {
+            setSyncBusy(true)
+            void store.syncNow().finally(() => setSyncBusy(false))
+          }}
+        >
+          {syncBusy ? 'Retrying…' : 'Retry sync'}
+        </button>
+      </div>
+
+      <div className="section-title">Workouts</div>
+      <div className="card stack">
+        <p className="muted" style={{ margin: 0 }}>
+          Export or import completed and skipped workouts as CSV. Units are stored as kg, meters and
+          seconds.
+        </p>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            void store.exportWorkoutsCsv().then((csv) => {
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = `herkules-workouts-${new Date().toISOString().slice(0, 10)}.csv`
+              link.click()
+              URL.revokeObjectURL(url)
+            })
+          }}
+        >
+          Export workouts CSV
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,text/csv"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            setImportBusy(true)
+            setImportError(null)
+            setImportMessage(null)
+            void file
+              .text()
+              .then((text) => store.importWorkoutsCsv(text))
+              .then((result) => {
+                setImportMessage(
+                  `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
+                    result.createdExercises > 0
+                      ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
+                      : ''
+                  }).`,
+                )
+              })
+              .catch((error: unknown) => {
+                setImportError(error instanceof Error ? error.message : 'Could not import that file.')
+              })
+              .finally(() => setImportBusy(false))
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={importBusy}
+          onClick={() => fileRef.current?.click()}
+        >
+          {importBusy ? 'Importing…' : 'Import workouts CSV'}
+        </button>
+        {importMessage ? <small className="badge badge--completed">{importMessage}</small> : null}
+        {importError ? (
+          <p className="field-error" role="alert">
+            {importError}
+          </p>
+        ) : null}
       </div>
 
       <div className="section-title">Appearance</div>

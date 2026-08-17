@@ -3,6 +3,7 @@
 // Store values are kept as loose records internally; typed rows are restored
 // at the read boundary (readOne/readAll).
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { collapseOps, uniqueOpCount } from './outbox'
 import type {
   ExerciseRow,
   OutboxOp,
@@ -237,7 +238,18 @@ export async function removeMatchingOps(
 }
 
 export async function pendingCount(): Promise<number> {
-  return (await getDb()).count('outbox')
+  return uniqueOpCount(await listOps())
+}
+
+export async function pendingBreakdown(): Promise<{ table: string; count: number }[]> {
+  const collapsed = collapseOps(await listOps())
+  const counts = new Map<string, number>()
+  for (const op of collapsed) {
+    counts.set(op.table, (counts.get(op.table) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([table, count]) => ({ table, count }))
+    .sort((a, b) => a.table.localeCompare(b.table))
 }
 
 // ---------------------------------------------------------------- lifecycle

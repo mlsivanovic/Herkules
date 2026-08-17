@@ -232,7 +232,9 @@ export function ExerciseEditor() {
       {exercise?.video_url ? (
         <p style={{ marginTop: '1rem' }}>
           <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
-            Open video explanation ↗
+            {exercise.video_url.includes('youtube.com/results')
+              ? 'Watch form videos on YouTube ↗'
+              : 'Open video explanation ↗'}
           </a>
         </p>
       ) : null}

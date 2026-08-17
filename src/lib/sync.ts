@@ -18,18 +18,31 @@ import { planFlush } from './outbox'
 
 export class SyncError extends Error {}
 
+/** Drop client-only / nested fields that PostgREST would reject. */
+function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
+  const {
+    session_exercises: _se,
+    sets: _sets,
+    workout_sets: _ws,
+    dirty: _dirty,
+    ...rest
+  } = row
+  return rest
+}
+
 /** Push everything queued. Returns the number of flushed ops. */
 export async function flushOutbox(client: SupabaseClient): Promise<number> {
   const ops = await listOps()
   if (ops.length === 0) return 0
   const batches = planFlush(ops)
-  const doneSeqs: number[] = []
+  let removed = 0
 
   for (const batch of batches) {
     if (batch.kind === 'upsert') {
-      const { error } = await client.from(batch.table).upsert(batch.rows, {
-        onConflict: 'id',
-      })
+      const { error } = await client.from(batch.table).upsert(
+        batch.rows.map(sanitizeRow),
+        { onConflict: 'id' },
+      )
       if (error) {
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
@@ -39,11 +52,14 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     }
-    doneSeqs.push(...batch.seqs)
+    // Drop each successful batch immediately so a later failure does not
+    // leave already-pushed rows in the outbox (blue "Pending sync" forever
+    // while the phone already shows the data).
+    await removeOps(batch.seqs)
+    removed += batch.seqs.length
   }
 
-  await removeOps(doneSeqs)
-  return doneSeqs.length
+  return removed
 }
 
 export interface ServerSnapshot {

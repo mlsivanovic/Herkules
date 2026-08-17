@@ -5,7 +5,7 @@ export type ExerciseCategory = 'strength' | 'cardio' | 'mobility'
 export type ExerciseMeasurement = 'weight_reps' | 'reps' | 'duration' | 'distance_duration'
 export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
-export type SessionStatus = 'in_progress' | 'completed'
+export type SessionStatus = 'in_progress' | 'completed' | 'skipped'
 
 export interface ProfileRow {
   id: string

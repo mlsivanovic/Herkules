@@ -46,8 +46,9 @@ export type DayWorkoutStatus = 'planned' | 'in-progress' | 'completed' | 'skippe
 
 /**
  * Status of one date given how many workouts are planned there and how many
- * were completed. A past planned day without a completed session counts as
- * skipped; today and future days stay planned.
+ * were completed. An explicit skip wins over a still-planned today/future
+ * slot; a past planned day without a completed session still counts as
+ * skipped. Completed and in-progress always beat skip.
  */
 export function dayStatus(
   key: DateKey,
@@ -55,10 +56,14 @@ export function dayStatus(
   completedCount: number,
   hasActive: boolean,
   today: DateKey,
+  explicitSkippedCount = 0,
 ): DayWorkoutStatus | null {
-  if (plannedCount === 0 && completedCount === 0 && !hasActive) return null
+  if (plannedCount === 0 && completedCount === 0 && !hasActive && explicitSkippedCount === 0) {
+    return null
+  }
   if (hasActive) return 'in-progress'
   if (completedCount > 0) return 'completed'
+  if (explicitSkippedCount > 0) return 'skipped'
   if (plannedCount > 0) return key < today ? 'skipped' : 'planned'
   return null
 }

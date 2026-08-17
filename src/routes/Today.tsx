@@ -11,7 +11,8 @@ import './today.css'
 
 export function Today() {
   const navigate = useNavigate()
-  const { sessions, schedules, rules, templates, profile, ready } = useStore()
+  const { sessions, schedules, rules, templates, profile, ready, skipOccurrence, unskipOccurrence } =
+    useStore()
   const today = todayKey()
   const weekStartDay = profile?.week_start ?? 'monday'
 
@@ -32,6 +33,9 @@ export function Today() {
 
   const doneToday = sessions.filter(
     (s) => s.status === 'completed' && (s.planned_date ?? s.started_at.slice(0, 10)) === today,
+  )
+  const skippedToday = sessions.filter(
+    (s) => s.status === 'skipped' && (s.planned_date ?? s.started_at.slice(0, 10)) === today,
   )
 
   const week = useMemo(() => {
@@ -86,7 +90,7 @@ export function Today() {
       ) : null}
 
       <div className="section-title">Planned today</div>
-      {plannedToday.length === 0 && doneToday.length === 0 ? (
+      {plannedToday.length === 0 && doneToday.length === 0 && skippedToday.length === 0 ? (
         <EmptyState
           title="Nothing planned today"
           hint="Take a rest day, or start something anyway."
@@ -100,28 +104,54 @@ export function Today() {
         <div className="stack">
           {plannedToday.map((entry) => {
             const alreadyDone = doneToday.some((s) => s.schedule_item_id === entry.scheduleId)
+            const skipped = skippedToday.find((s) => s.schedule_item_id === entry.scheduleId)
             return (
               <div key={entry.scheduleId} className="card row row--between">
                 <span>
                   <strong>{entry.template?.name ?? 'Workout'}</strong>{' '}
-                  {alreadyDone ? <StatusBadge status="completed" /> : <StatusBadge status="planned" />}
+                  {alreadyDone ? (
+                    <StatusBadge status="completed" />
+                  ) : skipped ? (
+                    <StatusBadge status="skipped" />
+                  ) : (
+                    <StatusBadge status="planned" />
+                  )}
                 </span>
                 {!alreadyDone && !active ? (
-                  <button
-                    type="button"
-                    className="btn btn--small btn--primary"
-                    onClick={() =>
-                      void navigate('/workout', {
-                        state: {
-                          templateId: entry.template?.id,
-                          scheduleItemId: entry.scheduleId,
-                          plannedDate: today,
-                        },
-                      })
-                    }
-                  >
-                    Start
-                  </button>
+                  <span className="row">
+                    <button
+                      type="button"
+                      className="btn btn--small btn--primary"
+                      onClick={() =>
+                        void navigate('/workout', {
+                          state: {
+                            templateId: entry.template?.id,
+                            scheduleItemId: entry.scheduleId,
+                            plannedDate: today,
+                          },
+                        })
+                      }
+                    >
+                      Start
+                    </button>
+                    {skipped ? (
+                      <button
+                        type="button"
+                        className="btn btn--small"
+                        onClick={() => void unskipOccurrence(skipped.id)}
+                      >
+                        Undo skip
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--small"
+                        onClick={() => void skipOccurrence(entry.scheduleId, today)}
+                      >
+                        Skip
+                      </button>
+                    )}
+                  </span>
                 ) : null}
               </div>
             )

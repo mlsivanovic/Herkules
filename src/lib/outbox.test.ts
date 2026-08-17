@@ -88,6 +88,8 @@ describe('flush plan', () => {
     if (setBatch?.kind === 'upsert') {
       expect(setBatch.rows).toHaveLength(2)
       expect(setBatch.rows.find((r) => r.id === 's1')?.weight_kg).toBe(62.5)
+      // Both s1 edits plus s2 — superseded seqs stay attached so flush can empty the outbox.
+      expect(setBatch.seqs).toHaveLength(3)
     }
   })
 

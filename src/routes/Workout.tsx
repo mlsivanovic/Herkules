@@ -38,6 +38,7 @@ export function Workout() {
   const [pickerMode, setPickerMode] = useState<'add' | null>(null)
   const [swapTarget, setSwapTarget] = useState<string | null>(null)
   const [finishOpen, setFinishOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [restRemaining, setRestRemaining] = useState<number | null>(null)
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
@@ -87,13 +88,22 @@ export function Workout() {
             {countCompletedSets(active)} sets done
           </span>
         </div>
-        <button
-          type="button"
-          className="btn btn--small btn--accent"
-          onClick={() => setFinishOpen(true)}
-        >
-          Finish
-        </button>
+        <span className="row">
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => setDiscardOpen(true)}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="btn btn--small btn--accent"
+            onClick={() => setFinishOpen(true)}
+          >
+            Finish
+          </button>
+        </span>
       </header>
 
       {active.session_exercises.length === 0 ? (
@@ -149,6 +159,29 @@ export function Workout() {
             void store.swapSessionExercise(active.id, swapTarget, exerciseId)
           }
         />
+      ) : null}
+
+      {discardOpen ? (
+        <Modal title="Discard this workout?" onClose={() => setDiscardOpen(false)}>
+          <p>
+            Logged sets for <strong>{active.name}</strong> will be deleted. This cannot be undone.
+          </p>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn btn--danger btn--block"
+              onClick={() => {
+                setDiscardOpen(false)
+                void store.discardSession(active.id).then(() => navigate('/'))
+              }}
+            >
+              Discard workout
+            </button>
+            <button type="button" className="btn btn--block" onClick={() => setDiscardOpen(false)}>
+              Keep training
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {finishOpen ? (
@@ -306,6 +339,9 @@ function ExerciseCard({
 }) {
   const store = useStore()
   const units = store.profile?.unit_system ?? 'metric'
+  const catalogVideo = exercise.exercise_id
+    ? store.exercises.find((row) => row.id === exercise.exercise_id)?.video_url
+    : null
 
   const previous = useMemo(
     () =>
@@ -359,6 +395,17 @@ function ExerciseCard({
       <div className="row row--between">
         <div>
           <strong>{exercise.name_snapshot}</strong>
+          {catalogVideo ? (
+            <a
+              href={catalogVideo}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="muted"
+              style={{ marginLeft: '0.5rem', fontSize: '0.85em' }}
+            >
+              Form ↗
+            </a>
+          ) : null}
           {supersetCount > 1 ? (
             <span className="badge badge--in-progress" style={{ marginLeft: '0.5rem' }}>
               Superset

@@ -71,7 +71,15 @@ export function HistoryDetail() {
             {formatWeight(sessionVolume(session), units)} volume
           </small>
         </div>
-        <StatusBadge status={session.status === 'in_progress' ? 'in-progress' : 'completed'} />
+        <StatusBadge
+          status={
+            session.status === 'in_progress'
+              ? 'in-progress'
+              : session.status === 'skipped'
+                ? 'skipped'
+                : 'completed'
+          }
+        />
       </div>
 
       <div className="field">

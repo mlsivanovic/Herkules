@@ -1,9 +1,14 @@
 // Routines list: reusable workout templates + Hybrid 4-day starter.
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader, Modal } from '../components/ui'
 import { IconPlus } from '../components/Icons'
+import {
+  downloadTextFile,
+  formatRoutineImportMessage,
+  routinesExportFilename,
+} from '../lib/routinesIo'
 import { isHybridProgramInstalled } from '../lib/programs/hybrid4day'
 import {
   DEFAULT_WEEKDAYS,
@@ -14,11 +19,16 @@ import { formatDateShort, todayKey } from '../lib/dates'
 import './routines.css'
 
 export function Routines() {
-  const { templates, templateItems, ready, installHybridProgram } = useStore()
+  const { templates, templateItems, ready, installHybridProgram, exportRoutines, importRoutines } =
+    useStore()
   const navigate = useNavigate()
+  const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [plannerOpen, setPlannerOpen] = useState(false)
+  const [ioBusy, setIoBusy] = useState(false)
+  const [ioMessage, setIoMessage] = useState<string | null>(null)
+  const [ioError, setIoError] = useState<string | null>(null)
 
   const installed = useMemo(() => isHybridProgramInstalled(templates), [templates])
 
@@ -41,14 +51,79 @@ export function Routines() {
     <div>
       <div className="page-head">
         <h1>Routines</h1>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={() => void navigate('/routines/new')}
-        >
-          <IconPlus width={18} height={18} /> New
-        </button>
+        <div className="row row--wrap">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setIoBusy(true)
+              setIoError(null)
+              setIoMessage(null)
+              void file
+                .text()
+                .then((text) => importRoutines(text))
+                .then((result) => {
+                  setIoMessage(formatRoutineImportMessage(result))
+                })
+                .catch((caught: unknown) => {
+                  setIoError(caught instanceof Error ? caught.message : 'Could not import that file.')
+                })
+                .finally(() => setIoBusy(false))
+            }}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={ioBusy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {ioBusy ? 'Importing…' : 'Import'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={ioBusy || templates.length === 0}
+            onClick={() => {
+              setIoBusy(true)
+              setIoError(null)
+              setIoMessage(null)
+              void exportRoutines()
+                .then((json) => {
+                  downloadTextFile(routinesExportFilename(), json, 'application/json')
+                  setIoMessage(`Exported ${templates.length} routine${templates.length === 1 ? '' : 's'}.`)
+                })
+                .catch((caught: unknown) => {
+                  setIoError(caught instanceof Error ? caught.message : 'Could not export routines.')
+                })
+                .finally(() => setIoBusy(false))
+            }}
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void navigate('/routines/new')}
+          >
+            <IconPlus width={18} height={18} /> New
+          </button>
+        </div>
       </div>
+      {ioMessage || ioError ? (
+        <div className="stack" style={{ marginBottom: '0.9rem' }}>
+          {ioMessage ? <small className="badge badge--completed">{ioMessage}</small> : null}
+          {ioError ? (
+            <p className="field-error" role="alert" style={{ margin: 0 }}>
+              {ioError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="card starter-card">
         <div className="starter-card__head">

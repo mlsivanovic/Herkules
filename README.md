@@ -15,7 +15,7 @@ Live: https://mlsivanovic.github.io/Herkules/
 - **Tendon support** — `gym / cardio / tendon` block roles, tempo prescriptions, isometric hold logging and a daily per-site check-in (morning stiffness and pain 0–10) with trends on the Progress page
 - **History** — chronological list grouped by month; every finished session can be reviewed and edited after the fact
 - **Offline-first** — every change is saved to IndexedDB immediately and synced through an idempotent operation queue when connectivity returns (`Pending sync` indicator); workouts can be finished fully offline
-- **Data portability** — workout CSV export/import, full-account JSON backup/restore, and import of **Strong** / **Hevy** workout CSV exports (units converted, idempotent on re-import)
+- **Data portability** — workout CSV export/import, **routine JSON** export/import (portable across accounts; re-import updates instead of duplicating), full-account JSON backup/restore, and import of **Strong** / **Hevy** workout CSV exports (units converted, idempotent on re-import)
 - **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM); warm-up sets are excluded from statistics
 - **PWA** — installable, offline app shell, "Update available" / "Ready offline" prompts
 - Units: stored canonically in kg / meters / seconds; displayed in metric or imperial per user preference. Mobile-first from 360 px; desktop gets a sidebar.

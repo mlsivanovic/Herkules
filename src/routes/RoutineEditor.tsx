@@ -19,6 +19,7 @@ import {
   weightUnitLabel,
 } from '../lib/units'
 import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
+import { downloadTextFile, routinesExportFilename } from '../lib/routinesIo'
 import './routineEditor.css'
 
 function newItem(exerciseId: string, position: number): TemplateItemInput {
@@ -516,9 +517,34 @@ export function RoutineEditor() {
           {busy ? 'Saving…' : 'Save routine'}
         </button>
         {!isNew && template ? (
-          <button type="button" className="btn btn--danger" onClick={() => void removeRoutine()}>
-            Delete
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                void store
+                  .exportRoutines([template.id])
+                  .then((json) => {
+                    downloadTextFile(
+                      routinesExportFilename(template.name),
+                      json,
+                      'application/json',
+                    )
+                  })
+                  .catch((caught: unknown) => {
+                    setError(
+                      caught instanceof Error ? caught.message : 'Could not export the routine.',
+                    )
+                  })
+              }}
+            >
+              Export
+            </button>
+            <button type="button" className="btn btn--danger" onClick={() => void removeRoutine()}>
+              Delete
+            </button>
+          </>
         ) : null}
         <button type="button" className="btn btn--ghost" onClick={() => void navigate('/routines')}>
           Back

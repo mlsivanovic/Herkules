@@ -54,6 +54,7 @@ import { flushOutbox, fetchSnapshot } from './sync'
 import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkoutImport } from './csv'
 import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
+import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
 import { HYBRID_TEMPLATES, hybridRolePatches, hybridTemplatesFrom } from './programs/hybrid4day'
 import { normalizeBlockRole } from './blockRole'
 import {
@@ -185,6 +186,13 @@ export interface StoreActions {
     templates: number
     exercises: number
     checkins: number
+  }>
+  exportRoutines(templateIds?: string[]): Promise<string>
+  importRoutines(text: string): Promise<{
+    created: number
+    updated: number
+    items: number
+    createdExercises: number
   }>
   addSessionExercise(sessionId: string, exerciseId: string): Promise<void>
   removeSessionExercise(sessionId: string, sessionExerciseId: string): Promise<void>
@@ -970,6 +978,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           templates: file.templates.length,
           exercises: file.exercises.filter((e) => e.owner_id !== null).length,
           checkins: file.checkins.length,
+        }
+      },
+
+      async exportRoutines(templateIds) {
+        const all = await readAll()
+        const selected =
+          templateIds && templateIds.length > 0
+            ? all.templates.filter((row) => templateIds.includes(row.id))
+            : all.templates
+        if (selected.length === 0) throw new Error('No routines to export.')
+        return serializeRoutines(selected, all.templateItems, all.exercises)
+      },
+
+      async importRoutines(text) {
+        const file = parseRoutines(text)
+        if (file.routines.length === 0) throw new Error('No routines found in that file.')
+        const all = await readAll()
+        const plan = planRoutineImport({
+          file,
+          catalog: all.exercises,
+          existingTemplates: all.templates,
+          existingItems: all.templateItems,
+          ownerId: userIdRef.current ?? '',
+          now: nowIso(),
+          newId,
+        })
+        const writes: { store: StoreName; row: object }[] = [
+          ...plan.newExercises.map((row) => ({ store: 'exercises' as const, row })),
+          ...plan.templates.map((row) => ({ store: 'templates' as const, row })),
+          ...plan.items.map((row) => ({ store: 'templateItems' as const, row })),
+        ]
+        const ops: OutboxOp[] = [
+          ...plan.newExercises.map((row) => upsert('exercises', row)),
+          ...plan.templates.map((row) => upsert('workout_templates', row)),
+          ...plan.items.map((row) => upsert('template_items', row)),
+        ]
+        for (const id of plan.itemIdsToDelete) {
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' && op.table === 'template_items' && String(op.row.id) === id,
+          )
+          await removeFrom('templateItems', id)
+          ops.push({ kind: 'delete', table: 'template_items', id })
+        }
+        await commit(writes, ops)
+        return {
+          created: plan.createdTemplates,
+          updated: plan.updatedTemplates,
+          items: plan.items.length,
+          createdExercises: plan.newExercises.length,
         }
       },
 

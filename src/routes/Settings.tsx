@@ -1,11 +1,16 @@
 // Settings: profile (name, sex, birth date, height), body weight, units,
-// theme (light / dark / system), sync, CSV import/export, password and sign-out.
+// theme (light / dark / system), sync, CSV/JSON import/export, password and sign-out.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
 import { todayKey } from '../lib/dates'
 import { parseExternalCsv } from '../lib/importExternal'
+import {
+  downloadTextFile,
+  formatRoutineImportMessage,
+  routinesExportFilename,
+} from '../lib/routinesIo'
 import {
   ageYears,
   bodyMassIndex,
@@ -49,6 +54,7 @@ export function Settings() {
   const fileRef = useRef<HTMLInputElement>(null)
   const externalFileRef = useRef<HTMLInputElement>(null)
   const backupFileRef = useRef<HTMLInputElement>(null)
+  const routinesFileRef = useRef<HTMLInputElement>(null)
   const [externalPreview, setExternalPreview] = useState<{
     text: string
     sessions: number
@@ -58,6 +64,9 @@ export function Settings() {
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupMessage, setBackupMessage] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
+  const [routinesBusy, setRoutinesBusy] = useState(false)
+  const [routinesMessage, setRoutinesMessage] = useState<string | null>(null)
+  const [routinesError, setRoutinesError] = useState<string | null>(null)
   const units = profile?.unit_system ?? 'metric'
   const weights = useMemo(
     () => [...store.bodyWeights].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1)),
@@ -543,6 +552,82 @@ export function Settings() {
           Reads the workout CSV exports from Strong and Hevy (units are converted automatically).
           Re-importing the same file updates instead of duplicating.
         </small>
+      </div>
+
+      <div className="section-title">Routines</div>
+      <div className="card stack">
+        <p className="muted" style={{ margin: 0 }}>
+          Export reusable workout templates as JSON — exercise names travel with the file, so it
+          works on another account. Re-importing the same file updates instead of duplicating.
+        </p>
+        <button
+          type="button"
+          className="btn"
+          disabled={routinesBusy || store.templates.length === 0}
+          onClick={() => {
+            setRoutinesBusy(true)
+            setRoutinesError(null)
+            setRoutinesMessage(null)
+            void store
+              .exportRoutines()
+              .then((json) => {
+                downloadTextFile(routinesExportFilename(), json, 'application/json')
+                setRoutinesMessage(
+                  `Exported ${store.templates.length} routine${store.templates.length === 1 ? '' : 's'}.`,
+                )
+              })
+              .catch((error: unknown) => {
+                setRoutinesError(
+                  error instanceof Error ? error.message : 'Could not export routines.',
+                )
+              })
+              .finally(() => setRoutinesBusy(false))
+          }}
+        >
+          {routinesBusy ? 'Preparing…' : 'Export routines (JSON)'}
+        </button>
+        <input
+          ref={routinesFileRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            setRoutinesBusy(true)
+            setRoutinesError(null)
+            setRoutinesMessage(null)
+            void file
+              .text()
+              .then((text) => store.importRoutines(text))
+              .then((result) => {
+                setRoutinesMessage(formatRoutineImportMessage(result))
+              })
+              .catch((error: unknown) => {
+                setRoutinesError(
+                  error instanceof Error ? error.message : 'Could not import that file.',
+                )
+              })
+              .finally(() => setRoutinesBusy(false))
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={routinesBusy}
+          onClick={() => routinesFileRef.current?.click()}
+        >
+          {routinesBusy ? 'Importing…' : 'Import routines…'}
+        </button>
+        {routinesMessage ? (
+          <small className="badge badge--completed">{routinesMessage}</small>
+        ) : null}
+        {routinesError ? (
+          <p className="field-error" role="alert">
+            {routinesError}
+          </p>
+        ) : null}
       </div>
 
       <div className="section-title">Backup</div>

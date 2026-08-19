@@ -14,6 +14,7 @@ import type {
   TemplateItemRow,
   TemplateRow,
   TendonCheckinRow,
+  TrainingPlanRow,
 } from '../types/db'
 import { listOps, removeOps } from './db'
 import { planFlush } from './outbox'
@@ -79,6 +80,7 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
 export interface ServerSnapshot {
   profile: ProfileRow | null
   exercises: ExerciseRow[]
+  plans: TrainingPlanRow[]
   templates: TemplateRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -109,6 +111,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   const [
     profileRes,
     exercisesRes,
+    plansRes,
     templatesRes,
     itemsRes,
     rulesRes,
@@ -119,6 +122,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   ] = await Promise.all([
     client.from('profiles').select('*').maybeSingle(),
     client.from('exercises').select('*').order('name'),
+    client.from('training_plans').select('*').order('created_at'),
     client.from('workout_templates').select('*').order('created_at'),
     client.from('template_items').select('*'),
     client.from('recurrence_rules').select('*'),
@@ -138,6 +142,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   const firstError =
     profileRes.error ??
     exercisesRes.error ??
+    plansRes.error ??
     templatesRes.error ??
     itemsRes.error ??
     rulesRes.error ??
@@ -150,6 +155,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   return {
     profile: (profileRes.data as ProfileRow | null) ?? null,
     exercises: exercisesRes.data as ExerciseRow[],
+    plans: (plansRes.data as TrainingPlanRow[]) ?? [],
     templates: templatesRes.data as TemplateRow[],
     templateItems: itemsRes.data as TemplateItemRow[],
     rules: rulesRes.data as RecurrenceRuleRow[],

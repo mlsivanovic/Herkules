@@ -45,6 +45,8 @@ const template: TemplateRow = {
   owner_id: 'u1',
   name: 'Push',
   notes: 'Upper body',
+  plan_id: null,
+  plan_position: 0,
   created_at: NOW,
   updated_at: NOW,
 }
@@ -118,6 +120,7 @@ describe('routines JSON', () => {
       profile: null,
       bodyWeights: [],
       exercises: [],
+      plans: [],
       templates: [],
       templateItems: [],
       rules: [],

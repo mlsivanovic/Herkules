@@ -24,7 +24,7 @@ test.describe('workout flow', () => {
 
     // --- routine ----------------------------------------------------------
     await page.goto('/#/routines')
-    await page.getByRole('button', { name: 'New' }).click()
+    await page.getByRole('button', { name: 'New routine' }).click()
     await page.getByLabel('Name').fill('E2E Full Body')
 
     await page.getByRole('button', { name: 'Add exercise' }).click()

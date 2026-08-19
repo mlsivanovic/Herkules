@@ -190,6 +190,8 @@ export function planRoutineImport(input: {
       owner_id: input.ownerId,
       name: routine.name,
       notes: routine.notes,
+      plan_id: previous?.plan_id ?? null,
+      plan_position: previous?.plan_position ?? 0,
       created_at: previous?.created_at ?? input.now,
       updated_at: input.now,
     })

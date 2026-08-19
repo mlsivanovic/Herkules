@@ -21,9 +21,10 @@ supabase link --project-ref <your-project-ref>
 supabase db push
 ```
 
-This creates the whole schema (`profiles`, `exercises`, `workout_templates`,
-`template_items`, `recurrence_rules`, `schedule_items`, `workout_sessions`,
-`session_exercises`, `workout_sets`, `body_weight_entries`, `tendon_checkins`),
+This creates the whole schema (`profiles`, `exercises`, `training_plans`,
+`workout_templates`, `template_items`, `recurrence_rules`, `schedule_items`,
+`workout_sessions`, `session_exercises`, `workout_sets`, `body_weight_entries`,
+`tendon_checkins`),
 enables deny-by-default RLS on every table and seeds the system exercise catalog.
 
 Verify the RLS posture (anonymous access must be denied):

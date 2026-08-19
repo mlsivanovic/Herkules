@@ -1,7 +1,7 @@
 // Routine editor: exercise order, planned sets, targets, rest, notes and
 // superset/circuit grouping.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore, newId, type TemplateItemInput } from '../lib/store'
 import type { ExerciseMeasurement } from '../types/db'
 import { EmptyState, Modal } from '../components/ui'
@@ -39,18 +39,24 @@ function newItem(exerciseId: string, position: number): TemplateItemInput {
   }
 }
 
+const NEW_PLAN = '__new__'
+
 export function RoutineEditor() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const isNew = id === 'new'
   const store = useStore()
-  const { templates, templateItems, exercises, ready } = store
+  const { templates, templateItems, exercises, plans, ready } = store
 
   const template = isNew ? null : templates.find((t) => t.id === id) ?? null
   const units = store.profile?.unit_system ?? 'metric'
+  const queryPlan = searchParams.get('plan')
 
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
+  const [planChoice, setPlanChoice] = useState(queryPlan ?? '')
+  const [newPlanName, setNewPlanName] = useState('')
   const [items, setItems] = useState<TemplateItemInput[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +69,7 @@ export function RoutineEditor() {
     if (template && loadedFor !== template.id) {
       setName(template.name)
       setNotes(template.notes ?? '')
+      setPlanChoice(template.plan_id ?? '')
       setItems(
         templateItems
           .filter((i) => i.template_id === template.id)
@@ -127,9 +134,27 @@ export function RoutineEditor() {
     setBusy(true)
     setError(null)
     try {
+      let assignedPlanId: string | null = null
+      if (planChoice === NEW_PLAN) {
+        const planValidation = validateRequiredName(newPlanName, 'Plan name')
+        if (planValidation) {
+          setError(planValidation)
+          setBusy(false)
+          return
+        }
+        const createdPlan = await store.createPlan(newPlanName.trim(), null)
+        assignedPlanId = createdPlan.id
+      } else {
+        assignedPlanId = planChoice === '' ? null : planChoice
+      }
+
       let templateId: string
       if (isNew) {
-        const created = await store.createTemplate(name.trim(), notes.trim() === '' ? null : notes.trim())
+        const created = await store.createTemplate(
+          name.trim(),
+          notes.trim() === '' ? null : notes.trim(),
+          assignedPlanId,
+        )
         templateId = created.id
       } else if (template) {
         templateId = template.id
@@ -137,6 +162,9 @@ export function RoutineEditor() {
           name: name.trim(),
           notes: notes.trim() === '' ? null : notes.trim(),
         })
+        if ((template.plan_id ?? null) !== assignedPlanId) {
+          await store.assignTemplateToPlan(templateId, assignedPlanId)
+        }
       } else {
         return
       }
@@ -144,7 +172,7 @@ export function RoutineEditor() {
         templateId,
         items.map((item, index) => ({ ...item, position: index })),
       )
-      void navigate('/routines')
+      void navigate(assignedPlanId ? `/plans/${assignedPlanId}` : '/routines')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save the routine.')
     } finally {
@@ -190,6 +218,35 @@ export function RoutineEditor() {
           onChange={(e) => setNotes(e.target.value)}
         />
       </div>
+      <div className="field">
+        <label htmlFor="routine-plan">Training plan</label>
+        <select
+          id="routine-plan"
+          className="input"
+          value={planChoice}
+          onChange={(e) => setPlanChoice(e.target.value)}
+        >
+          <option value="">None — unassigned</option>
+          {plans.map((plan) => (
+            <option key={plan.id} value={plan.id}>
+              {plan.name}
+            </option>
+          ))}
+          <option value={NEW_PLAN}>New plan…</option>
+        </select>
+      </div>
+      {planChoice === NEW_PLAN ? (
+        <div className="field">
+          <label htmlFor="routine-new-plan">New plan name</label>
+          <input
+            id="routine-new-plan"
+            className="input"
+            placeholder="e.g. Push / Pull / Legs"
+            value={newPlanName}
+            onChange={(e) => setNewPlanName(e.target.value)}
+          />
+        </div>
+      ) : null}
 
       <div className="section-title">Exercises</div>
       {items.length === 0 ? (

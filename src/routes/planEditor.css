@@ -1,0 +1,66 @@
+/* Plan editor: ordered list of member routines */
+
+.plan-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.plan-day {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.7rem 0.75rem;
+  min-width: 0;
+}
+
+.plan-day__grip {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.plan-day.is-dragging {
+  opacity: 0.55;
+}
+
+.plan-day.is-drop-target {
+  outline: 2px solid var(--c-accent);
+}
+
+.plan-day__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.plan-day__index {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+}
+
+.plan-picker {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 60vh;
+  overflow: auto;
+}

@@ -28,6 +28,7 @@ import type {
   TemplateRow,
   BodyWeightRow,
   TendonCheckinRow,
+  TrainingPlanRow,
 } from '../types/db'
 import { backendConfigured, supabase } from './supabase'
 import { useAuth } from './auth'
@@ -56,6 +57,16 @@ import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
 import { HYBRID_TEMPLATES, hybridRolePatches, hybridTemplatesFrom } from './programs/hybrid4day'
+import {
+  applyHybridPlanMembership,
+  compactPlanPositions,
+  hybridPlanFrom,
+  HYBRID_PLAN_NAME,
+  HYBRID_PLAN_NOTES,
+  nextPlanPosition,
+  orphanHybridTemplates,
+  sortPlanTemplates,
+} from './programs/plans'
 import { normalizeBlockRole } from './blockRole'
 import {
   rotationOccurrences,
@@ -119,6 +130,7 @@ export interface StoreData {
   syncError: string | null
   profile: ProfileRow | null
   exercises: ExerciseRow[]
+  plans: TrainingPlanRow[]
   templates: TemplateRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -136,22 +148,33 @@ export interface StoreActions {
   createExercise(input: ExerciseInput): Promise<ExerciseRow>
   updateExercise(id: string, patch: Partial<ExerciseInput> & { is_archived?: boolean }): Promise<void>
 
+  // training plans
+  createPlan(name: string, notes: string | null): Promise<TrainingPlanRow>
+  updatePlan(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
+  deletePlan(id: string): Promise<void>
+  assignTemplateToPlan(templateId: string, planId: string | null): Promise<void>
+  reorderPlanDays(planId: string, orderedTemplateIds: string[]): Promise<void>
+
   // templates
-  createTemplate(name: string, notes: string | null): Promise<TemplateRow>
+  createTemplate(name: string, notes: string | null, planId?: string | null): Promise<TemplateRow>
   updateTemplate(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
-  installHybridProgram(): Promise<{ created: boolean }>
+  installHybridProgram(): Promise<{ created: boolean; planId: string }>
   ensureHybridBlockRoles(): Promise<void>
+  ensureHybridPlan(): Promise<void>
 
   // scheduling
   scheduleSingleDate(templateId: string, date: string): Promise<void>
-  scheduleHybridRotation(input: {
-    frequency: TrainingFrequency
-    weekdays: number[]
-    startDate: string
-    weeks: number
-  }): Promise<number>
+  schedulePlanRotation(
+    planId: string,
+    input: {
+      frequency: TrainingFrequency
+      weekdays: number[]
+      startDate: string
+      weeks: number
+    },
+  ): Promise<number>
   scheduleWeekly(
     templateId: string,
     weekdays: number[],
@@ -267,6 +290,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     syncError: null as string | null,
     profile: null as ProfileRow | null,
     exercises: [] as ExerciseRow[],
+    plans: [] as TrainingPlanRow[],
     templates: [] as TemplateRow[],
     templateItems: [] as TemplateItemRow[],
     rules: [] as RecurrenceRuleRow[],
@@ -306,6 +330,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await Promise.all([
         reconcileProfile(snapshot.profile),
         reconcileStore('exercises', snapshot.exercises),
+        reconcileStore('plans', snapshot.plans),
         reconcileStore('templates', snapshot.templates),
         reconcileStore('templateItems', snapshot.templateItems),
         reconcileStore('rules', snapshot.rules),
@@ -316,6 +341,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ])
       await reloadFromDb()
       await actionsRef.current?.ensureHybridBlockRoles()
+      await actionsRef.current?.ensureHybridPlan()
       setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sync failed.'
@@ -343,6 +369,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ready: true,
         profile: null,
         exercises: [],
+        plans: [],
         templates: [],
         templateItems: [],
         rules: [],
@@ -366,6 +393,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       await reloadFromDb()
       await actionsRef.current?.ensureHybridBlockRoles()
+      await actionsRef.current?.ensureHybridPlan()
       void performSync()
     })()
     return () => {
@@ -444,14 +472,123 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit([{ store: 'exercises', row }], [upsert('exercises', row)])
       },
 
+      // ------------------------------------------------------------ training plans
+
+      async createPlan(name, notes) {
+        const row: TrainingPlanRow = {
+          id: newId(),
+          owner_id: userIdRef.current ?? '',
+          name,
+          notes,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        }
+        await commit([{ store: 'plans', row }], [upsert('training_plans', row)])
+        return row
+      },
+
+      async updatePlan(id, patch) {
+        const existing = await readOne<TrainingPlanRow>('plans', id)
+        if (!existing) throw new Error('Plan not found.')
+        const row: TrainingPlanRow = { ...existing, ...patch, updated_at: nowIso() }
+        await commit([{ store: 'plans', row }], [upsert('training_plans', row)])
+      },
+
+      async deletePlan(id) {
+        const all = await readAll()
+        const members = sortPlanTemplates(all.templates, id)
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        for (const template of members) {
+          const row: TemplateRow = {
+            ...template,
+            plan_id: null,
+            plan_position: 0,
+            updated_at: stamp,
+          }
+          writes.push({ store: 'templates', row })
+          ops.push(upsert('workout_templates', row))
+        }
+        for (const write of writes) await putDirty(write.store, write.row)
+        await removeFrom('plans', id)
+        ops.push({ kind: 'delete', table: 'training_plans', id })
+        await appendOps(ops)
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async assignTemplateToPlan(templateId, planId) {
+        const all = await readAll()
+        const existing = all.templates.find((row) => row.id === templateId)
+        if (!existing) throw new Error('Routine not found.')
+        if (planId) {
+          const plan = all.plans.find((row) => row.id === planId)
+          if (!plan) throw new Error('Plan not found.')
+        }
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        const previousPlanId = existing.plan_id
+        const row: TemplateRow = {
+          ...existing,
+          plan_id: planId,
+          plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
+          updated_at: stamp,
+        }
+        writes.push({ store: 'templates', row })
+        ops.push(upsert('workout_templates', row))
+
+        if (previousPlanId && previousPlanId !== planId) {
+          const remaining = all.templates.map((item) => (item.id === templateId ? row : item))
+          for (const compacted of compactPlanPositions(remaining, previousPlanId)) {
+            if (compacted.plan_position === remaining.find((item) => item.id === compacted.id)?.plan_position) {
+              continue
+            }
+            const next: TemplateRow = { ...compacted, updated_at: stamp }
+            writes.push({ store: 'templates', row: next })
+            ops.push(upsert('workout_templates', next))
+          }
+        }
+
+        await commit(writes, ops)
+      },
+
+      async reorderPlanDays(planId, orderedTemplateIds) {
+        const all = await readAll()
+        const members = sortPlanTemplates(all.templates, planId)
+        const memberIds = new Set(members.map((row) => row.id))
+        if (orderedTemplateIds.some((id) => !memberIds.has(id))) {
+          throw new Error('Those routines are not all in this plan.')
+        }
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        orderedTemplateIds.forEach((id, index) => {
+          const existing = members.find((row) => row.id === id)
+          if (!existing || existing.plan_position === index) return
+          const row: TemplateRow = { ...existing, plan_position: index, updated_at: stamp }
+          writes.push({ store: 'templates', row })
+          ops.push(upsert('workout_templates', row))
+        })
+        if (writes.length === 0) return
+        await commit(writes, ops)
+      },
+
       // ------------------------------------------------------------ templates
 
-      async createTemplate(name, notes) {
+      async createTemplate(name, notes, planId = null) {
+        const all = await readAll()
+        if (planId && !all.plans.some((row) => row.id === planId)) {
+          throw new Error('Plan not found.')
+        }
         const row: TemplateRow = {
           id: newId(),
           owner_id: userIdRef.current ?? '',
           name,
           notes,
+          plan_id: planId,
+          plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -469,7 +606,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async deleteTemplate(id) {
         // Items cascade server-side; drop their queued upserts so nothing
         // recreates rows whose parent is being deleted.
-        const items = (await readAll()).templateItems.filter((i) => i.template_id === id)
+        const all = await readAll()
+        const existing = all.templates.find((row) => row.id === id)
+        const items = all.templateItems.filter((i) => i.template_id === id)
         const itemIds = new Set(items.map((i) => i.id))
         await removeMatchingOps(
           (op) =>
@@ -477,7 +616,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         )
         for (const itemId of itemIds) await removeFrom('templateItems', itemId)
         await removeFrom('templates', id)
-        await appendOps([{ kind: 'delete', table: 'workout_templates', id }])
+        const ops: OutboxOp[] = [{ kind: 'delete', table: 'workout_templates', id }]
+        if (existing?.plan_id) {
+          const remaining = all.templates.filter((row) => row.id !== id)
+          const stamp = nowIso()
+          for (const compacted of compactPlanPositions(remaining, existing.plan_id)) {
+            const previous = remaining.find((row) => row.id === compacted.id)
+            if (!previous || previous.plan_position === compacted.plan_position) continue
+            const row: TemplateRow = { ...compacted, updated_at: stamp }
+            await putDirty('templates', row)
+            ops.push(upsert('workout_templates', row))
+          }
+        }
+        await appendOps(ops)
         await reloadFromDb()
         scheduleDebouncedSync()
       },
@@ -529,20 +680,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async installHybridProgram() {
         const all = await readAll()
-        if (hybridTemplatesFrom(all.templates)) return { created: false }
+        if (hybridTemplatesFrom(all.templates)) {
+          await actionsRef.current?.ensureHybridPlan()
+          const plans = (await readAll()).plans
+          const plan = hybridPlanFrom(plans)
+          if (!plan) throw new Error('Could not attach Hybrid 4-day to a plan.')
+          return { created: false, planId: plan.id }
+        }
 
         const owner = userIdRef.current ?? ''
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
+        const plan: TrainingPlanRow = {
+          id: newId(),
+          owner_id: owner,
+          name: HYBRID_PLAN_NAME,
+          notes: HYBRID_PLAN_NOTES,
+          created_at: stamp,
+          updated_at: stamp,
+        }
+        writes.push({ store: 'plans', row: plan })
+        ops.push(upsert('training_plans', plan))
 
-        for (const definition of HYBRID_TEMPLATES) {
+        for (const [index, definition] of HYBRID_TEMPLATES.entries()) {
           const templateId = newId()
           const template: TemplateRow = {
             id: templateId,
             owner_id: owner,
             name: definition.name,
             notes: definition.notes,
+            plan_id: plan.id,
+            plan_position: index,
             created_at: stamp,
             updated_at: stamp,
           }
@@ -586,7 +755,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         await commit(writes, ops)
         await setMeta('hybridBlockRolesApplied', true)
-        return { created: true }
+        return { created: true, planId: plan.id }
       },
 
       async ensureHybridBlockRoles() {
@@ -614,6 +783,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await setMeta('hybridBlockRolesApplied', true)
       },
 
+      async ensureHybridPlan() {
+        const all = await readAll()
+        if (!orphanHybridTemplates(all.templates)) return
+        const owner = userIdRef.current ?? ''
+        const stamp = nowIso()
+        const existing = hybridPlanFrom(all.plans)
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        const plan: TrainingPlanRow = existing ?? {
+          id: newId(),
+          owner_id: owner,
+          name: HYBRID_PLAN_NAME,
+          notes: HYBRID_PLAN_NOTES,
+          created_at: stamp,
+          updated_at: stamp,
+        }
+        if (!existing) {
+          writes.push({ store: 'plans', row: plan })
+          ops.push(upsert('training_plans', plan))
+        }
+        for (const row of applyHybridPlanMembership({ plan, templates: all.templates, now: stamp })) {
+          writes.push({ store: 'templates', row })
+          ops.push(upsert('workout_templates', row))
+        }
+        if (writes.length === 0) return
+        await commit(writes, ops)
+      },
+
       // ------------------------------------------------------------ scheduling
 
       async scheduleSingleDate(templateId, date) {
@@ -629,16 +826,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit([{ store: 'schedules', row }], [upsert('schedule_items', row)])
       },
 
-      async scheduleHybridRotation(input) {
+      async schedulePlanRotation(planId, input) {
         const all = await readAll()
-        const installed = hybridTemplatesFrom(all.templates)
-        if (!installed) throw new Error('Add the Hybrid 4-day program first.')
+        const days = sortPlanTemplates(all.templates, planId)
+        if (days.length === 0) throw new Error('Add at least one routine to the plan first.')
 
         const occurrences = rotationOccurrences({
           frequency: input.frequency,
           weekdays: input.weekdays,
           start: input.startDate,
           weeks: input.weeks,
+          dayCount: days.length,
         })
         if (occurrences.length === 0) return 0
 
@@ -647,10 +845,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
         for (const occurrence of occurrences) {
+          const template = days[occurrence.dayIndex]
+          if (!template) continue
           const row: ScheduleItemRow = {
             id: newId(),
             owner_id: owner,
-            template_id: installed[occurrence.slot].id,
+            template_id: template.id,
             scheduled_date: occurrence.date,
             recurrence_rule_id: null,
             created_at: stamp,
@@ -897,6 +1097,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           profile,
           bodyWeights: all.bodyWeights,
           exercises: all.exercises.filter((e) => e.owner_id !== null),
+          plans: all.plans,
           templates: all.templates,
           templateItems: all.templateItems,
           rules: all.rules,
@@ -940,6 +1141,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ops.push(upsert('exercises', next))
         }
 
+        for (const row of file.plans) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'plans', row: next })
+          ops.push(upsert('training_plans', next))
+        }
         for (const row of file.templates) {
           const next = { ...row, owner_id: owner, updated_at: stamp }
           writes.push({ store: 'templates', row: next })

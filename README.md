@@ -9,7 +9,9 @@ Live: https://mlsivanovic.github.io/Herkules/
 - **Auth** — email/password sign-up with email confirmation, password reset, persistent sessions
 - **Today** — today's plan, active workout resume, week snapshot and streak
 - **Calendar** — single-date and weekly repeating plans (optional end date); days show `planned / in-progress / completed / skipped`; editing a rule affects only future workouts — history is frozen
-- **Routines** — reusable templates with exercise order, planned sets, target values, rest, tempo prescriptions (e.g. `3-0-1`), notes and superset/circuit grouping; optional **Hybrid 4-day** starter (A–D) with an A→B→C→D rotation planner
+- **Routines** — reusable templates with exercise order, planned sets, target values, rest, tempo prescriptions (e.g. `3-0-1`), notes and superset/circuit grouping
+- **Training plans** — named, ordered sets of routines (a split). Assign a routine to a plan from the routine editor; reorder days on the plan; optional rotation scheduler writes dates to the calendar. **Hybrid 4-day** starter installs as a plan (A–D)
+
 - **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with five measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`, `weight + hold time` for loaded isometrics)
 - **Active workout** — elapsed timer, previous values per exercise, RPE 1–10, notes, add/remove/reorder/swap exercises, automatic rest timer with sound/vibration cues, plate calculator, one-tap warm-up ramp generator, interval/HIIT timer with screen wake lock; only one active workout at a time
 - **Tendon support** — `gym / cardio / tendon` block roles, tempo prescriptions, isometric hold logging and a daily per-site check-in (morning stiffness and pain 0–10) with trends on the Progress page
@@ -63,8 +65,8 @@ src/
     metrics.ts             # volume, Epley e1RM, PRs, streak, adherence
     validation.ts theme.ts # input validation; light/dark theme
   components/              # AppLayout (bottom nav / sidebar), SetEditor, charts, pickers…
-  routes/                  # Today, Calendar, Routines(+editor), Exercises(+editor),
-                           # Progress, Settings, Workout, HistoryDetail, auth screens
+  routes/                  # Today, Calendar, Routines(+editor), Plans(+editor),
+                           # Exercises(+editor), Progress, Settings, Workout, HistoryDetail, auth screens
 supabase/migrations/       # schema, RLS (deny-by-default), seed
 tests/rls/                 # two-user RLS proof
 tests/e2e/                 # Playwright: auth, full flow, offline, shell

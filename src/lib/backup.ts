@@ -11,10 +11,11 @@ import type {
   TemplateItemRow,
   TemplateRow,
   TendonCheckinRow,
+  TrainingPlanRow,
 } from '../types/db'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 2
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT
@@ -24,6 +25,7 @@ export interface BackupFile {
   bodyWeights: BodyWeightRow[]
   /** user-owned exercises only — the system catalog is seeded server-side */
   exercises: ExerciseRow[]
+  plans: TrainingPlanRow[]
   templates: TemplateRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -77,5 +79,25 @@ export function parseBackup(text: string): BackupFile {
       throw new Error(`The backup is missing the "${key}" list.`)
     }
   }
-  return file as BackupFile
+  const plans = Array.isArray(file.plans)
+    ? file.plans
+    : file.version < 2
+      ? []
+      : null
+  if (plans === null) {
+    throw new Error('The backup is missing the "plans" list.')
+  }
+  return {
+    ...(file as BackupFile),
+    plans,
+    templates: (file.templates as TemplateRow[]).map(normalizeTemplate),
+  }
+}
+
+function normalizeTemplate(row: TemplateRow): TemplateRow {
+  return {
+    ...row,
+    plan_id: row.plan_id ?? null,
+    plan_position: Number.isFinite(row.plan_position) ? row.plan_position : 0,
+  }
 }

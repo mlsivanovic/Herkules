@@ -8,6 +8,7 @@ export type SequencedOp = OutboxOp & { seq: number }
 const UPSERT_ORDER: SyncTable[] = [
   'profiles',
   'exercises',
+  'training_plans',
   'workout_templates',
   'template_items',
   'recurrence_rules',

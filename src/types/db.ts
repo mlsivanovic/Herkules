@@ -66,11 +66,23 @@ export interface ExerciseRow {
   updated_at: string
 }
 
+export interface TrainingPlanRow {
+  id: string
+  owner_id: string
+  name: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface TemplateRow {
   id: string
   owner_id: string
   name: string
   notes: string | null
+  /** null = unassigned; a routine belongs to at most one plan */
+  plan_id: string | null
+  plan_position: number
   created_at: string
   updated_at: string
 }
@@ -179,6 +191,7 @@ export interface SessionDoc extends SessionRow {
 export type SyncTable =
   | 'profiles'
   | 'exercises'
+  | 'training_plans'
   | 'workout_templates'
   | 'template_items'
   | 'recurrence_rules'

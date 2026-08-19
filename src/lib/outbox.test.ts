@@ -67,6 +67,7 @@ describe('flush plan', () => {
       }),
       op({ kind: 'delete', table: 'workout_templates', id: 'tpl-1' }),
       op({ kind: 'delete', table: 'template_items', id: 'ti-1' }),
+      op({ kind: 'delete', table: 'training_plans', id: 'plan-1' }),
     ])
 
     const tableOrder = plan.map((b) => b.table)
@@ -79,6 +80,24 @@ describe('flush plan', () => {
       tableOrder.indexOf('workout_sets'),
     )
     expect(tableOrder.indexOf('template_items')).toBeLessThan(tableOrder.indexOf('workout_templates'))
+    expect(tableOrder.indexOf('workout_templates')).toBeLessThan(tableOrder.indexOf('training_plans'))
+  })
+
+  it('upserts training plans before the templates that reference them', () => {
+    const plan = planFlush([
+      op({
+        kind: 'upsert',
+        table: 'workout_templates',
+        row: { id: 'tpl-1', plan_id: 'plan-1' },
+      }),
+      op({
+        kind: 'upsert',
+        table: 'training_plans',
+        row: { id: 'plan-1', name: 'PPL' },
+      }),
+    ])
+    const tableOrder = plan.map((b) => b.table)
+    expect(tableOrder.indexOf('training_plans')).toBeLessThan(tableOrder.indexOf('workout_templates'))
   })
 
   it('deduplicates rows edited many times into one batch entry', () => {

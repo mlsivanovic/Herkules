@@ -1,6 +1,6 @@
 // RLS integration proof: two users, one anonymous client.
 // Verifies that no user can read or modify another user's data across all
-// nine tables and that system exercises are readable but immutable.
+// tables and that system exercises are readable but immutable.
 //
 // Requirements for the test project (see SETUP.md):
 //   - migrations applied (supabase db push)
@@ -26,6 +26,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     schedule: '',
     rule: '',
     checkin: '',
+    plan: '',
   }
 
   async function signUp(name: string): Promise<SupabaseClient> {
@@ -55,6 +56,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     await alice?.from('schedule_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('recurrence_rules').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('workout_templates').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await alice?.from('training_plans').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('exercises').delete().eq('name', 'RLS Probe Exercise')
     await bob?.from('exercises').delete().eq('name', 'RLS Probe Exercise (Bob)')
   })
@@ -69,9 +71,17 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(exError).toBeNull()
       aliceIds.exercise = exercise.id
 
+      const { data: plan, error: planError } = await alice
+        .from('training_plans')
+        .insert({ name: 'RLS Probe Plan' })
+        .select()
+        .single()
+      expect(planError).toBeNull()
+      aliceIds.plan = plan.id
+
       const { data: template, error: tplError } = await alice
         .from('workout_templates')
-        .insert({ name: 'RLS Probe Routine' })
+        .insert({ name: 'RLS Probe Routine', plan_id: plan.id, plan_position: 0 })
         .select()
         .single()
       expect(tplError).toBeNull()
@@ -176,6 +186,9 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
 
       const { data: tpl } = await bob.from('workout_templates').select().eq('id', aliceIds.template)
       expect(tpl).toHaveLength(0)
+
+      const { data: plan } = await bob.from('training_plans').select().eq('id', aliceIds.plan)
+      expect(plan).toHaveLength(0)
 
       const { data: items } = await bob.from('template_items').select().eq('id', aliceIds.item)
       expect(items).toHaveLength(0)
@@ -288,6 +301,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'workout_sessions',
         'session_exercises',
         'workout_sets',
+        'training_plans',
       ]
       for (const table of tables) {
         const { error } = await anon.from(table).select().limit(1)
@@ -315,6 +329,16 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
 
       const { error: deleteError } = await bob.from('exercises').delete().eq('id', id)
       expect(deleteError).toBeTruthy() // no DELETE grant — archive is the flow
+    })
+
+    it('cannot attach a routine to Alice plan', async () => {
+      const { data: template, error } = await bob
+        .from('workout_templates')
+        .insert({ name: 'Bob Routine', plan_id: aliceIds.plan })
+        .select()
+        .single()
+      expect(error).toBeTruthy()
+      expect(template).toBeNull()
     })
   })
 })

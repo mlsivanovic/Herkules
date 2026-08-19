@@ -15,11 +15,13 @@ import type {
   TemplateItemRow,
   TemplateRow,
   TendonCheckinRow,
+  TrainingPlanRow,
 } from '../types/db'
 
 export type StoreName =
   | 'profiles'
   | 'exercises'
+  | 'plans'
   | 'templates'
   | 'templateItems'
   | 'rules'
@@ -37,6 +39,7 @@ interface HerkulesDB extends DBSchema {
   meta: { key: string; value: unknown }
   profiles: { key: string; value: DirtyRow }
   exercises: { key: string; value: DirtyRow }
+  plans: { key: string; value: DirtyRow }
   templates: { key: string; value: DirtyRow }
   templateItems: { key: string; value: DirtyRow }
   rules: { key: string; value: DirtyRow }
@@ -48,7 +51,7 @@ interface HerkulesDB extends DBSchema {
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -77,6 +80,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         if (oldVersion < 3 && !db.objectStoreNames.contains('checkins')) {
           db.createObjectStore('checkins', { keyPath: 'value.id' })
         }
+        if (oldVersion < 4 && !db.objectStoreNames.contains('plans')) {
+          db.createObjectStore('plans', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -103,6 +109,7 @@ export async function readOne<T>(store: StoreName, id: string): Promise<T | null
 
 export async function readAll(): Promise<{
   exercises: ExerciseRow[]
+  plans: TrainingPlanRow[]
   templates: TemplateRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -112,27 +119,47 @@ export async function readAll(): Promise<{
   checkins: TendonCheckinRow[]
 }> {
   const db = await getDb()
-  const [exercises, templates, templateItems, rules, schedules, sessions, bodyWeights, checkins] =
-    await Promise.all([
-      db.getAll('exercises'),
-      db.getAll('templates'),
-      db.getAll('templateItems'),
-      db.getAll('rules'),
-      db.getAll('schedules'),
-      db.getAll('sessions'),
-      db.getAll('bodyWeights'),
-      db.getAll('checkins'),
-    ])
+  const [
+    exercises,
+    plans,
+    templates,
+    templateItems,
+    rules,
+    schedules,
+    sessions,
+    bodyWeights,
+    checkins,
+  ] = await Promise.all([
+    db.getAll('exercises'),
+    db.getAll('plans'),
+    db.getAll('templates'),
+    db.getAll('templateItems'),
+    db.getAll('rules'),
+    db.getAll('schedules'),
+    db.getAll('sessions'),
+    db.getAll('bodyWeights'),
+    db.getAll('checkins'),
+  ])
   const pick = <T>(rows: DirtyRow[]): T[] => rows.map((r) => r.value as unknown as T)
   return {
     exercises: pick(exercises),
-    templates: pick(templates),
+    plans: pick(plans),
+    templates: pick<TemplateRow>(templates).map(normalizeTemplate),
     templateItems: pick(templateItems),
     rules: pick(rules),
     schedules: pick(schedules),
     sessions: pick(sessions),
     bodyWeights: pick(bodyWeights),
     checkins: pick(checkins),
+  }
+}
+
+/** Rows written before training plans existed have no plan_id / plan_position. */
+function normalizeTemplate(row: TemplateRow): TemplateRow {
+  return {
+    ...row,
+    plan_id: row.plan_id ?? null,
+    plan_position: Number.isFinite(row.plan_position) ? row.plan_position : 0,
   }
 }
 
@@ -207,6 +234,7 @@ export async function clearDirtyFlags(): Promise<void> {
   const stores: StoreName[] = [
     'profiles',
     'exercises',
+    'plans',
     'templates',
     'templateItems',
     'rules',
@@ -287,6 +315,7 @@ export async function wipeLocalData(): Promise<void> {
     'meta',
     'profiles',
     'exercises',
+    'plans',
     'templates',
     'templateItems',
     'rules',

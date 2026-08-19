@@ -15,6 +15,7 @@ import { NotFound } from './routes/NotFound'
 
 const History = lazy(() => import('./routes/History').then((m) => ({ default: m.History })))
 const RoutineEditor = lazy(() => import('./routes/RoutineEditor').then((m) => ({ default: m.RoutineEditor })))
+const PlanEditor = lazy(() => import('./routes/PlanEditor').then((m) => ({ default: m.PlanEditor })))
 const ExerciseEditor = lazy(() => import('./routes/ExerciseEditor').then((m) => ({ default: m.ExerciseEditor })))
 const Workout = lazy(() => import('./routes/Workout').then((m) => ({ default: m.Workout })))
 const HistoryDetail = lazy(() => import('./routes/HistoryDetail').then((m) => ({ default: m.HistoryDetail })))
@@ -47,6 +48,7 @@ export default function App() {
                     <Route path="/calendar" element={<Calendar />} />
                     <Route path="/routines" element={<Routines />} />
                     <Route path="/routines/:id" element={<RoutineEditor />} />
+                    <Route path="/plans/:id" element={<PlanEditor />} />
                     <Route path="/exercises" element={<Exercises />} />
                     <Route path="/exercises/:id" element={<ExerciseEditor />} />
                         <Route path="/progress" element={<Progress />} />

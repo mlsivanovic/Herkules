@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
+import type { TendonCheckinRow } from '../types/db'
 import { addDays, startOfWeek, todayKey } from '../lib/dates'
 import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import {
@@ -23,8 +24,9 @@ const WEEKS_SHOWN = 12
 
 export function Progress() {
   const navigate = useNavigate()
-  const { sessions, exercises, schedules, rules, profile, ready, bodyWeights } = useStore()
+  const { sessions, exercises, schedules, rules, profile, ready, bodyWeights, checkins } = useStore()
   const [exerciseId, setExerciseId] = useState<string>('')
+  const [tendonSite, setTendonSite] = useState<string>('')
 
   const today = todayKey()
   const weekStartDay = profile?.week_start ?? 'monday'
@@ -238,6 +240,78 @@ export function Progress() {
           ))}
         </ul>
       )}
+
+      {checkins.length > 0 ? (
+        <>
+          <div className="section-title">Tendon</div>
+          <TendonTrend checkins={checkins} site={tendonSite} onSelectSite={setTendonSite} />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function TendonTrend({
+  checkins,
+  site,
+  onSelectSite,
+}: {
+  checkins: TendonCheckinRow[]
+  site: string
+  onSelectSite(site: string): void
+}) {
+  const sites = useMemo(
+    () => [...new Set(checkins.map((row) => row.site))].sort((a, b) => a.localeCompare(b)),
+    [checkins],
+  )
+  const selected = site === '' ? (sites[0] ?? '') : site
+  const rows = useMemo(
+    () =>
+      checkins
+        .filter((row) => row.site === selected)
+        .sort((a, b) => (a.recorded_on < b.recorded_on ? -1 : 1))
+        .map((row) => ({ ...row, label: row.recorded_on.slice(5) })),
+    [checkins, selected],
+  )
+
+  return (
+    <div className="card stack">
+      <label className="field">
+        <span>Body site</span>
+        <select className="input" value={selected} onChange={(e) => onSelectSite(e.target.value)}>
+          {sites.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {rows.length > 1 ? (
+        <>
+          <LineChart
+            points={rows.map((row) => ({ label: row.label, value: row.pain }))}
+            formatValue={(value) => `pain ${value}`}
+            ariaLabel={`Pain for ${selected} over time`}
+          />
+          <LineChart
+            points={rows.map((row) => ({ label: row.label, value: row.stiffness }))}
+            formatValue={(value) => `stiffness ${value}`}
+            ariaLabel={`Morning stiffness for ${selected} over time`}
+          />
+        </>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          One entry so far — log a few more days and the trend appears.
+        </p>
+      )}
+      <ul className="muted" style={{ margin: 0, paddingLeft: '1.1rem' }}>
+        {rows.slice(-5).reverse().map((row) => (
+          <li key={row.id}>
+            {row.recorded_on} — stiffness {row.stiffness}, pain {row.pain}
+            {row.notes ? ` (${row.notes})` : ''}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

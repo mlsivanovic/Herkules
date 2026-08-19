@@ -7,6 +7,7 @@ import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import { workoutStreak } from '../lib/metrics'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { IconPlay, IconPlus } from '../components/Icons'
+import { TendonCheckin } from '../components/TendonCheckin'
 import './today.css'
 
 export function Today() {
@@ -175,6 +176,9 @@ export function Today() {
             ))}
         </div>
       )}
+
+      <div className="section-title">Tendon check-in</div>
+      <TendonCheckin />
 
       <div className="section-title">Quick actions</div>
       <div className="row row--wrap">

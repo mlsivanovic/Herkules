@@ -137,6 +137,8 @@ function kindsForMeasurement(measurement: string): PrKind[] {
       return ['distance', 'duration']
     case 'duration':
       return ['duration']
+    case 'weight_duration':
+      return ['weight', 'duration']
     default:
       return []
   }

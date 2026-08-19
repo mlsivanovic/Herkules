@@ -184,6 +184,7 @@ const MEASUREMENTS: ExerciseMeasurement[] = [
   'reps',
   'duration',
   'distance_duration',
+  'weight_duration',
 ]
 
 function asStatus(value: string): SessionStatus {

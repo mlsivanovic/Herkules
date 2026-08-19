@@ -154,7 +154,22 @@ export function SetEditor({
           </label>
         ) : null}
 
-        {measurement === 'duration' || measurement === 'distance_duration' ? (
+        {measurement === 'weight_duration' ? (
+          <label className="set-field">
+            <span className="visually-hidden">Weight in {weightUnitLabel(units)}</span>
+            <input
+              className="input input--cell"
+              type="text"
+              inputMode="decimal"
+              placeholder={`${weightUnitLabel(units)}`}
+              value={draft.weight}
+              disabled={readonly}
+              onChange={(e) => apply({ weight: e.target.value })}
+            />
+          </label>
+        ) : null}
+
+        {measurement === 'duration' || measurement === 'distance_duration' || measurement === 'weight_duration' ? (
           <label className="set-field">
             <span className="visually-hidden">Duration (mm:ss or h:mm:ss)</span>
             <input

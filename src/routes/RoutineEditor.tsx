@@ -354,6 +354,41 @@ export function RoutineEditor() {
                     </label>
                   ) : null}
 
+                  {measurement === 'weight_duration' ? (
+                    <>
+                      <label className="field">
+                        <span>Target {weightUnitLabel(units)}</span>
+                        <input
+                          className="input input--cell"
+                          type="number"
+                          min={0}
+                          step="0.5"
+                          value={weightForInput(item.target_weight_kg, units)}
+                          onChange={(e) =>
+                            update(index, {
+                              target_weight_kg:
+                                e.target.value === '' ? null : weightToKg(Number(e.target.value), units),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Target hold (s)</span>
+                        <input
+                          className="input input--cell"
+                          type="number"
+                          min={0}
+                          value={item.target_duration_s ?? ''}
+                          onChange={(e) =>
+                            update(index, {
+                              target_duration_s: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
                   {measurement === 'duration' || measurement === 'distance_duration' ? (
                     <label className="field">
                       <span>Target seconds</span>
@@ -389,6 +424,23 @@ export function RoutineEditor() {
                       />
                     </label>
                   ) : null}
+
+                  <label className="field">
+                    <span>Tempo</span>
+                    <input
+                      className="input input--cell"
+                      type="text"
+                      inputMode="text"
+                      placeholder="3-0-1"
+                      maxLength={16}
+                      value={item.tempo ?? ''}
+                      onChange={(e) =>
+                        update(index, {
+                          tempo: e.target.value.trim() === '' ? null : e.target.value.trim(),
+                        })
+                      }
+                    />
+                  </label>
 
                   <label className="field">
                     <span>Rest (s)</span>

@@ -18,6 +18,7 @@ const MEASUREMENTS: { value: ExerciseMeasurement; label: string }[] = [
   { value: 'reps', label: 'Reps only' },
   { value: 'duration', label: 'Duration' },
   { value: 'distance_duration', label: 'Distance + Duration' },
+  { value: 'weight_duration', label: 'Weight + Hold time (isometrics)' },
 ]
 
 export function ExerciseEditor() {

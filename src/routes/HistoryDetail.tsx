@@ -124,7 +124,14 @@ export function HistoryDetail() {
         {session.session_exercises.map((se) => (
           <section key={se.id} className={`card ${blockRoleClass(se.block_role)}`}>
             <div className="row row--between">
-              <strong>{se.name_snapshot}</strong>
+              <span className="row">
+                <strong>{se.name_snapshot}</strong>
+                {se.tempo ? (
+                  <span className="badge badge--neutral" title="Prescribed tempo">
+                    Tempo {se.tempo}
+                  </span>
+                ) : null}
+              </span>
               <small className="muted">{se.sets.filter((s) => s.completed_at !== null).length} sets</small>
             </div>
             {se.notes ? (

@@ -620,6 +620,11 @@ function ExerciseCard({
         ) : (
           <span />
         )}
+        {exercise.tempo ? (
+          <span className="badge badge--neutral tempo-badge" title="Prescribed tempo">
+            Tempo {exercise.tempo}
+          </span>
+        ) : null}
         <div className="row">
           {exercise.measurement_snapshot === 'weight_reps' ? (
             <>
@@ -677,6 +682,8 @@ function ExerciseCard({
               if (exercise.measurement_snapshot === 'reps') return `${set.reps ?? '–'} reps`
               if (exercise.measurement_snapshot === 'duration')
                 return formatDuration(set.duration_s ?? 0)
+              if (exercise.measurement_snapshot === 'weight_duration')
+                return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDuration(set.duration_s ?? 0)}`
               return `${formatDistance(set.distance_m ?? 0, units)} in ${formatDuration(set.duration_s ?? 0)}`
             })
             .join(', ')}

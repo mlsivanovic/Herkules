@@ -894,7 +894,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 id: newId(),
                 owner_id: userIdRef.current,
                 name: item.name,
-                category: item.measurement === 'weight_reps' || item.measurement === 'reps' ? 'strength' : 'cardio',
+                category:
+                  item.measurement === 'weight_reps' ||
+                  item.measurement === 'reps' ||
+                  item.measurement === 'weight_duration'
+                    ? 'strength'
+                    : 'cardio',
                 measurement: item.measurement,
                 muscle_groups: [],
                 equipment: [],

@@ -25,6 +25,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     set: '',
     schedule: '',
     rule: '',
+    checkin: '',
   }
 
   async function signUp(name: string): Promise<SupabaseClient> {
@@ -50,6 +51,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     // Best-effort cleanup of data (test users remain in the test project Auth;
     // remove them from the dashboard or with the service key if desired).
     await alice?.from('workout_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await alice?.from('tendon_checkins').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('schedule_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('recurrence_rules').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('workout_templates').delete().neq('id', '00000000-0000-0000-0000-000000000000')
@@ -125,6 +127,22 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         recurrence_rule_id: rule.id,
       })
       expect(scheduleError).toBeNull()
+    })
+
+    it('creates a tendon check-in', async () => {
+      const { data, error } = await alice
+        .from('tendon_checkins')
+        .insert({
+          recorded_on: '2026-08-19',
+          site: 'Knee L',
+          stiffness: 3,
+          pain: 2,
+          notes: 'morning stiffness',
+        })
+        .select()
+        .single()
+      expect(error).toBeNull()
+      aliceIds.checkin = data.id
     })
 
     it('rejects invalid data at the database level', async () => {
@@ -209,6 +227,16 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         .select()
         .eq('template_id', aliceIds.template)
       expect(schedules).toHaveLength(0)
+    })
+
+    it('cannot read or write Alice tendon check-ins', async () => {
+      const { data } = await bob.from('tendon_checkins').select().eq('id', aliceIds.checkin)
+      expect(data).toHaveLength(0)
+      const { error } = await bob
+        .from('tendon_checkins')
+        .update({ pain: 10 })
+        .eq('id', aliceIds.checkin)
+      expect(error).toBeDefined()
     })
 
     it('cannot read or edit Alice profile', async () => {

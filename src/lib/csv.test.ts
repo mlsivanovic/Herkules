@@ -77,6 +77,42 @@ describe('workout csv', () => {
     expect(first?.exercises[0]?.sets[0]?.notes).toBe('paused')
   })
 
+  it('round-trips a weight_duration (isometric hold) session', () => {
+    const doc = session({
+      session_exercises: [
+        {
+          ...(session().session_exercises[0] as NonNullable<
+            ReturnType<typeof session>['session_exercises'][number]
+          >),
+          name_snapshot: 'Split Squat Iso Hold',
+          measurement_snapshot: 'weight_duration',
+          sets: [
+            {
+              id: 'set-iso',
+              session_exercise_id: 'se-1',
+              position: 1,
+              weight_kg: 24,
+              reps: null,
+              duration_s: 45,
+              distance_m: null,
+              rpe: 6,
+              notes: null,
+              is_warmup: false,
+              completed_at: '2026-08-19T10:00:00.000Z',
+              created_at: '2026-08-19T10:00:00.000Z',
+              updated_at: '2026-08-19T10:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    })
+    const parsed = parseWorkoutCsv(serializeWorkoutCsv([doc]))
+    const exercise = parsed[0]?.exercises[0]
+    expect(exercise?.measurement).toBe('weight_duration')
+    expect(exercise?.sets[0]?.weight_kg).toBe(24)
+    expect(exercise?.sets[0]?.duration_s).toBe(45)
+  })
+
   it('exports a skipped session as a single row', () => {
     const csv = serializeWorkoutCsv([
       session({

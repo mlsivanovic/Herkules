@@ -15,6 +15,7 @@ import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { formatDuration, formatWeight, formatDistance } from '../lib/units'
 import { previousSetsForExercise } from '../lib/metrics'
+import { timerCue } from '../lib/cues'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal } from '../components/ui'
@@ -752,6 +753,7 @@ function RestChip({
 }) {
   useEffect(() => {
     if (remaining <= 0) {
+      timerCue()
       onDone()
       return
     }

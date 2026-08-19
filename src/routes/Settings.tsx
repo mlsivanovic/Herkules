@@ -17,6 +17,7 @@ import {
   weightUnitLabel,
 } from '../lib/units'
 import { parseNonNegative } from '../lib/validation'
+import { setSoundEnabled, setVibrationEnabled, soundEnabled, vibrationEnabled } from '../lib/cues'
 import { useTheme, type ThemePreference } from '../lib/theme'
 import type { Sex } from '../types/db'
 import { LineChart } from '../components/Chart'
@@ -28,6 +29,8 @@ export function Settings() {
   const { session } = useAuth()
   const profile = store.profile
   const { preference, setPreference } = useTheme()
+  const [cueSound, setCueSound] = useState(() => soundEnabled())
+  const [cueVibration, setCueVibration] = useState(() => vibrationEnabled())
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [saved, setSaved] = useState(false)
@@ -248,6 +251,38 @@ export function Settings() {
               })
             }
           />
+        </div>
+        <div className="field">
+          <label htmlFor="settings-cue-sound">Rest timer sound</label>
+          <select
+            id="settings-cue-sound"
+            className="input"
+            value={cueSound ? 'on' : 'off'}
+            onChange={(e) => {
+              const enabled = e.target.value === 'on'
+              setCueSound(enabled)
+              setSoundEnabled(enabled)
+            }}
+          >
+            <option value="on">On (double beep)</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="settings-cue-vibration">Rest timer vibration</label>
+          <select
+            id="settings-cue-vibration"
+            className="input"
+            value={cueVibration ? 'on' : 'off'}
+            onChange={(e) => {
+              const enabled = e.target.value === 'on'
+              setCueVibration(enabled)
+              setVibrationEnabled(enabled)
+            }}
+          >
+            <option value="on">On (where supported)</option>
+            <option value="off">Off</option>
+          </select>
         </div>
       </div>
 

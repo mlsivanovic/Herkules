@@ -21,6 +21,7 @@ import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { PlateCalculatorModal, WarmupModal } from '../components/Calculators'
+import { IntervalTimerModal } from '../components/IntervalTimer'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
   IconGrip,
@@ -54,6 +55,7 @@ export function Workout() {
   const [finishError, setFinishError] = useState<string | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const [intervalsOpen, setIntervalsOpen] = useState(false)
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const startingRef = useRef(false)
@@ -135,6 +137,15 @@ export function Workout() {
         <span className="row">
           <button
             type="button"
+            className="btn btn--icon btn--small"
+            aria-label="Interval timer"
+            title="Interval timer"
+            onClick={() => setIntervalsOpen(true)}
+          >
+            <IconTimer width={18} height={18} />
+          </button>
+          <button
+            type="button"
             className="btn btn--small"
             onClick={() => setDiscardOpen(true)}
           >
@@ -208,6 +219,8 @@ export function Workout() {
           onDone={() => setRestRemaining(null)}
         />
       ) : null}
+
+      {intervalsOpen ? <IntervalTimerModal onClose={() => setIntervalsOpen(false)} /> : null}
 
       {pickerMode === 'add' ? (
         <ExercisePicker

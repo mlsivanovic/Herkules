@@ -100,11 +100,13 @@ export function SetEditor({
   }
 
   const completed = set.completed_at !== null
+  const warmup = set.is_warmup === true
 
   return (
-    <div className={`set-row ${completed ? 'set-row--done' : ''}`}>
-      <span className="set-index" aria-label={`Set ${index + 1}`}>
+    <div className={`set-row ${completed ? 'set-row--done' : ''}${warmup ? ' set-row--warmup' : ''}`}>
+      <span className="set-index" aria-label={`Set ${index + 1}${warmup ? ' (warm-up)' : ''}`}>
         {index + 1}
+        {warmup ? <span className="set-warmup-badge" title="Warm-up set">W</span> : null}
       </span>
 
       <div className="set-inputs" role="group" aria-label={`Set ${index + 1} values`}>

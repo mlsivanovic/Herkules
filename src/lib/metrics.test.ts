@@ -124,6 +124,17 @@ describe('volume and e1RM', () => {
     ]
     expect(bestE1RM(sets)).toBeCloseTo(90 * (1 + 3 / 30), 5)
   })
+
+  it('excludes warm-up sets from volume and e1RM', () => {
+    const working = makeSet({ weight_kg: 100, reps: 5 })
+    const ramp = makeSet({ weight_kg: 40, reps: 5, is_warmup: true })
+    expect(setVolume(ramp)).toBe(0)
+    expect(bestE1RM([ramp, working])).toBeCloseTo(100 * (1 + 5 / 30), 5)
+    const doc = makeSession({
+      session_exercises: [makeSessionEx({ id: 'se-1' }, [ramp, working])],
+    })
+    expect(sessionVolume(doc)).toBe(500)
+  })
 })
 
 describe('personal records', () => {

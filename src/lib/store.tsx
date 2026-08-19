@@ -177,6 +177,11 @@ export interface StoreActions {
   reorderSessionExercises(sessionId: string, orderedIds: string[]): Promise<void>
   upsertSet(sessionId: string, set: SetRow): Promise<void>
   deleteSet(sessionId: string, sessionExerciseId: string, setId: string): Promise<void>
+  addWarmupSets(
+    sessionId: string,
+    sessionExerciseId: string,
+    planned: { weightKg: number; reps: number }[],
+  ): Promise<void>
 
   // profile
   updateProfile(
@@ -1109,6 +1114,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit([{ store: 'sessions', row }], [
           { kind: 'delete', table: 'workout_sets', id: setId },
         ])
+      },
+
+      async addWarmupSets(sessionId, sessionExerciseId, planned) {
+        if (planned.length === 0) return
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error('Session not found.')
+        const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
+        if (!target) throw new Error('Session exercise not found.')
+
+        const stamp = nowIso()
+        // Warm-ups take positions 1..n; existing sets shift behind them.
+        const warmups: SetRow[] = planned.map((step, index) => ({
+          id: newId(),
+          session_exercise_id: sessionExerciseId,
+          position: index + 1,
+          weight_kg: step.weightKg,
+          reps: step.reps,
+          duration_s: null,
+          distance_m: null,
+          rpe: null,
+          notes: null,
+          is_warmup: true,
+          completed_at: null,
+          created_at: stamp,
+          updated_at: stamp,
+        }))
+        const moved = target.sets.map((set) => ({
+          ...set,
+          position: set.position + warmups.length,
+          updated_at: stamp,
+        }))
+
+        const ops: OutboxOp[] = [
+          ...warmups.map((set) => upsert('workout_sets', set)),
+          ...moved.map((set) => upsert('workout_sets', set)),
+        ]
+        const nextExercises = doc.session_exercises.map((se) =>
+          se.id === sessionExerciseId
+            ? {
+                ...se,
+                sets: [...warmups, ...moved].sort((a, b) => a.position - b.position),
+                updated_at: stamp,
+              }
+            : se,
+        )
+        const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: stamp }
+        await commit([{ store: 'sessions', row }], ops)
       },
 
       // ------------------------------------------------------------ profile

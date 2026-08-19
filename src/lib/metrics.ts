@@ -13,9 +13,14 @@ export function isCompleted(set: SetRow): boolean {
   return set.completed_at !== null
 }
 
+/** Stats only count real work: completed sets that are not warm-up ramps. */
+export function countsForStats(set: SetRow): boolean {
+  return set.completed_at !== null && !set.is_warmup
+}
+
 /** Volume of a strength set: weight × reps. 0 when incomplete. */
 export function setVolume(set: SetRow): number {
-  if (!isCompleted(set)) return 0
+  if (!countsForStats(set)) return 0
   const weight = set.weight_kg ?? 0
   const reps = set.reps ?? 0
   return weight * reps
@@ -39,7 +44,7 @@ export function e1RM(weightKg: number | null, reps: number | null): number | nul
 export function bestE1RM(sets: SetRow[]): number | null {
   let best: number | null = null
   for (const set of sets) {
-    if (!isCompleted(set)) continue
+    if (!countsForStats(set)) continue
     const estimate = e1RM(set.weight_kg, set.reps)
     if (estimate !== null && (best === null || estimate > best)) best = estimate
   }
@@ -75,7 +80,7 @@ export function exerciseProgress(
       volume: match.sets.reduce((sum, s) => sum + setVolume(s), 0),
       bestE1RM: bestE1RM(match.sets),
       topSet: topSetOf(match),
-      completedSets: match.sets.filter(isCompleted).length,
+      completedSets: match.sets.filter(countsForStats).length,
     })
   }
   return rows
@@ -85,7 +90,7 @@ function topSetOf(exercise: SessionExerciseDoc): SetRow | null {
   let top: SetRow | null = null
   let topEstimate = -1
   for (const set of exercise.sets) {
-    if (!isCompleted(set)) continue
+    if (!countsForStats(set)) continue
     const estimate = e1RM(set.weight_kg, set.reps) ?? 0
     if (estimate > topEstimate) {
       topEstimate = estimate
@@ -110,7 +115,7 @@ export interface PersonalRecord {
 function bestOfKind(sets: SetRow[], kind: PrKind): number | null {
   let best: number | null = null
   for (const set of sets) {
-    if (!isCompleted(set)) continue
+    if (!countsForStats(set)) continue
     let value: number | null = null
     if (kind === 'e1rm') value = e1RM(set.weight_kg, set.reps)
     else if (kind === 'reps') value = set.reps
@@ -246,7 +251,7 @@ export function setsPerMuscleGroup(
     for (const se of doc.session_exercises) {
       const info = se.exercise_id ? catalog.get(se.exercise_id) : undefined
       const groups = info?.muscle_groups?.length ? info.muscle_groups : [se.name_snapshot]
-      const count = se.sets.filter(isCompleted).length
+      const count = se.sets.filter(countsForStats).length
       if (count === 0) continue
       for (const group of groups) {
         totals.set(group, (totals.get(group) ?? 0) + count)

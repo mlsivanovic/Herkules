@@ -62,3 +62,20 @@
     display: none;
   }
 }
+
+/* Warm-up ramp sets: visually quieter than working sets */
+.set-row--warmup .set-inputs {
+  opacity: 0.72;
+}
+
+.set-warmup-badge {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--c-card);
+  background: var(--c-muted, #64748b);
+}

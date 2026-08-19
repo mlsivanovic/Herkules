@@ -93,3 +93,13 @@
 .workout-page .rest-chip .btn {
   min-height: 34px;
 }
+
+/* Plate / warm-up calculator output */
+.calc-result {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-s);
+  background: var(--c-bg-raised);
+}

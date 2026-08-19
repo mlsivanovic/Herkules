@@ -20,6 +20,7 @@ import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
+import { PlateCalculatorModal, WarmupModal } from '../components/Calculators'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
   IconGrip,
@@ -473,6 +474,7 @@ function ExerciseCard({
   const store = useStore()
   const units = store.profile?.unit_system ?? 'metric'
   const [notesOpen, setNotesOpen] = useState(false)
+  const [calcOpen, setCalcOpen] = useState<'plates' | 'warmup' | null>(null)
   const catalogVideo = exercise.exercise_id
     ? store.exercises.find((row) => row.id === exercise.exercise_id)?.video_url
     : null
@@ -527,6 +529,14 @@ function ExerciseCard({
   )
   const logged = exercise.sets.some((set) => set.completed_at !== null)
   const role = normalizeBlockRole(exercise.block_role)
+  // Prefill for the calculators: the last completed weight of this session,
+  // falling back to the previous performance.
+  const lastCompleted = [...exercise.sets]
+    .filter((set) => set.completed_at !== null)
+    .sort((a, b) => a.position - b.position)
+    .at(-1)
+  const initialKg =
+    lastCompleted?.weight_kg ?? previous?.[0]?.weight_kg ?? null
 
   return (
     <section
@@ -598,6 +608,26 @@ function ExerciseCard({
           <span />
         )}
         <div className="row">
+          {exercise.measurement_snapshot === 'weight_reps' ? (
+            <>
+              <button
+                type="button"
+                className="btn btn--small"
+                data-no-drag
+                onClick={() => setCalcOpen('plates')}
+              >
+                Plates
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                data-no-drag
+                onClick={() => setCalcOpen('warmup')}
+              >
+                Warm-up
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             className="btn btn--icon btn--small"
@@ -663,6 +693,26 @@ function ExerciseCard({
         ) : null}
       </div>
         </>
+      ) : null}
+
+      {calcOpen === 'plates' ? (
+        <PlateCalculatorModal
+          units={units}
+          initialKg={initialKg}
+          onClose={() => setCalcOpen(null)}
+        />
+      ) : null}
+
+      {calcOpen === 'warmup' ? (
+        <WarmupModal
+          units={units}
+          initialKg={initialKg}
+          onAdd={(sets) => {
+            setCalcOpen(null)
+            void store.addWarmupSets(session.id, exercise.id, sets)
+          }}
+          onClose={() => setCalcOpen(null)}
+        />
       ) : null}
     </section>
   )

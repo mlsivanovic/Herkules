@@ -35,3 +35,7 @@
   font: inherit;
   border-left: 4px solid var(--c-accent);
 }
+
+.today-page .tendon-checkin {
+  margin-top: 1.4rem;
+}

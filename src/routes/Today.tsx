@@ -54,7 +54,7 @@ export function Today() {
   const firstName = (profile?.display_name ?? '').trim().split(' ')[0]
 
   return (
-    <div>
+    <div className="today-page">
       <div className="page-head">
         <div>
           <h1>{firstName ? `Hi, ${firstName}` : 'Today'}</h1>
@@ -177,9 +177,6 @@ export function Today() {
         </div>
       )}
 
-      <div className="section-title">Tendon check-in</div>
-      <TendonCheckin />
-
       <div className="section-title">Quick actions</div>
       <div className="row row--wrap">
         <button type="button" className="btn" onClick={() => void navigate('/workout')}>
@@ -195,6 +192,8 @@ export function Today() {
           Workout history
         </button>
       </div>
+
+      <TendonCheckin />
     </div>
   )
 }

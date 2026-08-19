@@ -60,11 +60,11 @@ export function Workout() {
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const startingRef = useRef(false)
   const [announce, setAnnounce] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const activeId = active?.id
 
   useEffect(() => {
-    if (activeId) setExpandedIds(readExpanded(activeId))
+    if (activeId) setCollapsedIds(readCollapsed(activeId))
   }, [activeId])
 
   const moveExercise = useCallback(
@@ -188,14 +188,14 @@ export function Workout() {
                 reorder.active.over === index &&
                 reorder.active.from !== index
               }
-              expanded={expandedIds.has(se.id)}
+              expanded={!collapsedIds.has(se.id)}
               onToggleExpand={() => {
                 if (!active) return
-                setExpandedIds((prev) => {
+                setCollapsedIds((prev) => {
                   const next = new Set(prev)
                   if (next.has(se.id)) next.delete(se.id)
                   else next.add(se.id)
-                  writeExpanded(active.id, next)
+                  writeCollapsed(active.id, next)
                   return next
                 })
               }}
@@ -427,13 +427,13 @@ function Elapsed({ startedAt }: { startedAt: string }) {
   return <>{formatDuration(seconds)}</>
 }
 
-function expandedStorageKey(sessionId: string): string {
-  return `herkules:expanded:${sessionId}`
+function collapsedStorageKey(sessionId: string): string {
+  return `herkules:collapsed:${sessionId}`
 }
 
-function readExpanded(sessionId: string): Set<string> {
+function readCollapsed(sessionId: string): Set<string> {
   try {
-    const raw = sessionStorage.getItem(expandedStorageKey(sessionId))
+    const raw = sessionStorage.getItem(collapsedStorageKey(sessionId))
     if (!raw) return new Set()
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string')) : new Set()
@@ -442,11 +442,11 @@ function readExpanded(sessionId: string): Set<string> {
   }
 }
 
-function writeExpanded(sessionId: string, ids: Set<string>): void {
+function writeCollapsed(sessionId: string, ids: Set<string>): void {
   try {
-    sessionStorage.setItem(expandedStorageKey(sessionId), JSON.stringify([...ids]))
+    sessionStorage.setItem(collapsedStorageKey(sessionId), JSON.stringify([...ids]))
   } catch {
-    /* private mode / quota — expand still works for this mount */
+    /* private mode / quota — collapse still works for this mount */
   }
 }
 

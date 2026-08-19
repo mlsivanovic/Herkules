@@ -159,6 +159,9 @@ export function HistoryDetail() {
         <button type="button" className="btn btn--ghost" onClick={() => void navigate(-1)}>
           Back
         </button>
+        <button type="button" className="btn btn--ghost" onClick={() => void navigate('/history')}>
+          All history
+        </button>
       </div>
 
       {pendingDelete ? (

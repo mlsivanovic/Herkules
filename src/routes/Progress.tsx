@@ -79,7 +79,16 @@ export function Progress() {
 
   return (
     <div>
-      <h1>Progress</h1>
+      <div className="page-head">
+        <h1>Progress</h1>
+        <button
+          type="button"
+          className="btn btn--small"
+          onClick={() => void navigate('/history')}
+        >
+          All workouts
+        </button>
+      </div>
 
       <div className="stat-grid">
         <div className="card stat-card">

@@ -13,6 +13,7 @@ import { Exercises } from './routes/Exercises'
 import { Progress } from './routes/Progress'
 import { NotFound } from './routes/NotFound'
 
+const History = lazy(() => import('./routes/History').then((m) => ({ default: m.History })))
 const RoutineEditor = lazy(() => import('./routes/RoutineEditor').then((m) => ({ default: m.RoutineEditor })))
 const ExerciseEditor = lazy(() => import('./routes/ExerciseEditor').then((m) => ({ default: m.ExerciseEditor })))
 const Workout = lazy(() => import('./routes/Workout').then((m) => ({ default: m.Workout })))
@@ -48,8 +49,9 @@ export default function App() {
                     <Route path="/routines/:id" element={<RoutineEditor />} />
                     <Route path="/exercises" element={<Exercises />} />
                     <Route path="/exercises/:id" element={<ExerciseEditor />} />
-                    <Route path="/progress" element={<Progress />} />
-                    <Route path="/history/:id" element={<HistoryDetail />} />
+                        <Route path="/progress" element={<Progress />} />
+                        <Route path="/history" element={<History />} />
+                        <Route path="/history/:id" element={<HistoryDetail />} />
                     <Route path="/settings" element={<Settings />} />
                   </Route>
                   <Route path="/workout" element={<Workout />} />

@@ -187,6 +187,9 @@ export function Today() {
         <button type="button" className="btn" onClick={() => void navigate('/calendar')}>
           Plan in calendar
         </button>
+        <button type="button" className="btn" onClick={() => void navigate('/history')}>
+          Workout history
+        </button>
       </div>
     </div>
   )

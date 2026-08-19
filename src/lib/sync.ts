@@ -14,7 +14,7 @@ import type {
   TemplateItemRow,
   TemplateRow,
 } from '../types/db'
-import { appendOps, listOps, removeOps } from './db'
+import { listOps, removeOps } from './db'
 import { planFlush } from './outbox'
 
 export class SyncError extends Error {}
@@ -148,9 +148,4 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
     bodyWeights: (weightsRes.data as BodyWeightRow[]) ?? [],
   }
-}
-
-/** Queue ops without touching the network (used by store actions). */
-export async function enqueue(ops: Parameters<typeof appendOps>[0]): Promise<void> {
-  await appendOps(ops)
 }

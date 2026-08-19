@@ -9,6 +9,8 @@ dev-dist/
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 
 # Test project credentials (remote Supabase test instance)
 .env.test

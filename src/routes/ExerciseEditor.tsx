@@ -36,9 +36,12 @@ export function ExerciseEditor() {
   const [videoUrl, setVideoUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Load once per exercise id: store reloads replace the `exercises` array
+  // (new object identity) and must not wipe what the user is typing.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (exercise) {
+    if (exercise && loadedFor !== exercise.id) {
       setName(exercise.name)
       setCategory(exercise.category)
       setMeasurement(exercise.measurement)
@@ -46,8 +49,9 @@ export function ExerciseEditor() {
       setEquipment(exercise.equipment.join(', '))
       setInstructions(exercise.instructions ?? '')
       setVideoUrl(exercise.video_url ?? '')
+      setLoadedFor(exercise.id)
     }
-  }, [exercise])
+  }, [exercise, loadedFor])
 
   if (!ready) return null
   if (!isNew && !exercise) {
@@ -94,6 +98,16 @@ export function ExerciseEditor() {
       setError(caught instanceof Error ? caught.message : 'Could not save the exercise.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function toggleArchive() {
+    if (!exercise) return
+    try {
+      await updateExercise(exercise.id, { is_archived: !exercise.is_archived })
+      void navigate('/exercises')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not update the exercise.')
     }
   }
 
@@ -215,11 +229,7 @@ export function ExerciseEditor() {
             <button
               type="button"
               className="btn"
-              onClick={() =>
-                void updateExercise(exercise.id, { is_archived: !exercise.is_archived }).then(() =>
-                  void navigate('/exercises'),
-                )
-              }
+              onClick={() => void toggleArchive()}
             >
               {exercise.is_archived ? 'Restore' : 'Archive'}
             </button>

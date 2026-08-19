@@ -1,6 +1,6 @@
 // Settings: profile (name, sex, birth date, height), body weight, units,
 // theme (light / dark / system), sync, CSV import/export, password and sign-out.
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
@@ -31,6 +31,7 @@ export function Settings() {
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
   const [logoutBusy, setLogoutBusy] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
@@ -52,11 +53,26 @@ export function Settings() {
     latestWeight && profile?.height_cm
       ? bodyMassIndex(latestWeight.weight_kg, profile.height_cm)
       : null
+  const savedTimer = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current)
+    },
+    [],
+  )
 
   async function saveProfile() {
-    await store.updateProfile({ display_name: displayName })
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 2000)
+    try {
+      await store.updateProfile({ display_name: displayName })
+      setSaveError(null)
+      setSaved(true)
+      if (savedTimer.current !== null) window.clearTimeout(savedTimer.current)
+      savedTimer.current = window.setTimeout(() => setSaved(false), 2000)
+    } catch (caught) {
+      setSaved(false)
+      setSaveError(caught instanceof Error ? caught.message : 'Could not save the profile.')
+    }
   }
 
   async function handleLogout() {
@@ -167,6 +183,11 @@ export function Settings() {
         </div>
         <small className="muted">Signed in as {session?.user.email}</small>
         {saved ? <small className="badge badge--completed">Saved</small> : null}
+        {saveError ? (
+          <p className="field-error" role="alert">
+            {saveError}
+          </p>
+        ) : null}
       </div>
 
       <div className="section-title">Preferences</div>

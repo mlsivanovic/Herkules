@@ -11,7 +11,11 @@ import { BLOCK_ROLES, blockRoleClass, normalizeBlockRole } from '../lib/blockRol
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import {
+  distanceForInput,
+  distanceToM,
   distanceUnitLabel,
+  weightForInput,
+  weightToKg,
   weightUnitLabel,
 } from '../lib/units'
 import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
@@ -42,6 +46,7 @@ export function RoutineEditor() {
   const { templates, templateItems, exercises, ready } = store
 
   const template = isNew ? null : templates.find((t) => t.id === id) ?? null
+  const units = store.profile?.unit_system ?? 'metric'
 
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
@@ -149,8 +154,12 @@ export function RoutineEditor() {
   async function removeRoutine() {
     if (!template) return
     if (window.confirm(`Delete routine "${template.name}"? Planned history is not affected.`)) {
-      await store.deleteTemplate(template.id)
-      void navigate('/routines')
+      try {
+        await store.deleteTemplate(template.id)
+        void navigate('/routines')
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Could not delete the routine.')
+      }
     }
   }
 
@@ -296,16 +305,17 @@ export function RoutineEditor() {
                   {measurement === 'weight_reps' ? (
                     <>
                       <label className="field">
-                        <span>Target {weightUnitLabel(store.profile?.unit_system ?? 'metric')}</span>
+                        <span>Target {weightUnitLabel(units)}</span>
                         <input
                           className="input input--cell"
                           type="number"
                           min={0}
                           step="0.5"
-                          value={item.target_weight_kg ?? ''}
+                          value={weightForInput(item.target_weight_kg, units)}
                           onChange={(e) =>
                             update(index, {
-                              target_weight_kg: e.target.value === '' ? null : Number(e.target.value),
+                              target_weight_kg:
+                                e.target.value === '' ? null : weightToKg(Number(e.target.value), units),
                             })
                           }
                         />
@@ -362,17 +372,18 @@ export function RoutineEditor() {
                   ) : null}
 
                   {measurement === 'distance_duration' ? (
-                    <label className="field">
-                      <span>Target {distanceUnitLabel(store.profile?.unit_system ?? 'metric')}</span>
+                      <label className="field">
+                      <span>Target {distanceUnitLabel(units)}</span>
                       <input
                         className="input input--cell"
                         type="number"
                         min={0}
                         step="0.1"
-                        value={item.target_distance_m ?? ''}
+                        value={distanceForInput(item.target_distance_m, units)}
                         onChange={(e) =>
                           update(index, {
-                            target_distance_m: e.target.value === '' ? null : Number(e.target.value) * 1000,
+                            target_distance_m:
+                              e.target.value === '' ? null : distanceToM(Number(e.target.value), units),
                           })
                         }
                       />

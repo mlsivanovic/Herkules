@@ -125,7 +125,7 @@ export function Progress() {
             label: week.weekStart.slice(5),
             value: Math.round(week.volume),
           }))}
-          formatValue={(value) => `${value} kg volume`}
+          formatValue={(value) => `${formatWeight(value, units)} volume`}
           ariaLabel="Weekly training volume over the last 12 weeks"
         />
       </div>
@@ -166,7 +166,7 @@ export function Progress() {
                 label: row.date.slice(5),
                 value: Math.round(row.bestE1RM ?? 0),
               }))}
-              formatValue={(value) => `${value} kg estimated 1RM`}
+              formatValue={(value) => `${formatWeight(value, units)} estimated 1RM`}
               ariaLabel={`Estimated 1RM trend for ${selected.name}`}
             />
           ) : selectedProgress[0] ? (

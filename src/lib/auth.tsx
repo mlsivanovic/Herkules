@@ -40,10 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!backendConfigured) return
     const auth = supabase().auth
 
-    void auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLoading(false)
-    })
+    void auth
+      .getSession()
+      .then(({ data }) => {
+        setSession(data.session)
+        setLoading(false)
+      })
+      .catch(() => {
+        // A failed session read must not leave the app stuck on the loader.
+        setSession(null)
+        setLoading(false)
+      })
 
     const { data: sub } = auth.onAuthStateChange((event, newSession) => {
       setSession(newSession)

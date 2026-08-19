@@ -26,7 +26,7 @@ const TABS = [
 ]
 
 export function AppLayout() {
-  const { pending, syncing, online, ready } = useStore()
+  const { pending, syncing, online, ready, syncError } = useStore()
   const navigate = useNavigate()
   const { theme, setPreference } = useTheme()
 
@@ -72,6 +72,10 @@ export function AppLayout() {
             ) : syncing ? (
               <span className="badge badge--in-progress">
                 <IconSync width={14} height={14} /> Syncing
+              </span>
+            ) : syncError ? (
+              <span className="badge badge--error" role="alert">
+                <IconSync width={14} height={14} /> Sync failed — will retry
               </span>
             ) : pending > 0 ? (
               <span className="badge badge--planned">

@@ -18,9 +18,14 @@ jobs:
             echo "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY variables not set — skipping."
             exit 0
           fi
-          curl -sf -H "apikey: $KEY" "$URL/rest/v1/exercises?select=id&limit=1" > /dev/null \
-            && echo "keepalive ping OK" \
-            || (echo "keepalive ping FAILED"; exit 1)
+          # The anon role has no grants (deny-by-default RLS), so PostgREST
+          # replies 4xx — any HTTP response still counts as project activity.
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/rest/v1/exercises?select=id&limit=1")
+          if [ "$status" = "000" ]; then
+            echo "keepalive ping FAILED (no response from PostgREST)"
+            exit 1
+          fi
+          echo "keepalive ping OK (HTTP $status)"
         env:
           URL: ${{ vars.VITE_SUPABASE_URL }}
           KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}

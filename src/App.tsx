@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth'
 import { StoreProvider } from './lib/store'
 import { AppLayout } from './components/AppLayout'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Loader } from './components/ui'
 import { Login, ResetPassword, Signup, UpdatePassword } from './routes/Auth'
 import { Today } from './routes/Today'
@@ -31,31 +32,33 @@ export default function App() {
     <HashRouter>
       <AuthProvider>
         <StoreProvider>
-          <Suspense fallback={<Loader />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/update-password" element={<UpdatePassword />} />
+          <ErrorBoundary>
+            <Suspense fallback={<Loader />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/update-password" element={<UpdatePassword />} />
 
-              <Route element={<RequireAuth />}>
-                <Route element={<AppLayout />}>
-                  <Route index element={<Today />} />
-                  <Route path="/calendar" element={<Calendar />} />
-                  <Route path="/routines" element={<Routines />} />
-                  <Route path="/routines/:id" element={<RoutineEditor />} />
-                  <Route path="/exercises" element={<Exercises />} />
-                  <Route path="/exercises/:id" element={<ExerciseEditor />} />
-                  <Route path="/progress" element={<Progress />} />
-                  <Route path="/history/:id" element={<HistoryDetail />} />
-                  <Route path="/settings" element={<Settings />} />
+                <Route element={<RequireAuth />}>
+                  <Route element={<AppLayout />}>
+                    <Route index element={<Today />} />
+                    <Route path="/calendar" element={<Calendar />} />
+                    <Route path="/routines" element={<Routines />} />
+                    <Route path="/routines/:id" element={<RoutineEditor />} />
+                    <Route path="/exercises" element={<Exercises />} />
+                    <Route path="/exercises/:id" element={<ExerciseEditor />} />
+                    <Route path="/progress" element={<Progress />} />
+                    <Route path="/history/:id" element={<HistoryDetail />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Route>
+                  <Route path="/workout" element={<Workout />} />
                 </Route>
-                <Route path="/workout" element={<Workout />} />
-              </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </StoreProvider>
       </AuthProvider>
     </HashRouter>

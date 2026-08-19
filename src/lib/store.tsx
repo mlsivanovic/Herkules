@@ -440,11 +440,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async saveTemplateItems(templateId, items) {
         const existing = (await readAll()).templateItems.filter((i) => i.template_id === templateId)
+        const existingById = new Map(existing.map((i) => [i.id, i]))
         const keptIds = new Set(items.map((i) => i.id).filter((id): id is string => Boolean(id)))
         const ops: OutboxOp[] = []
         const writes: { store: 'templateItems'; row: TemplateItemRow }[] = []
 
         for (const item of items) {
+          const previous = item.id ? existingById.get(item.id) : undefined
           const row: TemplateItemRow = {
             id: item.id ?? newId(),
             template_id: templateId,
@@ -459,7 +461,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             notes: item.notes,
             superset_group: item.superset_group,
             block_role: normalizeBlockRole(item.block_role),
-            created_at: nowIso(),
+            created_at: previous?.created_at ?? nowIso(),
             updated_at: nowIso(),
           }
           writes.push({ store: 'templateItems', row })

@@ -48,6 +48,9 @@ export function Workout() {
   const [swapTarget, setSwapTarget] = useState<string | null>(null)
   const [finishOpen, setFinishOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [finishBusy, setFinishBusy] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
   const [restRemaining, setRestRemaining] = useState<number | null>(null)
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
@@ -89,6 +92,7 @@ export function Workout() {
     }
     void (async () => {
       setBusy(true)
+      setStartError(null)
       try {
         await store.startSession({
           templateId: startState.templateId ?? null,
@@ -96,6 +100,8 @@ export function Workout() {
           plannedDate: startState.plannedDate ?? null,
         })
         navigate('/workout', { replace: true })
+      } catch (caught) {
+        setStartError(caught instanceof Error ? caught.message : 'Could not start the workout.')
       } finally {
         setBusy(false)
       }
@@ -108,7 +114,7 @@ export function Workout() {
   if (busy) return <Loader label="Preparing workout…" />
 
   if (!active) {
-    return <StartScreen onStarted={() => navigate('/workout', { replace: true })} />
+    return <StartScreen onStarted={() => navigate('/workout', { replace: true })} error={startError} />
   }
 
   return (
@@ -245,11 +251,25 @@ export function Workout() {
       {finishOpen ? (
         <FinishModal
           session={active}
-          onClose={() => setFinishOpen(false)}
-          onFinish={async (summary) => {
+          busy={finishBusy}
+          error={finishError}
+          onClose={() => {
             setFinishOpen(false)
-            await store.finishSession(active.id, summary)
-            void navigate(`/history/${active.id}`)
+            setFinishError(null)
+          }}
+          onFinish={async (summary) => {
+            setFinishError(null)
+            setFinishBusy(true)
+            try {
+              await store.finishSession(active.id, summary)
+              void navigate(`/history/${active.id}`)
+            } catch (caught) {
+              setFinishError(
+                caught instanceof Error ? caught.message : 'Could not finish the workout.',
+              )
+            } finally {
+              setFinishBusy(false)
+            }
           }}
         />
       ) : null}
@@ -275,15 +295,24 @@ export function Workout() {
               type="button"
               className="btn btn--danger btn--block"
               onClick={() => {
-                void store.discardSession(active.id).then(() => {
-                  setConflict(false)
-                  void store.startSession({
-                    templateId: startState?.templateId ?? null,
-                    scheduleItemId: startState?.scheduleItemId ?? null,
-                    plannedDate: startState?.plannedDate ?? null,
-                  })
-                })
-                navigate('/workout', { replace: true })
+                void (async () => {
+                  setStartError(null)
+                  try {
+                    await store.discardSession(active.id)
+                    setConflict(false)
+                    await store.startSession({
+                      templateId: startState?.templateId ?? null,
+                      scheduleItemId: startState?.scheduleItemId ?? null,
+                      plannedDate: startState?.plannedDate ?? null,
+                    })
+                  } catch (caught) {
+                    setConflict(false)
+                    setStartError(
+                      caught instanceof Error ? caught.message : 'Could not start the workout.',
+                    )
+                  }
+                  navigate('/workout', { replace: true, state: null })
+                })()
               }}
             >
               Discard it and start the new one
@@ -295,10 +324,27 @@ export function Workout() {
   )
 }
 
-function StartScreen({ onStarted }: { onStarted(): void }) {
+function StartScreen({ onStarted, error }: { onStarted(): void; error: string | null }) {
   const store = useStore()
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
+  const message = startError ?? error
+
+  function start(input: Parameters<typeof store.startSession>[0]) {
+    setBusy(true)
+    setStartError(null)
+    void store
+      .startSession(input)
+      .then(() => {
+        setBusy(false)
+        onStarted()
+      })
+      .catch((caught: unknown) => {
+        setBusy(false)
+        setStartError(caught instanceof Error ? caught.message : 'Could not start the workout.')
+      })
+  }
 
   return (
     <div className="workout-page">
@@ -313,17 +359,16 @@ function StartScreen({ onStarted }: { onStarted(): void }) {
       </header>
 
       <div className="stack">
+        {message ? (
+          <p className="field-error" role="alert">
+            {message}
+          </p>
+        ) : null}
         <button
           type="button"
           className="btn btn--primary btn--block"
           disabled={busy}
-          onClick={() => {
-            setBusy(true)
-            void store.startSession({}).then(() => {
-              setBusy(false)
-              onStarted()
-            })
-          }}
+          onClick={() => start({})}
         >
           <IconPlay width={18} height={18} /> Empty workout
         </button>
@@ -337,13 +382,7 @@ function StartScreen({ onStarted }: { onStarted(): void }) {
                 type="button"
                 className="card exercise-card"
                 disabled={busy}
-                onClick={() => {
-                  setBusy(true)
-                  void store.startSession({ templateId: template.id }).then(() => {
-                    setBusy(false)
-                    onStarted()
-                  })
-                }}
+                onClick={() => start({ templateId: template.id })}
               >
                 <span className="row row--between">
                   <strong>{template.name}</strong>
@@ -453,7 +492,7 @@ function ExerciseCard({
   }
 
   function handleComplete(next: SetRow) {
-    const wasCompleted = exercise.sets.find((s) => s.id === next.id)?.completed_at !== null
+    const wasCompleted = (exercise.sets.find((s) => s.id === next.id)?.completed_at ?? null) !== null
     void store.upsertSet(session.id, next)
     if (!wasCompleted && next.completed_at !== null) {
       onRestStart(exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90)
@@ -629,10 +668,14 @@ function ExerciseCard({
 
 function FinishModal({
   session,
+  busy,
+  error,
   onClose,
   onFinish,
 }: {
   session: SessionDoc
+  busy: boolean
+  error: string | null
   onClose(): void
   onFinish(summary: { notes: string | null; rpe: number | null }): Promise<void>
 }) {
@@ -675,8 +718,18 @@ function FinishModal({
       <p className="muted">
         {completed} completed set(s). {formatDuration(elapsedOf(session))} total.
       </p>
-      <button type="button" className="btn btn--accent btn--block" onClick={() => void submit()}>
-        Finish workout
+      {error ? (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className="btn btn--accent btn--block"
+        disabled={busy}
+        onClick={() => void submit()}
+      >
+        {busy ? 'Finishing…' : 'Finish workout'}
       </button>
     </Modal>
   )

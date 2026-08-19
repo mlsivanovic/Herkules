@@ -283,6 +283,11 @@ textarea.input {
   color: var(--c-muted);
 }
 
+.badge--error {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+
 /* Exercise card header (workout + routine editor) */
 
 .exercise-head {

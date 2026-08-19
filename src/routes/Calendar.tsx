@@ -385,10 +385,15 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
       setError('End date must be after the start date.')
       return
     }
-    if (mode === 'once') {
-      await scheduleSingleDate(templateId, dayKey)
-    } else {
-      await scheduleWeekly(templateId, [...weekdays].sort((a, b) => a - b), startDate, endDate === '' ? null : endDate)
+    try {
+      if (mode === 'once') {
+        await scheduleSingleDate(templateId, dayKey)
+      } else {
+        await scheduleWeekly(templateId, [...weekdays].sort((a, b) => a - b), startDate, endDate === '' ? null : endDate)
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not schedule the workout.')
+      return
     }
     onClose()
   }

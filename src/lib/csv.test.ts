@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SessionDoc } from '../types/db'
 import { parseCsv, parseWorkoutCsv, serializeWorkoutCsv } from './csv'
 
-function session(overrides: Partial<SessionDoc> = {}): SessionDoc {
+export function session(overrides: Partial<SessionDoc> = {}): SessionDoc {
   return {
     id: '11111111-1111-4111-8111-111111111001',
     owner_id: 'u1',

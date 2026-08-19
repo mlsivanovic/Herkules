@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
 import { todayKey } from '../lib/dates'
+import { parseExternalCsv } from '../lib/importExternal'
 import {
   ageYears,
   bodyMassIndex,
@@ -46,6 +47,17 @@ export function Settings() {
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const externalFileRef = useRef<HTMLInputElement>(null)
+  const backupFileRef = useRef<HTMLInputElement>(null)
+  const [externalPreview, setExternalPreview] = useState<{
+    text: string
+    sessions: number
+    sets: number
+    exercises: number
+  } | null>(null)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupMessage, setBackupMessage] = useState<string | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
   const units = profile?.unit_system ?? 'metric'
   const weights = useMemo(
     () => [...store.bodyWeights].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1)),
@@ -495,6 +507,118 @@ export function Settings() {
             {importError}
           </p>
         ) : null}
+
+        <input
+          ref={externalFileRef}
+          type="file"
+          accept=".csv,text/csv"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            setImportError(null)
+            setImportMessage(null)
+            void file
+              .text()
+              .then((text) => {
+                const parsed = parseExternalCsv(text)
+                if (parsed.length === 0) throw new Error('No workouts found in that file.')
+                setExternalPreview({
+                  text,
+                  sessions: parsed.length,
+                  sets: parsed.reduce((sum, s) => sum + s.exercises.reduce((n, e) => n + e.sets.length, 0), 0),
+                  exercises: new Set(parsed.flatMap((s) => s.exercises.map((e) => e.name))).size,
+                })
+              })
+              .catch((error: unknown) => {
+                setImportError(error instanceof Error ? error.message : 'Could not read that file.')
+              })
+          }}
+        />
+        <button type="button" className="btn" onClick={() => externalFileRef.current?.click()}>
+          Import from Strong / Hevy…
+        </button>
+        <small className="muted">
+          Reads the workout CSV exports from Strong and Hevy (units are converted automatically).
+          Re-importing the same file updates instead of duplicating.
+        </small>
+      </div>
+
+      <div className="section-title">Backup</div>
+      <div className="card stack">
+        <p className="muted" style={{ margin: 0 }}>
+          A full JSON snapshot of everything you own: workouts, routines, schedules, custom
+          exercises, weigh-ins and tendon check-ins. Restoring merges into this account — nothing
+          is deleted.
+        </p>
+        <button
+          type="button"
+          className="btn"
+          disabled={backupBusy}
+          onClick={() => {
+            setBackupBusy(true)
+            setBackupError(null)
+            setBackupMessage(null)
+            void store
+              .exportBackup()
+              .then((json) => {
+                const blob = new Blob([json], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `herkules-backup-${new Date().toISOString().slice(0, 10)}.json`
+                link.click()
+                URL.revokeObjectURL(url)
+              })
+              .catch((error: unknown) => {
+                setBackupError(error instanceof Error ? error.message : 'Could not create the backup.')
+              })
+              .finally(() => setBackupBusy(false))
+          }}
+        >
+          {backupBusy ? 'Preparing…' : 'Export full backup (JSON)'}
+        </button>
+        <input
+          ref={backupFileRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (!file) return
+            setBackupBusy(true)
+            setBackupError(null)
+            setBackupMessage(null)
+            void file
+              .text()
+              .then((text) => store.restoreBackup(text))
+              .then((result) => {
+                setBackupMessage(
+                  `Restored ${result.sessions} workout${result.sessions === 1 ? '' : 's'}, ${result.templates} routine${result.templates === 1 ? '' : 's'}, ${result.exercises} custom exercise${result.exercises === 1 ? '' : 's'} and ${result.checkins} check-in${result.checkins === 1 ? '' : 's'}.`,
+                )
+              })
+              .catch((error: unknown) => {
+                setBackupError(error instanceof Error ? error.message : 'Could not restore that file.')
+              })
+              .finally(() => setBackupBusy(false))
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={backupBusy}
+          onClick={() => backupFileRef.current?.click()}
+        >
+          {backupBusy ? 'Restoring…' : 'Restore from backup…'}
+        </button>
+        {backupMessage ? <small className="badge badge--completed">{backupMessage}</small> : null}
+        {backupError ? (
+          <p className="field-error" role="alert">
+            {backupError}
+          </p>
+        ) : null}
       </div>
 
       <div className="section-title">Account</div>
@@ -537,6 +661,50 @@ export function Settings() {
             </button>
             <button type="button" className="btn btn--block" onClick={() => setLogoutConfirm(false)}>
               Stay signed in
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {externalPreview ? (
+        <Modal title="Import Strong / Hevy workouts?" onClose={() => setExternalPreview(null)}>
+          <p>
+            Found <strong>{externalPreview.sessions}</strong> workout
+            {externalPreview.sessions === 1 ? '' : 's'} with{' '}
+            <strong>{externalPreview.sets}</strong> sets and{' '}
+            <strong>{externalPreview.exercises}</strong> distinct exercise
+            {externalPreview.exercises === 1 ? '' : 's'}. Exercises that are not in your library
+            will be created as custom.
+          </p>
+          <div className="stack">
+            <button
+              type="button"
+              className="btn btn--primary btn--block"
+              onClick={() => {
+                const text = externalPreview.text
+                setExternalPreview(null)
+                setImportBusy(true)
+                void store
+                  .importExternalCsv(text)
+                  .then((result) => {
+                    setImportMessage(
+                      `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
+                        result.createdExercises > 0
+                          ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
+                          : ''
+                      }).`,
+                    )
+                  })
+                  .catch((error: unknown) => {
+                    setImportError(error instanceof Error ? error.message : 'Could not import that file.')
+                  })
+                  .finally(() => setImportBusy(false))
+              }}
+            >
+              Import workouts
+            </button>
+            <button type="button" className="btn btn--block" onClick={() => setExternalPreview(null)}>
+              Cancel
             </button>
           </div>
         </Modal>

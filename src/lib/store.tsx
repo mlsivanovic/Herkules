@@ -51,7 +51,9 @@ import {
   type StoreName,
 } from './db'
 import { flushOutbox, fetchSnapshot } from './sync'
-import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv } from './csv'
+import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkoutImport } from './csv'
+import { parseExternalCsv } from './importExternal'
+import { parseBackup, serializeBackup } from './backup'
 import { HYBRID_TEMPLATES, hybridRolePatches, hybridTemplatesFrom } from './programs/hybrid4day'
 import { normalizeBlockRole } from './blockRole'
 import {
@@ -170,7 +172,20 @@ export interface StoreActions {
   discardSession(id: string): Promise<void>
   deleteSession(id: string): Promise<void>
   exportWorkoutsCsv(): Promise<string>
+  importWorkouts(parsed: ParsedWorkoutImport[]): Promise<{
+    sessions: number
+    sets: number
+    createdExercises: number
+  }>
   importWorkoutsCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
+  importExternalCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
+  exportBackup(): Promise<string>
+  restoreBackup(text: string): Promise<{
+    sessions: number
+    templates: number
+    exercises: number
+    checkins: number
+  }>
   addSessionExercise(sessionId: string, exerciseId: string): Promise<void>
   removeSessionExercise(sessionId: string, sessionExerciseId: string): Promise<void>
   swapSessionExercise(sessionId: string, sessionExerciseId: string, exerciseId: string): Promise<void>
@@ -867,9 +882,118 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return serializeWorkoutCsv((await readAll()).sessions)
       },
 
+      async exportBackup() {
+        const all = await readAll()
+        const profile = await readProfile()
+        return serializeBackup({
+          profile,
+          bodyWeights: all.bodyWeights,
+          exercises: all.exercises.filter((e) => e.owner_id !== null),
+          templates: all.templates,
+          templateItems: all.templateItems,
+          rules: all.rules,
+          schedules: all.schedules,
+          sessions: all.sessions,
+          checkins: all.checkins,
+        })
+      },
+
+      async restoreBackup(text) {
+        const file = parseBackup(text)
+        const owner = userIdRef.current ?? ''
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        let sessionCount = 0
+
+        // The profile is restored only when it belongs to this account.
+        if (file.profile && file.profile.id === owner) {
+          const row = { ...file.profile, updated_at: stamp }
+          writes.push({ store: 'profiles', row })
+          ops.push(upsert('profiles', row))
+        }
+
+        for (const row of file.bodyWeights) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'bodyWeights', row: next })
+          ops.push(upsert('body_weight_entries', next))
+        }
+        for (const row of file.checkins) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'checkins', row: next })
+          ops.push(upsert('tendon_checkins', next))
+        }
+
+        // System exercises (owner_id null) are skipped — they already exist.
+        for (const row of file.exercises) {
+          if (row.owner_id === null) continue
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'exercises', row: next })
+          ops.push(upsert('exercises', next))
+        }
+
+        for (const row of file.templates) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'templates', row: next })
+          ops.push(upsert('workout_templates', next))
+        }
+        for (const row of file.templateItems) {
+          const next = { ...row, updated_at: stamp }
+          writes.push({ store: 'templateItems', row: next })
+          ops.push(upsert('template_items', next))
+        }
+        for (const row of file.rules) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'rules', row: next })
+          ops.push(upsert('recurrence_rules', next))
+        }
+        for (const row of file.schedules) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'schedules', row: next })
+          ops.push(upsert('schedule_items', next))
+        }
+
+        for (const doc of file.sessions) {
+          const row = { ...doc, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'sessions', row })
+          ops.push(upsert('workout_sessions', stripNested(row)))
+          sessionCount += 1
+          for (const se of doc.session_exercises ?? []) {
+            ops.push(upsert('session_exercises', stripSessionExercise(se)))
+            for (const set of se.sets ?? []) ops.push(upsert('workout_sets', set))
+          }
+        }
+
+        await commit(writes, ops)
+        return {
+          sessions: sessionCount,
+          templates: file.templates.length,
+          exercises: file.exercises.filter((e) => e.owner_id !== null).length,
+          checkins: file.checkins.length,
+        }
+      },
+
       async importWorkoutsCsv(text) {
         const parsed = parseWorkoutCsv(text)
         if (parsed.length === 0) throw new Error('No workouts found in that file.')
+        return (await actionsRef.current?.importWorkouts(parsed)) ?? {
+          sessions: 0,
+          sets: 0,
+          createdExercises: 0,
+        }
+      },
+
+      async importExternalCsv(text) {
+        const parsed = parseExternalCsv(text)
+        if (parsed.length === 0) throw new Error('No workouts found in that file.')
+        return (await actionsRef.current?.importWorkouts(parsed)) ?? {
+          sessions: 0,
+          sets: 0,
+          createdExercises: 0,
+        }
+      },
+
+      async importWorkouts(parsed: ParsedWorkoutImport[]) {
         const catalog = [...(await readAll()).exercises]
         let createdExercises = 0
         let setCount = 0

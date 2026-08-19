@@ -27,6 +27,7 @@ import type {
   TemplateItemRow,
   TemplateRow,
   BodyWeightRow,
+  TendonCheckinRow,
 } from '../types/db'
 import { backendConfigured, supabase } from './supabase'
 import { useAuth } from './auth'
@@ -92,6 +93,7 @@ export interface TemplateItemInput {
   target_duration_s: number | null
   target_distance_m: number | null
   rest_seconds: number | null
+  tempo?: string | null
   notes: string | null
   superset_group: string | null
   block_role: TemplateItemRow['block_role']
@@ -120,6 +122,7 @@ export interface StoreData {
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  checkins: TendonCheckinRow[]
 }
 
 export interface StoreActions {
@@ -193,6 +196,16 @@ export interface StoreActions {
   logWeight(date: string, weightKg: number, notes?: string | null): Promise<void>
   deleteWeight(id: string): Promise<void>
 
+  // tendon check-ins
+  logCheckin(input: {
+    date: string
+    site: string
+    stiffness: number
+    pain: number
+    notes?: string | null
+  }): Promise<void>
+  deleteCheckin(id: string): Promise<void>
+
   // auth-related
   attemptSync(): Promise<boolean>
   forceWipeAndSignOut(): Promise<void>
@@ -232,6 +245,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     schedules: [] as ScheduleItemRow[],
     sessions: [] as SessionDoc[],
     bodyWeights: [] as BodyWeightRow[],
+    checkins: [] as TendonCheckinRow[],
   })
 
   const syncingRef = useRef(false)
@@ -270,6 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('schedules', snapshot.schedules),
         reconcileStore('sessions', snapshot.sessions),
         reconcileStore('bodyWeights', snapshot.bodyWeights),
+        reconcileStore('checkins', snapshot.checkins),
       ])
       await reloadFromDb()
       await actionsRef.current?.ensureHybridBlockRoles()
@@ -306,6 +321,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         schedules: [],
         sessions: [],
         bodyWeights: [],
+        checkins: [],
         pending: 0,
         pendingByTable: [],
         lastSyncedAt: null,
@@ -458,6 +474,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             target_duration_s: item.target_duration_s,
             target_distance_m: item.target_distance_m,
             rest_seconds: item.rest_seconds,
+            tempo: item.tempo ?? null,
             notes: item.notes,
             superset_group: item.superset_group,
             block_role: normalizeBlockRole(item.block_role),
@@ -525,9 +542,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               target_weight_kg: null,
               target_reps: item.targetReps ?? null,
               target_duration_s: item.targetDurationS ?? null,
-              target_distance_m: item.targetDistanceM ?? null,
-              rest_seconds: item.restSeconds ?? null,
-              notes: item.notes ?? null,
+            target_distance_m: item.targetDistanceM ?? null,
+            rest_seconds: item.restSeconds ?? null,
+            tempo: null,
+            notes: item.notes ?? null,
               superset_group: group,
               block_role: item.blockRole ?? 'gym',
               created_at: stamp,
@@ -717,6 +735,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             position: item.position,
             planned_sets: item.planned_sets,
             rest_seconds: item.rest_seconds,
+            tempo: item.tempo ?? null,
             notes: item.notes,
             superset_group: item.superset_group,
             block_role: normalizeBlockRole(item.block_role),
@@ -896,6 +915,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               distance_m: set.distance_m,
               rpe: set.rpe,
               notes: set.notes,
+              is_warmup: false,
               completed_at: set.completed_at,
               created_at: stamp,
               updated_at: stamp,
@@ -910,6 +930,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               position: index,
               planned_sets: Math.max(sets.length, 1),
               rest_seconds: null,
+              tempo: null,
               notes: null,
               superset_group: null,
               block_role: 'gym',
@@ -961,6 +982,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           position: maxPos + 1,
           planned_sets: 3,
           rest_seconds: null,
+          tempo: null,
           notes: null,
           superset_group: null,
           block_role: 'gym',
@@ -1133,6 +1155,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         )
         await removeFrom('bodyWeights', id)
         await appendOps([{ kind: 'delete', table: 'body_weight_entries', id }])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async logCheckin(input) {
+        const site = input.site.trim()
+        if (site === '') throw new Error('Pick a body site for the check-in.')
+        const all = await readAll()
+        const existing = all.checkins.find(
+          (row) => row.recorded_on === input.date && row.site.toLowerCase() === site.toLowerCase(),
+        )
+        const stamp = nowIso()
+        const row: TendonCheckinRow = existing
+          ? {
+              ...existing,
+              site,
+              stiffness: input.stiffness,
+              pain: input.pain,
+              notes: input.notes ?? null,
+              updated_at: stamp,
+            }
+          : {
+              id: newId(),
+              owner_id: userIdRef.current ?? '',
+              recorded_on: input.date,
+              site,
+              stiffness: input.stiffness,
+              pain: input.pain,
+              notes: input.notes ?? null,
+              created_at: stamp,
+              updated_at: stamp,
+            }
+        await commit([{ store: 'checkins', row }], [upsert('tendon_checkins', row)])
+      },
+
+      async deleteCheckin(id) {
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'tendon_checkins' && String(op.row.id) === id,
+        )
+        await removeFrom('checkins', id)
+        await appendOps([{ kind: 'delete', table: 'tendon_checkins', id }])
         await reloadFromDb()
         scheduleDebouncedSync()
       },

@@ -14,6 +14,7 @@ import type {
   SessionDoc,
   TemplateItemRow,
   TemplateRow,
+  TendonCheckinRow,
 } from '../types/db'
 
 export type StoreName =
@@ -25,6 +26,7 @@ export type StoreName =
   | 'schedules'
   | 'sessions'
   | 'bodyWeights'
+  | 'checkins'
 
 interface DirtyRow {
   value: Record<string, unknown>
@@ -41,11 +43,12 @@ interface HerkulesDB extends DBSchema {
   schedules: { key: string; value: DirtyRow }
   sessions: { key: string; value: DirtyRow }
   bodyWeights: { key: string; value: DirtyRow }
+  checkins: { key: string; value: DirtyRow }
   outbox: { key: number; value: OutboxOp & { seq: number }; autoIncrement: true }
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -70,6 +73,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         }
         if (oldVersion < 2 && !db.objectStoreNames.contains('bodyWeights')) {
           db.createObjectStore('bodyWeights', { keyPath: 'value.id' })
+        }
+        if (oldVersion < 3 && !db.objectStoreNames.contains('checkins')) {
+          db.createObjectStore('checkins', { keyPath: 'value.id' })
         }
       },
     })
@@ -103,9 +109,10 @@ export async function readAll(): Promise<{
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  checkins: TendonCheckinRow[]
 }> {
   const db = await getDb()
-  const [exercises, templates, templateItems, rules, schedules, sessions, bodyWeights] =
+  const [exercises, templates, templateItems, rules, schedules, sessions, bodyWeights, checkins] =
     await Promise.all([
       db.getAll('exercises'),
       db.getAll('templates'),
@@ -114,6 +121,7 @@ export async function readAll(): Promise<{
       db.getAll('schedules'),
       db.getAll('sessions'),
       db.getAll('bodyWeights'),
+      db.getAll('checkins'),
     ])
   const pick = <T>(rows: DirtyRow[]): T[] => rows.map((r) => r.value as unknown as T)
   return {
@@ -124,6 +132,7 @@ export async function readAll(): Promise<{
     schedules: pick(schedules),
     sessions: pick(sessions),
     bodyWeights: pick(bodyWeights),
+    checkins: pick(checkins),
   }
 }
 
@@ -204,6 +213,7 @@ export async function clearDirtyFlags(): Promise<void> {
     'schedules',
     'sessions',
     'bodyWeights',
+    'checkins',
   ]
   const tx = db.transaction(stores, 'readwrite')
   for (const store of stores) {
@@ -283,6 +293,7 @@ export async function wipeLocalData(): Promise<void> {
     'schedules',
     'sessions',
     'bodyWeights',
+    'checkins',
     'outbox',
   ] as const
   const tx = db.transaction(stores, 'readwrite')

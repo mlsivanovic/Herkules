@@ -56,6 +56,7 @@ export function HistoryDetail() {
       distance_m: null,
       rpe: null,
       notes: null,
+      is_warmup: false,
       completed_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

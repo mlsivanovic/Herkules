@@ -286,6 +286,7 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
       distance_m: asInt(take(row, 'distance_m')),
       rpe: asInt(take(row, 'set_rpe')),
       notes: take(row, 'set_notes') || null,
+      is_warmup: false,
       completed_at: `${session.date}T12:00:00.000Z`,
     })
   })

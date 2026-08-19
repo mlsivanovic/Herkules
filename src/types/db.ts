@@ -2,7 +2,12 @@
 // Canonical units: weight kg, distance m, duration s.
 
 export type ExerciseCategory = 'strength' | 'cardio' | 'mobility'
-export type ExerciseMeasurement = 'weight_reps' | 'reps' | 'duration' | 'distance_duration'
+export type ExerciseMeasurement =
+  | 'weight_reps'
+  | 'reps'
+  | 'duration'
+  | 'distance_duration'
+  | 'weight_duration'
 export type ExerciseBlockRole = 'gym' | 'cardio' | 'tendon'
 export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
@@ -27,6 +32,19 @@ export interface BodyWeightRow {
   owner_id: string
   recorded_on: string
   weight_kg: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Daily tendon check-in per body site: morning stiffness / pain, 0–10. */
+export interface TendonCheckinRow {
+  id: string
+  owner_id: string
+  recorded_on: string
+  site: string
+  stiffness: number
+  pain: number
   notes: string | null
   created_at: string
   updated_at: string
@@ -68,6 +86,8 @@ export interface TemplateItemRow {
   target_duration_s: number | null
   target_distance_m: number | null
   rest_seconds: number | null
+  /** tempo prescription, e.g. "3-0-1" */
+  tempo: string | null
   notes: string | null
   superset_group: string | null
   block_role: ExerciseBlockRole
@@ -122,6 +142,7 @@ export interface SessionExerciseRow {
   position: number
   planned_sets: number
   rest_seconds: number | null
+  tempo: string | null
   notes: string | null
   superset_group: string | null
   block_role: ExerciseBlockRole
@@ -139,6 +160,7 @@ export interface SetRow {
   distance_m: number | null
   rpe: number | null
   notes: string | null
+  is_warmup: boolean
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -165,6 +187,7 @@ export type SyncTable =
   | 'session_exercises'
   | 'workout_sets'
   | 'body_weight_entries'
+  | 'tendon_checkins'
 
 export type OutboxOp =
   | { kind: 'upsert'; table: SyncTable; row: Record<string, unknown> }

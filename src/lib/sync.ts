@@ -13,6 +13,7 @@ import type {
   SetRow,
   TemplateItemRow,
   TemplateRow,
+  TendonCheckinRow,
 } from '../types/db'
 import { listOps, removeOps } from './db'
 import { planFlush } from './outbox'
@@ -84,6 +85,7 @@ export interface ServerSnapshot {
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  checkins: TendonCheckinRow[]
 }
 
 interface NestedSession
@@ -113,6 +115,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     schedulesRes,
     sessionsRes,
     weightsRes,
+    checkinsRes,
   ] = await Promise.all([
     client.from('profiles').select('*').maybeSingle(),
     client.from('exercises').select('*').order('name'),
@@ -125,6 +128,11 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
       .select('*, session_exercises(*, workout_sets(*))')
       .order('started_at', { ascending: false }),
     client.from('body_weight_entries').select('*').order('recorded_on', { ascending: false }),
+    client
+      .from('tendon_checkins')
+      .select('*')
+      .order('recorded_on', { ascending: false })
+      .order('site'),
   ])
 
   const firstError =
@@ -135,7 +143,8 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     rulesRes.error ??
     schedulesRes.error ??
     sessionsRes.error ??
-    weightsRes.error
+    weightsRes.error ??
+    checkinsRes.error
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {
@@ -147,5 +156,6 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     schedules: schedulesRes.data as ScheduleItemRow[],
     sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
     bodyWeights: (weightsRes.data as BodyWeightRow[]) ?? [],
+    checkins: (checkinsRes.data as TendonCheckinRow[]) ?? [],
   }
 }

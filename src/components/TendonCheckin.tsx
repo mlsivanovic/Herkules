@@ -75,10 +75,10 @@ export function TendonCheckin() {
   }
 
   return (
-    <div className={`card stack tendon-checkin${open ? '' : ' tendon-checkin--collapsed'}`}>
+    <div className={`card stack checkin-card${open ? '' : ' checkin-card--collapsed'}`}>
       <button
         type="button"
-        className="tendon-checkin__toggle"
+        className="checkin-card__toggle"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -89,7 +89,7 @@ export function TendonCheckin() {
           ) : (
             <small className="muted">Optional</small>
           )}
-          <span className="tendon-checkin__chevron" aria-hidden>
+          <span className="checkin-card__chevron" aria-hidden>
             {open ? '▴' : '▾'}
           </span>
         </span>
@@ -101,7 +101,7 @@ export function TendonCheckin() {
             trends next to your training.
           </p>
 
-          <div className="tendon-checkin__grid">
+          <div className="checkin-card__grid">
             <label className="field">
               <span>Date</span>
               <input
@@ -179,7 +179,7 @@ export function TendonCheckin() {
           ) : null}
 
           {recent.length > 0 ? (
-            <ul className="stack tendon-checkin__recent" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <ul className="stack checkin-card__recent" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {recent.map((row) => (
                 <li key={row.id} className="row row--between">
                   <span>

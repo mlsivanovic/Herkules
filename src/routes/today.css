@@ -36,6 +36,9 @@
   border-left: 4px solid var(--c-accent);
 }
 
-.today-page .tendon-checkin {
+.today-checkins {
   margin-top: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }

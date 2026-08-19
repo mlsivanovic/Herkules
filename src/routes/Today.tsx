@@ -8,6 +8,7 @@ import { workoutStreak } from '../lib/metrics'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { IconPlay, IconPlus } from '../components/Icons'
 import { TendonCheckin } from '../components/TendonCheckin'
+import { WeightCheckin } from '../components/WeightCheckin'
 import './today.css'
 
 export function Today() {
@@ -193,7 +194,10 @@ export function Today() {
         </button>
       </div>
 
-      <TendonCheckin />
+      <div className="today-checkins">
+        <WeightCheckin />
+        <TendonCheckin />
+      </div>
     </div>
   )
 }

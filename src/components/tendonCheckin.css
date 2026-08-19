@@ -1,10 +1,10 @@
-/* Tendon check-in card on the Today dashboard */
-.tendon-checkin--collapsed {
+/* Collapsible check-in cards on the Today dashboard (weight + tendon). */
+.checkin-card--collapsed {
   padding-top: 0.7rem;
   padding-bottom: 0.7rem;
 }
 
-.tendon-checkin__toggle {
+.checkin-card__toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,19 +20,19 @@
   cursor: pointer;
 }
 
-.tendon-checkin__chevron {
+.checkin-card__chevron {
   color: var(--c-muted);
   font-size: 0.85rem;
   line-height: 1;
 }
 
-.tendon-checkin__grid {
+.checkin-card__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.6rem;
 }
 
-.tendon-checkin__recent li + li {
+.checkin-card__recent li + li {
   border-top: 1px solid var(--c-border, rgba(127, 127, 127, 0.2));
   padding-top: 0.4rem;
 }

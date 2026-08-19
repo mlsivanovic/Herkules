@@ -7,7 +7,7 @@ Live: https://mlsivanovic.github.io/Herkules/
 ## Features
 
 - **Auth** — email/password sign-up with email confirmation, password reset, persistent sessions
-- **Today** — today's plan, active workout resume, week snapshot and streak
+- **Today** — today's plan, active workout resume, week snapshot and streak; daily **weight check-in** (today or another date) and optional tendon check-in
 - **Calendar** — single-date and weekly repeating plans (optional end date); days show `planned / in-progress / completed / skipped`; editing a rule affects only future workouts — history is frozen
 - **Routines** — reusable templates with exercise order, planned sets, target values, rest, tempo prescriptions (e.g. `3-0-1`), notes and superset/circuit grouping
 - **Training plans** — named, ordered sets of routines (a split). Assign a routine to a plan from the routine editor; reorder days on the plan; optional rotation scheduler writes dates to the calendar. **Hybrid 4-day** starter installs as a plan (A–D)

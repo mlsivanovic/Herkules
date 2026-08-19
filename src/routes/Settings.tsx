@@ -646,7 +646,7 @@ export function Settings() {
       </div>
 
       <p className="muted" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-        Herkules v1.0 · offline-first workout log
+        Herkules v1.1 · offline-first workout log
       </p>
 
       {logoutConfirm ? (

@@ -9,11 +9,14 @@ Live: https://mlsivanovic.github.io/Herkules/
 - **Auth** — email/password sign-up with email confirmation, password reset, persistent sessions
 - **Today** — today's plan, active workout resume, week snapshot and streak
 - **Calendar** — single-date and weekly repeating plans (optional end date); days show `planned / in-progress / completed / skipped`; editing a rule affects only future workouts — history is frozen
-- **Routines** — reusable templates with exercise order, planned sets, target values, rest, notes and superset/circuit grouping; optional **Hybrid 4-day** starter (A–D) with an A→B→C→D rotation planner
-- **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with four measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`)
-- **Active workout** — elapsed timer, previous values per exercise, RPE 1–10, notes, add/remove/reorder/swap exercises, automatic rest timer; only one active workout at a time
+- **Routines** — reusable templates with exercise order, planned sets, target values, rest, tempo prescriptions (e.g. `3-0-1`), notes and superset/circuit grouping; optional **Hybrid 4-day** starter (A–D) with an A→B→C→D rotation planner
+- **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with five measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`, `weight + hold time` for loaded isometrics)
+- **Active workout** — elapsed timer, previous values per exercise, RPE 1–10, notes, add/remove/reorder/swap exercises, automatic rest timer with sound/vibration cues, plate calculator, one-tap warm-up ramp generator, interval/HIIT timer with screen wake lock; only one active workout at a time
+- **Tendon support** — `gym / cardio / tendon` block roles, tempo prescriptions, isometric hold logging and a daily per-site check-in (morning stiffness and pain 0–10) with trends on the Progress page
+- **History** — chronological list grouped by month; every finished session can be reviewed and edited after the fact
 - **Offline-first** — every change is saved to IndexedDB immediately and synced through an idempotent operation queue when connectivity returns (`Pending sync` indicator); workouts can be finished fully offline
-- **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM)
+- **Data portability** — workout CSV export/import, full-account JSON backup/restore, and import of **Strong** / **Hevy** workout CSV exports (units converted, idempotent on re-import)
+- **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM); warm-up sets are excluded from statistics
 - **PWA** — installable, offline app shell, "Update available" / "Ready offline" prompts
 - Units: stored canonically in kg / meters / seconds; displayed in metric or imperial per user preference. Mobile-first from 360 px; desktop gets a sidebar.
 

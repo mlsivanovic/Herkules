@@ -1,0 +1,6 @@
+# Project permission: ship completed work without waiting for a push prompt.
+[permission]
+allow = [
+  "Bash(git push)",
+  "Bash(git push *)",
+]

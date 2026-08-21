@@ -733,7 +733,7 @@ export function Settings() {
                 .text()
                 .then((text) => {
                   const parsed = parseExternalCsv(text)
-                  if (parsed.length === 0) throw new Error('No workouts found in that file.')
+                  if (parsed.length === 0) throw new Error(t('errors.noWorkoutsInFile'))
                   setExternalPreview({
                     text,
                     sessions: parsed.length,

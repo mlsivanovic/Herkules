@@ -86,9 +86,9 @@ export function History() {
                 const duration = durationOf(session)
                 const summary =
                   session.status === 'skipped'
-                    ? 'Skipped'
+                    ? t('status.skipped')
                     : [
-                        sets > 0 ? `${sets} sets` : null,
+                        sets > 0 ? t('history.setsCount', { count: sets }) : null,
                         duration !== null ? formatDuration(duration) : null,
                         session.session_exercises.length > 0
                           ? formatWeight(sessionVolume(session), units)

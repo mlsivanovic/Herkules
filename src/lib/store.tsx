@@ -59,6 +59,7 @@ import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkout
 import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
+import { t } from './i18n'
 import {
   HYBRID_SOURCE_KEY,
   HYBRID_SOURCE_VERSION,
@@ -524,7 +525,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async updateExercise(id, patch) {
         const existing = await readOne<ExerciseRow>('exercises', id)
-        if (!existing) throw new Error('Exercise not found.')
+        if (!existing) throw new Error(t('errors.exerciseNotFound'))
         const row: ExerciseRow = { ...existing, ...patch, updated_at: nowIso() }
         await commit([{ store: 'exercises', row }], [upsert('exercises', row)])
       },
@@ -548,7 +549,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async updatePlan(id, patch) {
         const existing = await readOne<TrainingPlanRow>('plans', id)
-        if (!existing) throw new Error('Plan not found.')
+        if (!existing) throw new Error(t('errors.planNotFound'))
         const row: TrainingPlanRow = { ...existing, ...patch, updated_at: nowIso() }
         await commit([{ store: 'plans', row }], [upsert('training_plans', row)])
       },
@@ -580,10 +581,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async assignTemplateToPlan(templateId, planId) {
         const all = await readAll()
         const existing = all.templates.find((row) => row.id === templateId)
-        if (!existing) throw new Error('Routine not found.')
+        if (!existing) throw new Error(t('errors.routineNotFound'))
         if (planId) {
           const plan = all.plans.find((row) => row.id === planId)
-          if (!plan) throw new Error('Plan not found.')
+          if (!plan) throw new Error(t('errors.planNotFound'))
         }
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
@@ -619,7 +620,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const members = sortPlanTemplates(all.templates, planId)
         const memberIds = new Set(members.map((row) => row.id))
         if (orderedTemplateIds.some((id) => !memberIds.has(id))) {
-          throw new Error('Those routines are not all in this plan.')
+          throw new Error(t('errors.routinesNotInPlan'))
         }
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
@@ -640,7 +641,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async createTemplate(name, notes, planId = null) {
         const all = await readAll()
         if (planId && !all.plans.some((row) => row.id === planId)) {
-          throw new Error('Plan not found.')
+          throw new Error(t('errors.planNotFound'))
         }
         const row: TemplateRow = {
           id: newId(),
@@ -658,7 +659,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async updateTemplate(id, patch) {
         const existing = await readOne<TemplateRow>('templates', id)
-        if (!existing) throw new Error('Routine not found.')
+        if (!existing) throw new Error(t('errors.routineNotFound'))
         const row: TemplateRow = { ...existing, ...patch, updated_at: nowIso() }
         await commit([{ store: 'templates', row }], [upsert('workout_templates', row)])
       },
@@ -882,7 +883,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async schedulePlanRotation(planId, input) {
         const all = await readAll()
         const days = sortPlanTemplates(all.templates, planId)
-        if (days.length === 0) throw new Error('Add at least one routine to the plan first.')
+        if (days.length === 0) throw new Error(t('errors.addRoutineFirst'))
 
         const occurrences = rotationOccurrences({
           frequency: input.frequency,
@@ -921,12 +922,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         if (scheduleId) {
           const existingSchedule = await readOne<ScheduleItemRow>('schedules', scheduleId)
-          if (!existingSchedule?.recurrence_rule_id) throw new Error('Schedule not found.')
+          if (!existingSchedule?.recurrence_rule_id) throw new Error(t('errors.scheduleNotFound'))
           const existingRule = await readOne<RecurrenceRuleRow>(
             'rules',
             existingSchedule.recurrence_rule_id,
           )
-          if (!existingRule) throw new Error('Recurrence rule not found.')
+          if (!existingRule) throw new Error(t('errors.ruleNotFound'))
           rule = { ...existingRule, weekdays, start_date: startDate, end_date: endDate, updated_at: nowIso() }
           schedule = { ...existingSchedule, updated_at: nowIso() }
         } else {
@@ -1087,14 +1088,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async updateSessionMeta(id, patch) {
         const doc = await readOne<SessionDoc>('sessions', id)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const row: SessionDoc = { ...doc, ...patch, updated_at: nowIso() }
         await commit([{ store: 'sessions', row }], [upsert('workout_sessions', stripNested(row))])
       },
 
       async finishSession(id, summary) {
         const doc = await readOne<SessionDoc>('sessions', id)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const row: SessionDoc = {
           ...doc,
           status: 'completed',
@@ -1108,7 +1109,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async applyProgressionSuggestions(id) {
         const doc = await readOne<SessionDoc>('sessions', id)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const suggestions = progressionSuggestions(doc)
         if (suggestions.length === 0) return 0
         const all = await readAll()
@@ -1165,7 +1166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         )
         if (already) {
           if (already.status === 'skipped') return
-          throw new Error('This day already has a workout. Delete it before skipping.')
+          throw new Error(t('errors.skipHasWorkout'))
         }
         const schedule = all.schedules.find((s) => s.id === scheduleId)
         const template = schedule
@@ -1327,13 +1328,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           templateIds && templateIds.length > 0
             ? all.templates.filter((row) => templateIds.includes(row.id))
             : all.templates
-        if (selected.length === 0) throw new Error('No routines to export.')
+        if (selected.length === 0) throw new Error(t('errors.noRoutinesExport'))
         return serializeRoutines(selected, all.templateItems, all.exercises, all.templateBlocks)
       },
 
       async importRoutines(text) {
         const file = parseRoutines(text)
-        if (file.routines.length === 0) throw new Error('No routines found in that file.')
+        if (file.routines.length === 0) throw new Error(t('errors.noRoutinesInFile'))
         const all = await readAll()
         const plan = planRoutineImport({
           file,
@@ -1383,7 +1384,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async importWorkoutsCsv(text) {
         const parsed = parseWorkoutCsv(text)
-        if (parsed.length === 0) throw new Error('No workouts found in that file.')
+        if (parsed.length === 0) throw new Error(t('errors.noWorkoutsInFile'))
         return (await actionsRef.current?.importWorkouts(parsed)) ?? {
           sessions: 0,
           sets: 0,
@@ -1393,7 +1394,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async importExternalCsv(text) {
         const parsed = parseExternalCsv(text)
-        if (parsed.length === 0) throw new Error('No workouts found in that file.')
+        if (parsed.length === 0) throw new Error(t('errors.noWorkoutsInFile'))
         return (await actionsRef.current?.importWorkouts(parsed)) ?? {
           sessions: 0,
           sets: 0,
@@ -1514,7 +1515,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async addSessionExercise(sessionId, exerciseId) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
-        if (!doc || !exercise) throw new Error('Session or exercise not found.')
+        if (!doc || !exercise) throw new Error(t('errors.sessionOrExercise'))
         const maxPos = doc.session_exercises.reduce((m, se) => Math.max(m, se.position), -1)
         const se: SessionExerciseRow & { sets: SetRow[] } = {
           id: newId(),
@@ -1546,7 +1547,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async removeSessionExercise(sessionId, sessionExerciseId) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
         if (!target) return
         const setIds = target.sets.map((s) => s.id)
@@ -1569,7 +1570,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async swapSessionExercise(sessionId, sessionExerciseId, exerciseId) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
-        if (!doc || !exercise) throw new Error('Session or exercise not found.')
+        if (!doc || !exercise) throw new Error(t('errors.sessionOrExercise'))
         const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
         if (!target) return
 
@@ -1606,7 +1607,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async reorderSessionExercises(sessionId, orderedIds) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const oldPositions = new Map(doc.session_exercises.map((se) => [se.id, se.position]))
         const byId = new Map(doc.session_exercises.map((se) => [se.id, se]))
         const reordered = orderedIds
@@ -1623,7 +1624,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async upsertSet(sessionId, set) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         let found = false
         const nextExercises = doc.session_exercises.map((se) => {
           if (se.id !== set.session_exercise_id) return se
@@ -1632,14 +1633,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const sets = exists ? se.sets.map((s) => (s.id === set.id ? set : s)) : [...se.sets, set]
           return { ...se, sets: sets.sort((a, b) => a.position - b.position), updated_at: nowIso() }
         })
-        if (!found) throw new Error('Session exercise not found.')
+        if (!found) throw new Error(t('errors.sessionExerciseNotFound'))
         const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
         await commit([{ store: 'sessions', row }], [upsert('workout_sets', set)])
       },
 
       async deleteSet(sessionId, sessionExerciseId, setId) {
         const doc = await readOne<SessionDoc>('sessions', sessionId)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         await removeMatchingOps(
           (op) => op.kind === 'upsert' && op.table === 'workout_sets' && String(op.row.id) === setId,
         )
@@ -1657,9 +1658,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async addWarmupSets(sessionId, sessionExerciseId, planned) {
         if (planned.length === 0) return
         const doc = await readOne<SessionDoc>('sessions', sessionId)
-        if (!doc) throw new Error('Session not found.')
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
         const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
-        if (!target) throw new Error('Session exercise not found.')
+        if (!target) throw new Error(t('errors.sessionExerciseNotFound'))
 
         const stamp = nowIso()
         // Warm-ups take positions 1..n; existing sets shift behind them.
@@ -1751,7 +1752,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async logCheckin(input) {
         const site = input.site.trim()
-        if (site === '') throw new Error('Pick a body site for the check-in.')
+        if (site === '') throw new Error(t('errors.pickSite'))
         const all = await readAll()
         const existing = all.checkins.find(
           (row) => row.recorded_on === input.date && row.site.toLowerCase() === site.toLowerCase(),

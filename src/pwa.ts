@@ -1,5 +1,6 @@
 // Manual service worker registration + update/offline-ready prompts.
 // The toast lives outside the React tree (vanilla DOM), styled by global.css.
+import { t } from './lib/i18n'
 
 const TOAST_ID = 'herkules-toast'
 
@@ -38,10 +39,10 @@ export function startUpdateCheck(): void {
     .then(({ registerSW }) => {
       const updateNow = registerSW({
         onNeedRefresh() {
-          showToast('A new version is available.', 'Update', () => void updateNow(true))
+          showToast(t('pwa.updateBody'), t('pwa.updateAction'), () => void updateNow(true))
         },
         onOfflineReady() {
-          showToast('Herkules is ready to work offline.', 'OK', dismissToast)
+          showToast(t('pwa.offlineReady'), t('common.ok'), dismissToast)
         },
       })
     })

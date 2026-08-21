@@ -8,6 +8,7 @@
 // overwrites instead of duplicating.
 import type { ExerciseMeasurement } from '../types/db'
 import type { ParsedWorkoutImport } from './csv'
+import { t } from './i18n'
 
 const LB_TO_KG = 0.45359237
 
@@ -174,7 +175,7 @@ export function parseExternalCsv(
   const workoutAt = at('workout name')
   const exerciseAt = at('exercise name')
   if (workoutAt < 0 || exerciseAt < 0) {
-    throw new Error('This file does not look like a Strong or Hevy workout export.')
+    throw new Error(t('errors.notStrongHevy'))
   }
 
   const take = (row: string[], position: number): string =>

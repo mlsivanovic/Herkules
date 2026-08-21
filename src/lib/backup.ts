@@ -15,6 +15,7 @@ import type {
   TendonCheckinRow,
   TrainingPlanRow,
 } from '../types/db'
+import { t } from './i18n'
 
 export const BACKUP_FORMAT = 'herkules-backup'
 export const BACKUP_VERSION = 3
@@ -71,21 +72,21 @@ export function parseBackup(text: string): BackupFile {
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error('That file is not valid JSON.')
+    throw new Error(t('errors.invalidJson'))
   }
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('That file is not a Herkules backup.')
+    throw new Error(t('errors.notBackup'))
   }
   const file = parsed as Partial<BackupFile>
   if (file.format !== BACKUP_FORMAT) {
-    throw new Error('That file is not a Herkules backup.')
+    throw new Error(t('errors.notBackup'))
   }
   if (typeof file.version !== 'number' || file.version > BACKUP_VERSION) {
-    throw new Error('This backup was made by a newer version of Herkules.')
+    throw new Error(t('errors.backupNewer'))
   }
   for (const key of LIST_KEYS) {
     if (!Array.isArray(file[key])) {
-      throw new Error(`The backup is missing the "${key}" list.`)
+      throw new Error(t('errors.backupMissing', { key }))
     }
   }
   const plans = Array.isArray(file.plans)
@@ -94,7 +95,7 @@ export function parseBackup(text: string): BackupFile {
       ? []
       : null
   if (plans === null) {
-    throw new Error('The backup is missing the "plans" list.')
+    throw new Error(t('errors.backupMissingPlans'))
   }
   const templateBlocks = Array.isArray(file.templateBlocks)
     ? file.templateBlocks
@@ -107,7 +108,7 @@ export function parseBackup(text: string): BackupFile {
       ? []
       : null
   if (templateBlocks === null || aerobicActivities === null) {
-    throw new Error('The backup is missing Hybrid V2 data.')
+    throw new Error(t('errors.backupMissingHybrid'))
   }
   return {
     ...(file as BackupFile),

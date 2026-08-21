@@ -2,6 +2,7 @@
 // round-trips across metric and imperial display settings.
 
 import type { ExerciseMeasurement, ExerciseRow, SessionDoc, SessionStatus, SetRow } from '../types/db'
+import { t } from './i18n'
 
 export const WORKOUT_CSV_HEADERS = [
   'session_id',
@@ -264,7 +265,7 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
   }
 
   if (col.workout_name < 0 && col.session_id < 0) {
-    throw new Error('This file is not a Herkules workout CSV (missing workout_name / session_id).')
+    throw new Error(t('errors.notHerkulesCsv'))
   }
 
   const take = (row: string[], key: keyof typeof col): string => {

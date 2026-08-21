@@ -8,7 +8,13 @@ import { EmptyState, Modal } from '../components/ui'
 import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { validateRequiredName } from '../lib/validation'
 import { blockRoles, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
-import { displayExerciseName } from '../lib/i18n'
+import {
+  blockFormatLabel,
+  categoryLabel,
+  displayExerciseName,
+  useT,
+  workoutRoleLabel,
+} from '../lib/i18n'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import {
@@ -83,6 +89,7 @@ function structuredTempo(
 const NEW_PLAN = '__new__'
 
 export function RoutineEditor() {
+  const { t } = useT()
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -138,7 +145,7 @@ export function RoutineEditor() {
   })
 
   if (ready && !isNew && !template) {
-    return <EmptyState title="Routine not found" hint="It may have been deleted." />
+    return <EmptyState title={t('errors.routineNotFound')} hint={t('common.mayHaveDeleted')} />
   }
 
   function update(index: number, patch: Partial<TemplateItemInput>) {
@@ -167,7 +174,7 @@ export function RoutineEditor() {
   }
 
   async function save() {
-    const validation = validateRequiredName(name, 'Routine name')
+    const validation = validateRequiredName(name, t('editor.routineName'))
     if (validation) {
       setError(validation)
       return
@@ -177,7 +184,7 @@ export function RoutineEditor() {
     try {
       let assignedPlanId: string | null = null
       if (planChoice === NEW_PLAN) {
-        const planValidation = validateRequiredName(newPlanName, 'Plan name')
+        const planValidation = validateRequiredName(newPlanName, t('editor.planName'))
         if (planValidation) {
           setError(planValidation)
           setBusy(false)
@@ -215,7 +222,7 @@ export function RoutineEditor() {
       )
       void navigate(assignedPlanId ? `/plans/${assignedPlanId}` : '/routines')
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the routine.')
+      setError(caught instanceof Error ? caught.message : t('errors.saveRoutine'))
     } finally {
       setBusy(false)
     }
@@ -223,12 +230,12 @@ export function RoutineEditor() {
 
   async function removeRoutine() {
     if (!template) return
-    if (window.confirm(`Delete routine "${template.name}"? Planned history is not affected.`)) {
+    if (window.confirm(t('editor.deleteRoutineConfirm', { name: template.name }))) {
       try {
         await store.deleteTemplate(template.id)
         void navigate('/routines')
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'Could not delete the routine.')
+        setError(caught instanceof Error ? caught.message : t('errors.deleteRoutine'))
       }
     }
   }
@@ -236,21 +243,21 @@ export function RoutineEditor() {
   return (
     <div>
       <div className="page-head">
-        <h1>{isNew ? 'New routine' : 'Edit routine'}</h1>
+        <h1>{isNew ? t('editor.newTitle') : t('editor.editTitle')}</h1>
       </div>
 
       <div className="field">
-        <label htmlFor="routine-name">Name</label>
+        <label htmlFor="routine-name">{t('editor.nameLabel')}</label>
         <input
           id="routine-name"
           className="input"
-          placeholder="e.g. Push Day A"
+          placeholder={t('editor.namePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
       </div>
       <div className="field">
-        <label htmlFor="routine-notes">Notes (optional)</label>
+        <label htmlFor="routine-notes">{t('editor.notes')}</label>
         <textarea
           id="routine-notes"
           className="input"
@@ -260,55 +267,57 @@ export function RoutineEditor() {
         />
       </div>
       <div className="field">
-        <label htmlFor="routine-plan">Training plan</label>
+        <label htmlFor="routine-plan">{t('editor.trainingPlan')}</label>
         <select
           id="routine-plan"
           className="input"
           value={planChoice}
           onChange={(e) => setPlanChoice(e.target.value)}
         >
-          <option value="">None — unassigned</option>
+          <option value="">{t('editor.noneUnassigned')}</option>
           {plans.map((plan) => (
             <option key={plan.id} value={plan.id}>
               {plan.name}
             </option>
           ))}
-          <option value={NEW_PLAN}>New plan…</option>
+          <option value={NEW_PLAN}>{t('editor.newPlan')}</option>
         </select>
       </div>
       {planChoice === NEW_PLAN ? (
         <div className="field">
-          <label htmlFor="routine-new-plan">New plan name</label>
+          <label htmlFor="routine-new-plan">{t('editor.newPlanName')}</label>
           <input
             id="routine-new-plan"
             className="input"
-            placeholder="e.g. Push / Pull / Legs"
+            placeholder={t('editor.planNamePlaceholder')}
             value={newPlanName}
             onChange={(e) => setNewPlanName(e.target.value)}
           />
         </div>
       ) : null}
 
-      <div className="section-title">Exercises</div>
+      <div className="section-title">{t('editor.exercises')}</div>
       {items.length === 0 ? (
-        <p className="muted">No exercises yet — add the first one.</p>
+        <p className="muted">{t('editor.noExercises')}</p>
       ) : (
         <ol className="routine-items">
           {items.map((item, index) => {
             const exercise = exerciseById.get(item.exercise_id)
             const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
-            const name = exercise ? displayExerciseName(exercise) : 'Unknown exercise'
+            const name = exercise ? displayExerciseName(exercise) : t('editor.unknownExercise')
             const itemBlock = item.block_id
               ? templateBlocks.find((block) => block.id === item.block_id) ?? null
               : null
+            const partnerName = (row: TemplateItemInput) => {
+              const partner = exerciseById.get(row.exercise_id)
+              return partner ? displayExerciseName(partner) : t('editor.unknownExercise')
+            }
             const blockPartners = itemBlock?.format === 'superset'
               ? items
                 .filter((row) => row.block_id === item.block_id && row !== item)
-                .map((row) => exerciseById.get(row.exercise_id)?.name ?? 'Unknown exercise')
+                .map(partnerName)
               : []
-            const legacyPartners = supersetPartners(items, item, (row) => {
-              return exerciseById.get(row.exercise_id)?.name ?? 'Unknown exercise'
-            })
+            const legacyPartners = supersetPartners(items, item, partnerName)
             const partners = blockPartners.length > 0 ? blockPartners : legacyPartners
             const notesOpen = Boolean(openNotes[index])
             const dragging = reorder.active?.from === index
@@ -327,7 +336,7 @@ export function RoutineEditor() {
                     <button
                       type="button"
                       className="exercise-grip"
-                      aria-label={`Reorder ${name}`}
+                      aria-label={t('editor.reorder', { name })}
                       {...reorder.getHandleProps(index, { immediate: true })}
                       onKeyDown={(event) => {
                         if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
@@ -352,8 +361,8 @@ export function RoutineEditor() {
                       target="_blank"
                       rel="noreferrer noopener"
                       className="form-link-icon"
-                      aria-label={`Watch form video for ${name}`}
-                      title={`Watch form video for ${name}`}
+                      aria-label={t('editor.watchForm', { name })}
+                      title={t('editor.watchForm', { name })}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span aria-hidden="true">▶️</span>
@@ -367,8 +376,8 @@ export function RoutineEditor() {
                       target="_blank"
                       rel="noreferrer noopener"
                       className="form-link-icon"
-                      aria-label={`Open guide for ${name}`}
-                      title={`Open guide for ${name}`}
+                      aria-label={t('editor.openGuide', { name })}
+                      title={t('editor.openGuide', { name })}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span aria-hidden="true">📖</span>
@@ -377,21 +386,23 @@ export function RoutineEditor() {
                 ) : null}
                 {partners.length > 0 ? (
                   <div className="exercise-superset">
-                    <span className="badge badge--in-progress">Superset</span>
-                    <span className="exercise-superset__with">with {partners.join(', ')}</span>
+                    <span className="badge badge--in-progress">{t('blockFormat.superset')}</span>
+                    <span className="exercise-superset__with">
+                      {t('editor.withPartners', { names: partners.join(', ') })}
+                    </span>
                   </div>
                 ) : null}
                 {item.block_id ? (
                   <div className="exercise-superset">
                     <span className="badge badge--neutral">
-                      {itemBlock?.role.replace('_', ' ') ?? 'block'}
+                      {itemBlock ? workoutRoleLabel(itemBlock.role) : t('blockFormat.straight')}
                     </span>
                     <span className="exercise-superset__with">
-                      {itemBlock?.format}
+                      {itemBlock ? blockFormatLabel(itemBlock.format) : ''}
                     </span>
                   </div>
                 ) : null}
-                <div className="row row--wrap" role="group" aria-label={`Role for ${name}`}>
+                <div className="row row--wrap" role="group" aria-label={t('editor.roleFor', { name })}>
                   {blockRoles().map((role) => (
                     <button
                       key={role.value}
@@ -407,13 +418,13 @@ export function RoutineEditor() {
 
                 <div className="exercise-meta-row">
                   <small className="muted">
-                    {exercise?.category} · {MEASUREMENT_LABELS(measurement)}
+                    {exercise ? categoryLabel(exercise.category) : ''} · {MEASUREMENT_LABELS(measurement)}
                   </small>
                   <button
                     type="button"
                     className="btn btn--icon btn--small btn--danger"
                     data-no-drag
-                    aria-label={`Remove ${name}`}
+                    aria-label={t('editor.removeNamed', { name })}
                     onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
                   >
                     <IconTrash width={16} height={16} />
@@ -422,7 +433,7 @@ export function RoutineEditor() {
 
                 <div className="routine-grid">
                   <label className="field">
-                    <span>Sets</span>
+                    <span>{t('editor.sets')}</span>
                     <input
                       className="input input--cell"
                       type="number"
@@ -440,7 +451,7 @@ export function RoutineEditor() {
                   {measurement === 'weight_reps' ? (
                     <>
                       <label className="field">
-                        <span>Target {weightUnitLabel(units)}</span>
+                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
                         <input
                           className="input input--cell"
                           type="number"
@@ -456,7 +467,7 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Min reps</span>
+                        <span>{t('editor.minReps')}</span>
                         <input
                           className="input input--cell"
                           type="number"
@@ -466,7 +477,7 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Max reps</span>
+                        <span>{t('editor.maxReps')}</span>
                         <input
                           className="input input--cell"
                           type="number"
@@ -486,7 +497,7 @@ export function RoutineEditor() {
                   {measurement === 'reps' ? (
                     <>
                     <label className="field">
-                      <span>Min reps</span>
+                      <span>{t('editor.minReps')}</span>
                       <input
                         className="input input--cell"
                         type="number"
@@ -500,7 +511,7 @@ export function RoutineEditor() {
                       />
                     </label>
                     <label className="field">
-                      <span>Max reps</span>
+                      <span>{t('editor.maxReps')}</span>
                       <input className="input input--cell" type="number" min={0} value={item.target_reps_max ?? item.target_reps ?? ''} onChange={(e) => update(index, { target_reps: e.target.value === '' ? null : Number(e.target.value), target_reps_max: e.target.value === '' ? null : Number(e.target.value) })} />
                     </label>
                     </>
@@ -509,15 +520,15 @@ export function RoutineEditor() {
                   {measurement === 'weight_distance' ? (
                     <>
                       <label className="field">
-                        <span>Target {weightUnitLabel(units)}</span>
+                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
                         <input className="input input--cell" type="number" min={0} step="0.5" value={weightForInput(item.target_weight_kg, units)} onChange={(e) => update(index, { target_weight_kg: e.target.value === '' ? null : weightToKg(Number(e.target.value), units) })} />
                       </label>
                       <label className="field">
-                        <span>Min {distanceUnitLabel(units)}</span>
+                        <span>{t('editor.minDistance', { unit: distanceUnitLabel(units) })}</span>
                         <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_min_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_min_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
                       </label>
                       <label className="field">
-                        <span>Max {distanceUnitLabel(units)}</span>
+                        <span>{t('editor.maxDistance', { unit: distanceUnitLabel(units) })}</span>
                         <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
                       </label>
                     </>
@@ -526,7 +537,7 @@ export function RoutineEditor() {
                   {measurement === 'weight_duration' ? (
                     <>
                       <label className="field">
-                        <span>Target {weightUnitLabel(units)}</span>
+                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
                         <input
                           className="input input--cell"
                           type="number"
@@ -542,7 +553,7 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Min hold (s)</span>
+                        <span>{t('editor.minHold')}</span>
                         <input
                           className="input input--cell"
                           type="number"
@@ -556,7 +567,7 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Max hold (s)</span>
+                        <span>{t('editor.maxHold')}</span>
                         <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
                       </label>
                     </>
@@ -565,11 +576,11 @@ export function RoutineEditor() {
                   {measurement === 'duration' || measurement === 'distance_duration' ? (
                     <>
                       <label className="field">
-                        <span>Min seconds</span>
+                        <span>{t('editor.minSeconds')}</span>
                         <input className="input input--cell" type="number" min={0} value={item.target_duration_min_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_min_s: e.target.value === '' ? null : Number(e.target.value) })} />
                       </label>
                       <label className="field">
-                        <span>Max seconds</span>
+                        <span>{t('editor.maxSeconds')}</span>
                         <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
                       </label>
                     </>
@@ -578,7 +589,7 @@ export function RoutineEditor() {
                   {measurement === 'distance_duration' ? (
                     <>
                       <label className="field">
-                      <span>Min {distanceUnitLabel(units)}</span>
+                      <span>{t('editor.minDistance', { unit: distanceUnitLabel(units) })}</span>
                       <input
                         className="input input--cell"
                         type="number"
@@ -594,14 +605,14 @@ export function RoutineEditor() {
                       />
                     </label>
                     <label className="field">
-                      <span>Max {distanceUnitLabel(units)}</span>
+                      <span>{t('editor.maxDistance', { unit: distanceUnitLabel(units) })}</span>
                       <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
                     </label>
                     </>
                   ) : null}
 
                   <label className="field">
-                    <span>Tempo</span>
+                    <span>{t('editor.tempo')}</span>
                     <input
                       className="input input--cell"
                       type="text"
@@ -618,7 +629,7 @@ export function RoutineEditor() {
                   </label>
 
                   <label className="field">
-                    <span>Rest (s)</span>
+                    <span>{t('editor.rest')}</span>
                     <input
                       className="input input--cell"
                       type="number"
@@ -633,13 +644,13 @@ export function RoutineEditor() {
                     />
                   </label>
                   {([
-                    ['tempo_eccentric', 'Eccentric (s)'],
-                    ['tempo_stretch_pause', 'Stretch pause (s)'],
-                    ['tempo_concentric', 'Concentric (s)'],
-                    ['tempo_contracted_pause', 'Contracted pause (s)'],
-                  ] as const).map(([field, label]) => (
+                    ['tempo_eccentric', 'editor.eccentric'],
+                    ['tempo_stretch_pause', 'editor.stretchPause'],
+                    ['tempo_concentric', 'editor.concentric'],
+                    ['tempo_contracted_pause', 'editor.contractedPause'],
+                  ] as const).map(([field, labelKey]) => (
                     <label className="field" key={field}>
-                      <span>{label}</span>
+                      <span>{t(labelKey)}</span>
                       <input
                         className="input input--cell"
                         type="number"
@@ -654,45 +665,45 @@ export function RoutineEditor() {
                     </label>
                   ))}
                   <label className="field">
-                    <span>Side mode</span>
+                    <span>{t('editor.sideMode')}</span>
                     <select className="input input--cell" value={item.side_mode ?? 'bilateral'} onChange={(e) => update(index, { side_mode: e.target.value as NonNullable<TemplateItemInput['side_mode']> })}>
-                      <option value="bilateral">Bilateral / total</option>
-                      <option value="per_side">Per side</option>
-                      <option value="per_leg">Per leg</option>
+                      <option value="bilateral">{t('editor.bilateral')}</option>
+                      <option value="per_side">{t('editor.perSide')}</option>
+                      <option value="per_leg">{t('editor.perLeg')}</option>
                     </select>
                   </label>
                   <label className="field">
-                    <span>Directions</span>
+                    <span>{t('editor.directions')}</span>
                     <input className="input input--cell" type="number" min={1} max={4} value={item.directions ?? 1} onChange={(e) => update(index, { directions: Math.max(1, Math.min(4, Number(e.target.value) || 1)) })} />
                   </label>
                   <label className="field">
-                    <span>Target RPE min</span>
+                    <span>{t('editor.rpeMin')}</span>
                     <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_min ?? ''} onChange={(e) => update(index, { target_rpe_min: e.target.value === '' ? null : Number(e.target.value) })} />
                   </label>
                   <label className="field">
-                    <span>Target RPE max</span>
+                    <span>{t('editor.rpeMax')}</span>
                     <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_max ?? ''} onChange={(e) => update(index, { target_rpe_max: e.target.value === '' ? null : Number(e.target.value) })} />
                   </label>
                   <label className="field">
-                    <span>Target RIR min</span>
+                    <span>{t('editor.rirMin')}</span>
                     <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_min ?? ''} onChange={(e) => update(index, { target_rir_min: e.target.value === '' ? null : Number(e.target.value) })} />
                   </label>
                   <label className="field">
-                    <span>Target RIR max</span>
+                    <span>{t('editor.rirMax')}</span>
                     <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_max ?? ''} onChange={(e) => update(index, { target_rir_max: e.target.value === '' ? null : Number(e.target.value) })} />
                   </label>
                   <label className="field">
-                    <span>Load increment (kg)</span>
+                    <span>{t('editor.loadIncrement')}</span>
                     <input className="input input--cell" type="number" min={0} step="0.5" value={item.load_increment_kg ?? ''} onChange={(e) => update(index, { load_increment_kg: e.target.value === '' ? null : Number(e.target.value) })} />
                   </label>
                   <label className="field">
-                    <span>Tempo intent</span>
+                    <span>{t('editor.tempoIntent')}</span>
                     <select className="input input--cell" value={item.tempo_intent ?? 'controlled'} onChange={(e) => {
                       const patch = { tempo_intent: e.target.value as 'controlled' | 'explosive' }
                       update(index, { ...patch, tempo: structuredTempo(item, patch) })
                     }}>
-                      <option value="controlled">Controlled</option>
-                      <option value="explosive">Explosive</option>
+                      <option value="controlled">{t('editor.controlled')}</option>
+                      <option value="explosive">{t('editor.explosive')}</option>
                     </select>
                   </label>
                 </div>
@@ -705,15 +716,15 @@ export function RoutineEditor() {
                     setOpenNotes((prev) => ({ ...prev, [index]: !prev[index] }))
                   }
                 >
-                  Notes
+                  {t('editor.notesItem')}
                 </button>
                 {notesOpen ? (
                   <label className="field">
-                    <span>Notes</span>
+                    <span>{t('editor.notesItem')}</span>
                     <textarea
                       className="input"
                       rows={2}
-                      placeholder="Tempo, RPE, cues, per side…"
+                      placeholder={t('editor.notesPlaceholder')}
                       value={item.notes ?? ''}
                       onChange={(e) =>
                         update(index, { notes: e.target.value === '' ? null : e.target.value })
@@ -723,7 +734,7 @@ export function RoutineEditor() {
                 ) : null}
 
                 {itemBlock ? (
-                  <small className="muted">Grouping is managed by this V2 block.</small>
+                  <small className="muted">{t('editor.groupingV2')}</small>
                 ) : (
                   <button
                     type="button"
@@ -731,7 +742,7 @@ export function RoutineEditor() {
                     aria-pressed={Boolean(item.superset_group)}
                     onClick={() => toggleSuperset(index)}
                   >
-                    {item.superset_group ? 'In superset — remove' : 'Superset with next'}
+                    {item.superset_group ? t('editor.inSuperset') : t('editor.supersetNext')}
                   </button>
                 )}
               </li>
@@ -744,7 +755,7 @@ export function RoutineEditor() {
       </span>
 
       <button type="button" className="btn" style={{ marginTop: '0.75rem' }} onClick={() => setPickerOpen(true)}>
-        <IconPlus width={18} height={18} /> Add exercise
+        <IconPlus width={18} height={18} /> {t('editor.addExercise')}
       </button>
 
       {error ? (
@@ -755,7 +766,7 @@ export function RoutineEditor() {
 
       <div className="row row--wrap" style={{ marginTop: '1rem' }}>
         <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={busy}>
-          {busy ? 'Saving…' : 'Save routine'}
+          {busy ? t('common.saving') : t('editor.saveRoutine')}
         </button>
         {!isNew && template ? (
           <>
@@ -775,25 +786,25 @@ export function RoutineEditor() {
                   })
                   .catch((caught: unknown) => {
                     setError(
-                      caught instanceof Error ? caught.message : 'Could not export the routine.',
+                      caught instanceof Error ? caught.message : t('errors.exportRoutine'),
                     )
                   })
               }}
             >
-              Export
+              {t('routines.export')}
             </button>
             <button type="button" className="btn btn--danger" onClick={() => void removeRoutine()}>
-              Delete
+              {t('common.delete')}
             </button>
           </>
         ) : null}
         <button type="button" className="btn btn--ghost" onClick={() => void navigate('/routines')}>
-          Back
+          {t('common.back')}
         </button>
       </div>
 
       {pickerOpen ? (
-        <Modal title="Add exercise to routine" onClose={() => setPickerOpen(false)}>
+        <Modal title={t('editor.addToRoutine')} onClose={() => setPickerOpen(false)}>
           <ExercisePicker
             onClose={() => setPickerOpen(false)}
             onSelect={(exerciseId) =>

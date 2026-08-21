@@ -115,14 +115,14 @@ export function SetEditor({
     <div className={`set-row ${completed ? 'set-row--done' : ''}${warmup ? ' set-row--warmup' : ''}`}>
       <span className="set-index" aria-label={warmup ? t('set.setWarmup', { n: index + 1 }) : t('set.setN', { n: index + 1 })}>
         {identity}
-        {warmup ? <span className="set-warmup-badge" title="Warm-up set">W</span> : null}
+        {warmup ? <span className="set-warmup-badge" title={t('set.warmupTitle')}>W</span> : null}
       </span>
 
       <div className="set-inputs" role="group" aria-label={t('set.values', { n: index + 1 })}>
         {measurement === 'weight_reps' ? (
           <>
             <label className="set-field">
-              <span className="visually-hidden">Weight in {weightUnitLabel(units)}</span>
+              <span className="visually-hidden">{t('set.weightIn', { unit: weightUnitLabel(units) })}</span>
               <input
                 className="input input--cell"
                 type="text"
@@ -134,7 +134,7 @@ export function SetEditor({
               />
             </label>
             <label className="set-field">
-              <span className="visually-hidden">Repetitions</span>
+              <span className="visually-hidden">{t('set.repetitions')}</span>
               <input
                 className="input input--cell"
                 type="text"
@@ -150,12 +150,12 @@ export function SetEditor({
 
         {measurement === 'reps' ? (
           <label className="set-field">
-            <span className="visually-hidden">Repetitions</span>
+            <span className="visually-hidden">{t('set.repetitions')}</span>
             <input
               className="input input--cell"
               type="text"
               inputMode="numeric"
-              placeholder={suggestion?.reps || 'reps'}
+              placeholder={suggestion?.reps || t('set.reps')}
               value={draft.reps}
               disabled={readonly}
               onChange={(e) => apply({ reps: e.target.value })}
@@ -165,7 +165,7 @@ export function SetEditor({
 
         {measurement === 'weight_duration' || measurement === 'weight_distance' ? (
           <label className="set-field">
-            <span className="visually-hidden">Weight in {weightUnitLabel(units)}</span>
+            <span className="visually-hidden">{t('set.weightIn', { unit: weightUnitLabel(units) })}</span>
             <input
               className="input input--cell"
               type="text"
@@ -180,11 +180,11 @@ export function SetEditor({
 
         {measurement === 'duration' || measurement === 'distance_duration' || measurement === 'weight_duration' ? (
           <label className="set-field">
-            <span className="visually-hidden">Duration (mm:ss or h:mm:ss)</span>
+            <span className="visually-hidden">{t('set.durationAria')}</span>
             <input
               className="input input--cell"
               type="text"
-              placeholder={suggestion?.duration || 'mm:ss'}
+              placeholder={suggestion?.duration || t('set.durationPh')}
               value={draft.duration}
               disabled={readonly}
               onChange={(e) => apply({ duration: e.target.value })}
@@ -194,7 +194,7 @@ export function SetEditor({
 
         {measurement === 'distance_duration' || measurement === 'weight_distance' ? (
           <label className="set-field">
-            <span className="visually-hidden">Distance in {distanceUnitLabel(units)}</span>
+            <span className="visually-hidden">{t('set.distanceIn', { unit: distanceUnitLabel(units) })}</span>
             <input
               className="input input--cell"
               type="text"
@@ -208,14 +208,14 @@ export function SetEditor({
         ) : null}
 
         <label className="set-field set-field--rpe">
-          <span className="visually-hidden">RPE (1–10)</span>
+          <span className="visually-hidden">{t('set.rpeAria')}</span>
           <select
             className="input input--cell"
             value={draft.rpe}
             disabled={readonly}
             onChange={(e) => apply({ rpe: e.target.value })}
           >
-            <option value="">RPE</option>
+            <option value="">{t('editor.rpe')}</option>
             {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
               <option key={value} value={value}>
                 {value}
@@ -226,7 +226,7 @@ export function SetEditor({
       </div>
 
       {readonly ? (
-        <span className="badge badge--completed" title="Completed">
+        <span className="badge badge--completed" title={t('set.completed')}>
           <IconCheck width={14} height={14} />
         </span>
       ) : (

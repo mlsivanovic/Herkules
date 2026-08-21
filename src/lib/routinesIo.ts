@@ -191,23 +191,23 @@ export function parseRoutines(text: string): RoutinesFile {
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new Error('That file is not valid JSON.')
+    throw new Error(t('errors.invalidJson'))
   }
   if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('That file is not a Herkules routines export.')
+    throw new Error(t('errors.notRoutines'))
   }
   const file = parsed as { format?: unknown; version?: unknown; routines?: unknown }
   if (file.format === BACKUP_FORMAT) {
-    throw new Error('That file is a full backup. Restore it from Settings.')
+    throw new Error(t('errors.isBackup'))
   }
   if (file.format !== ROUTINES_FORMAT) {
-    throw new Error('That file is not a Herkules routines export.')
+    throw new Error(t('errors.notRoutines'))
   }
   if (typeof file.version !== 'number' || file.version > ROUTINES_VERSION) {
-    throw new Error('This file was made by a newer version of Herkules.')
+    throw new Error(t('errors.routinesNewer'))
   }
   if (!Array.isArray(file.routines)) {
-    throw new Error('The file is missing the routines list.')
+    throw new Error(t('errors.missingRoutinesList'))
   }
   return {
     format: ROUTINES_FORMAT,
@@ -458,14 +458,14 @@ function resolveExercise(
 
 function parseRoutine(value: unknown, index: number): RoutineExport {
   if (typeof value !== 'object' || value === null) {
-    throw new Error(`Routine ${index + 1} is not an object.`)
+    throw new Error(t('errors.routineNotObject', { n: index + 1 }))
   }
   const row = value as Partial<RoutineExport>
   const name = typeof row.name === 'string' ? row.name.trim() : ''
-  if (name === '') throw new Error(`Routine ${index + 1} is missing a name.`)
-  if (name.length > 120) throw new Error(`Routine "${name}" has a name that is too long.`)
+  if (name === '') throw new Error(t('errors.routineMissingName', { n: index + 1 }))
+  if (name.length > 120) throw new Error(t('errors.routineNameLong', { name }))
   if (!Array.isArray(row.items)) {
-    throw new Error(`Routine "${name}" is missing its exercises list.`)
+    throw new Error(t('errors.routineMissingExercises', { name }))
   }
   return {
     id: isUuid(row.id) ? row.id : null,
@@ -480,7 +480,7 @@ function parseRoutine(value: unknown, index: number): RoutineExport {
 
 function parseItem(value: unknown, index: number, routineName: string): RoutineItemExport {
   if (typeof value !== 'object' || value === null) {
-    throw new Error(`Routine "${routineName}" item ${index + 1} is not an object.`)
+    throw new Error(t('errors.itemNotObject', { name: routineName, n: index + 1 }))
   }
   const row = value as Partial<RoutineItemExport>
   const planned = asNumber(row.planned_sets)
@@ -527,12 +527,12 @@ function parseExerciseSnapshot(
   routineName: string,
 ): RoutineExerciseSnapshot {
   if (typeof value !== 'object' || value === null) {
-    throw new Error(`Routine "${routineName}" item ${index + 1} is missing an exercise.`)
+    throw new Error(t('errors.itemMissingExercise', { name: routineName, n: index + 1 }))
   }
   const row = value as Partial<RoutineExerciseSnapshot>
   const name = typeof row.name === 'string' ? row.name.trim() : ''
   if (name === '') {
-    throw new Error(`Routine "${routineName}" item ${index + 1} is missing an exercise name.`)
+    throw new Error(t('errors.itemMissingName', { name: routineName, n: index + 1 }))
   }
   return {
     id: isUuid(row.id) ? row.id : null,
@@ -552,7 +552,7 @@ function parseExerciseSnapshot(
 
 function parseBlock(value: unknown, index: number): RoutineBlockExport {
   if (typeof value !== 'object' || value === null) {
-    throw new Error(`Routine block ${index + 1} is not an object.`)
+    throw new Error(t('errors.blockNotObject', { n: index + 1 }))
   }
   const row = value as Partial<RoutineBlockExport>
   const roles = ['warmup', 'strength', 'assistance', 'power', 'carry', 'core', 'conditioning', 'zone_2', 'tendon'] as const

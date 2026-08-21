@@ -18,7 +18,7 @@ import { formatWeight, formatDistance, formatDuration } from '../lib/units'
 import { BarChart, LineChart } from '../components/Chart'
 import { EmptyState, Loader } from '../components/ui'
 import { IconTrophy } from '../components/Icons'
-import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, useT } from '../lib/i18n'
+import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, t as translate, useT } from '../lib/i18n'
 import './progress.css'
 
 const WEEKS_SHOWN = 12
@@ -296,24 +296,28 @@ function TendonTrend({
         <>
           <LineChart
             points={rows.map((row) => ({ label: row.label, value: row.pain }))}
-            formatValue={(value) => `pain ${value}`}
-            ariaLabel={`Pain for ${selected} over time`}
+            formatValue={(value) => t('progress.painFmt', { value })}
+            ariaLabel={t('progress.painFor', { site: displayTendonSite(selected) })}
           />
           <LineChart
             points={rows.map((row) => ({ label: row.label, value: row.stiffness }))}
-            formatValue={(value) => `stiffness ${value}`}
-            ariaLabel={`Morning stiffness for ${selected} over time`}
+            formatValue={(value) => t('progress.stiffnessFmt', { value })}
+            ariaLabel={t('progress.stiffnessFor', { site: displayTendonSite(selected) })}
           />
         </>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          One entry so far — log a few more days and the trend appears.
+          {t('progress.oneEntry')}
         </p>
       )}
       <ul className="muted" style={{ margin: 0, paddingLeft: '1.1rem' }}>
         {rows.slice(-5).reverse().map((row) => (
           <li key={row.id}>
-            {row.recorded_on} — stiffness {row.stiffness}, pain {row.pain}
+            {t('progress.checkinLine', {
+              date: row.recorded_on,
+              stiffness: row.stiffness,
+              pain: row.pain,
+            })}
             {row.notes ? ` (${row.notes})` : ''}
           </li>
         ))}
@@ -325,15 +329,15 @@ function TendonTrend({
 function prLabel(kind: string): string {
   switch (kind) {
     case 'e1rm':
-      return 'Best e1RM'
+      return translate('progress.prE1rm')
     case 'weight':
-      return 'Heaviest'
+      return translate('progress.prWeight')
     case 'reps':
-      return 'Most reps'
+      return translate('progress.prReps')
     case 'distance':
-      return 'Longest distance'
+      return translate('progress.prDistance')
     case 'duration':
-      return 'Longest time'
+      return translate('progress.prDuration')
     default:
       return kind
   }

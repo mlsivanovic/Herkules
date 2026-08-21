@@ -83,9 +83,11 @@ export function PlateCalculatorModal({
           </p>
           {result.remainder > 0 ? (
             <p className="muted" style={{ margin: 0 }}>
-              Closest loadable:{' '}
-              {Math.round((barWeight + 2 * loadedPerSide) * 100) / 100} {weightUnitLabel(units)} (
-              {result.remainder} {weightUnitLabel(units)} per side short)
+              {t('plates.closest', {
+                load: Math.round((barWeight + 2 * loadedPerSide) * 100) / 100,
+                unit: weightUnitLabel(units),
+                remainder: result.remainder,
+              })}
             </p>
           ) : null}
         </div>
@@ -117,9 +119,9 @@ export function WarmupModal({
   }, [workingValue, units, barWeight])
 
   return (
-    <Modal title="Warm-up sets" onClose={onClose}>
+    <Modal title={t('warmup.title')} onClose={onClose}>
       <div className="field">
-        <label htmlFor="warmup-working">Working weight ({weightUnitLabel(units)})</label>
+        <label htmlFor="warmup-working">{t('warmup.working', { unit: weightUnitLabel(units) })}</label>
         <input
           id="warmup-working"
           className="input"
@@ -135,7 +137,7 @@ export function WarmupModal({
         ) : null}
       </div>
       <div className="field">
-        <label htmlFor="warmup-bar">Bar</label>
+        <label htmlFor="warmup-bar">{t('plates.bar')}</label>
         <select
           id="warmup-bar"
           className="input"
@@ -154,14 +156,14 @@ export function WarmupModal({
         <div className="calc-result">
           {ramp.map((set) => (
             <p key={set.percent} style={{ margin: 0 }}>
-              <strong>{set.weight}</strong> {weightUnitLabel(units)} × {set.reps} reps{' '}
+              <strong>{set.weight}</strong> {weightUnitLabel(units)} × {set.reps} {t('set.reps')}{' '}
               <small className="muted">({Math.round(set.percent * 100)}%)</small>
             </p>
           ))}
         </div>
       ) : (
         <p className="muted" style={{ margin: 0 }}>
-          Enter a working weight to generate a 40 / 60 / 80 % ramp.
+          {t('warmup.hint')}
         </p>
       )}
 
@@ -173,7 +175,9 @@ export function WarmupModal({
           onAdd(ramp.map((set) => ({ weightKg: weightToKg(set.weight, units), reps: set.reps })))
         }
       >
-        Add {ramp.length} warm-up set{ramp.length === 1 ? '' : 's'}
+        {ramp.length === 1
+          ? t('warmup.addOne', { count: ramp.length })
+          : t('warmup.addOther', { count: ramp.length })}
       </button>
     </Modal>
   )

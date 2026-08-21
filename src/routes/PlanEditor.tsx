@@ -9,10 +9,12 @@ import { validateRequiredName } from '../lib/validation'
 import { moveIndex } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import { useT } from '../lib/i18n'
 import './planEditor.css'
 import './routineEditor.css'
 
 export function PlanEditor() {
+  const { t } = useT()
   const { id } = useParams()
   const navigate = useNavigate()
   const isNew = id === 'new'
@@ -63,11 +65,11 @@ export function PlanEditor() {
   }, [templates, plan])
 
   if (ready && !isNew && !plan) {
-    return <EmptyState title="Plan not found" hint="It may have been deleted." />
+    return <EmptyState title={t('errors.planNotFound')} hint={t('common.mayHaveDeleted')} />
   }
 
   async function save() {
-    const validation = validateRequiredName(name, 'Plan name')
+    const validation = validateRequiredName(name, t('editor.planName'))
     if (validation) {
       setError(validation)
       return
@@ -83,7 +85,7 @@ export function PlanEditor() {
         await store.updatePlan(plan.id, { name: name.trim(), notes: trimmedNotes })
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the plan.')
+      setError(caught instanceof Error ? caught.message : t('errors.savePlan'))
     } finally {
       setBusy(false)
     }
@@ -92,15 +94,13 @@ export function PlanEditor() {
   async function removePlan() {
     if (!plan) return
     if (
-      window.confirm(
-        `Delete plan "${plan.name}"? Routines stay in your library; they just become unassigned.`,
-      )
+      window.confirm(t('editor.deletePlanConfirm', { name: plan.name }))
     ) {
       try {
         await store.deletePlan(plan.id)
         void navigate('/routines')
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'Could not delete the plan.')
+        setError(caught instanceof Error ? caught.message : t('errors.deletePlan'))
       }
     }
   }
@@ -111,7 +111,9 @@ export function PlanEditor() {
       const current = plans.find((row) => row.id === other.plan_id)
       if (
         !window.confirm(
-          `"${other.name}" is in ${current?.name ?? 'another plan'}. Move it here?`,
+          current
+            ? t('editor.moveHere', { name: other.name, plan: current.name })
+            : t('editor.moveHereUnknown', { name: other.name }),
         )
       ) {
         return
@@ -122,7 +124,7 @@ export function PlanEditor() {
       await store.assignTemplateToPlan(templateId, plan.id)
       setPickerOpen(false)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not add that routine.')
+      setError(caught instanceof Error ? caught.message : t('errors.addRoutine'))
     }
   }
 
@@ -130,7 +132,7 @@ export function PlanEditor() {
     try {
       await store.assignTemplateToPlan(templateId, null)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not remove that routine.')
+      setError(caught instanceof Error ? caught.message : t('errors.removeRoutine'))
     }
   }
 
@@ -142,21 +144,21 @@ export function PlanEditor() {
   return (
     <div>
       <div className="page-head">
-        <h1>{isNew ? 'New plan' : 'Edit plan'}</h1>
+        <h1>{isNew ? t('editor.newPlanTitle') : t('editor.editPlanTitle')}</h1>
       </div>
 
       <div className="field">
-        <label htmlFor="plan-name">Name</label>
+        <label htmlFor="plan-name">{t('editor.nameLabel')}</label>
         <input
           id="plan-name"
           className="input"
-          placeholder="e.g. Push / Pull / Legs"
+          placeholder={t('editor.planNamePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
       </div>
       <div className="field">
-        <label htmlFor="plan-notes">Notes (optional)</label>
+        <label htmlFor="plan-notes">{t('editor.notes')}</label>
         <textarea
           id="plan-notes"
           className="input"
@@ -168,9 +170,9 @@ export function PlanEditor() {
 
       {!isNew && plan ? (
         <>
-          <div className="section-title">Routines</div>
+          <div className="section-title">{t('nav.routines')}</div>
           {members.length === 0 ? (
-            <p className="muted">No routines yet — add existing ones or create a new day.</p>
+            <p className="muted">{t('editor.noRoutinesYet')}</p>
           ) : (
             <ol className="plan-days">
               {members.map((template, index) => {
@@ -190,7 +192,7 @@ export function PlanEditor() {
                       <button
                         type="button"
                         className="exercise-grip"
-                        aria-label={`Reorder ${template.name}`}
+                        aria-label={t('editor.reorder', { name: template.name })}
                         {...reorder.getHandleProps(index, { immediate: true })}
                         onKeyDown={(event) => {
                           if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
@@ -213,16 +215,18 @@ export function PlanEditor() {
                       className="plan-day__main"
                       onClick={() => void navigate(`/routines/${template.id}`)}
                     >
-                      <span className="plan-day__index">Day {index + 1}</span>
+                      <span className="plan-day__index">{t('editor.dayN', { n: index + 1 })}</span>
                       <strong>{template.name}</strong>
                       <small className="muted">
-                        {count} exercise{count === 1 ? '' : 's'}
+                        {count === 1
+                          ? t('routines.exerciseOne', { count })
+                          : t('routines.exerciseCount', { count })}
                       </small>
                     </button>
                     <button
                       type="button"
                       className="btn btn--ghost btn--small"
-                      aria-label={`Remove ${template.name} from plan`}
+                      aria-label={t('editor.removeFromPlan', { name: template.name })}
                       onClick={() => void removeRoutine(template.id)}
                     >
                       <IconTrash width={16} height={16} />
@@ -234,10 +238,10 @@ export function PlanEditor() {
           )}
           <div className="row row--wrap" style={{ marginTop: '0.85rem' }}>
             <button type="button" className="btn" onClick={() => setPickerOpen(true)}>
-              Add existing
+              {t('editor.addExisting')}
             </button>
             <button type="button" className="btn" onClick={newRoutine}>
-              <IconPlus width={16} height={16} /> New routine
+              <IconPlus width={16} height={16} /> {t('routines.newRoutine')}
             </button>
             <button
               type="button"
@@ -245,12 +249,12 @@ export function PlanEditor() {
               disabled={members.length === 0}
               onClick={() => setRotationOpen(true)}
             >
-              Plan rotation
+              {t('routines.planRotation')}
             </button>
           </div>
         </>
       ) : (
-        <p className="muted">Save the plan first, then add routines.</p>
+        <p className="muted">{t('editor.saveFirst')}</p>
       )}
 
       {error ? (
@@ -265,24 +269,24 @@ export function PlanEditor() {
 
       <div className="row row--wrap" style={{ marginTop: '1.1rem' }}>
         <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void save()}>
-          {busy ? 'Saving…' : 'Save plan'}
+          {busy ? t('common.saving') : t('editor.savePlan')}
         </button>
         <button type="button" className="btn" onClick={() => void navigate('/routines')}>
-          Back
+          {t('common.back')}
         </button>
         {plan ? (
           <button type="button" className="btn btn--ghost" onClick={() => void removePlan()}>
-            Delete
+            {t('common.delete')}
           </button>
         ) : null}
       </div>
 
       {pickerOpen ? (
-        <Modal title="Add routine to plan" onClose={() => setPickerOpen(false)}>
+        <Modal title={t('editor.addToPlan')} onClose={() => setPickerOpen(false)}>
           {addable.length === 0 ? (
             <EmptyState
-              title="No other routines"
-              hint="Create a new routine for this plan, or unassign one from another plan."
+              title={t('editor.noOtherRoutines')}
+              hint={t('editor.noOtherRoutinesHint')}
             />
           ) : (
             <ul className="plan-picker">
@@ -294,7 +298,7 @@ export function PlanEditor() {
                     onClick={() => void addRoutine(template.id)}
                   >
                     <strong>{template.name}</strong>
-                    <small className="muted">Unassigned</small>
+                    <small className="muted">{t('editor.unassignedBadge')}</small>
                   </button>
                 </li>
               ))}
@@ -310,7 +314,11 @@ export function PlanEditor() {
                         onClick={() => void addRoutine(template.id)}
                       >
                         <strong>{template.name}</strong>
-                        <small className="muted">In {other?.name ?? 'another plan'}</small>
+                        <small className="muted">
+                          {other
+                            ? t('editor.inOtherPlan', { name: other.name })
+                            : t('editor.inAnotherPlan')}
+                        </small>
                       </button>
                     </li>
                   )

@@ -84,7 +84,7 @@ export function ExerciseEditor() {
   async function submit(event: FormEvent) {
     event.preventDefault()
     const validation =
-      validateRequiredName(name, 'Exercise name') ?? validateHttpsUrl(videoUrl)
+      validateRequiredName(name, t('exercises.nameRequired')) ?? validateHttpsUrl(videoUrl)
     if (validation) {
       setError(validation)
       return
@@ -193,7 +193,7 @@ export function ExerciseEditor() {
             <input
               id="exercise-muscles"
               className="input"
-              placeholder="e.g. chest, triceps"
+              placeholder={t('exercises.musclesPh')}
               value={muscleGroups}
               onChange={(e) => setMuscleGroups(e.target.value)}
               readOnly={!editing && !isNew}
@@ -205,7 +205,7 @@ export function ExerciseEditor() {
             <input
               id="exercise-equipment"
               className="input"
-              placeholder="e.g. barbell, bench"
+              placeholder={t('exercises.equipmentPh')}
               value={equipment}
               onChange={(e) => setEquipment(e.target.value)}
               readOnly={!editing && !isNew}
@@ -230,7 +230,7 @@ export function ExerciseEditor() {
               id="exercise-video"
               className="input"
               type="url"
-              placeholder="https://…"
+              placeholder={t('exercises.videoPh')}
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
               readOnly={!editing && !isNew}
@@ -268,14 +268,16 @@ export function ExerciseEditor() {
         <div className="stack" style={{ marginTop: '1rem' }}>
           {exercise?.source_url ? (
             <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
-              Read {exercise.source_provider ? `${exercise.source_provider} ` : ''}instructions ↗
+              {exercise.source_provider
+                ? t('exercises.providerGuide', { provider: exercise.source_provider })
+                : t('exercises.guide')}
             </a>
           ) : null}
           {exercise?.video_url ? (
           <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
             {exercise.video_url.includes('youtube.com/results')
-              ? 'Watch form videos on YouTube ↗'
-              : 'Open video explanation ↗'}
+              ? t('exercises.youtube')
+              : t('exercises.guide')}
           </a>
           ) : null}
         </div>

@@ -33,7 +33,7 @@ import {
   IconTimer,
   IconTrash,
 } from '../components/Icons'
-import { displaySnapshotName, useT } from '../lib/i18n'
+import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
 import './workout.css'
 
 interface StartState {
@@ -182,8 +182,8 @@ export function Workout() {
             .filter((block) => !active.session_exercises.some((exercise) => exercise.session_block_id === block.id))
             .map((block) => (
               <div key={block.id} className="card workout-block-head">
-                <span className="badge badge--planned">{block.role.replace('_', ' ')}</span>
-                <strong>{block.format}</strong>
+                <span className="badge badge--planned">{workoutRoleLabel(block.role)}</span>
+                <strong>{blockFormatLabel(block.format)}</strong>
                 {block.notes ? <small className="muted">{block.notes}</small> : null}
               </div>
             ))}
@@ -195,11 +195,30 @@ export function Workout() {
             <Fragment key={se.id}>
               {showBlock ? (
                 <div className="workout-block-head">
-                  <span className="badge badge--neutral">{block.role.replace('_', ' ')}</span>
-                  <strong>{block.format}</strong>
-                  {block.format === 'circuit' ? <small className="muted">{block.rounds_initial} rounds · {block.rest_after_round_s ?? 0}s after each round</small> : null}
-                  {block.format === 'superset' ? <small className="muted">Alternate the pair · {block.rest_after_round_s ?? 0}s after both</small> : null}
-                  {block.format === 'interval' ? <button type="button" className="btn btn--small" onClick={() => setIntervalsOpen(true)}>Open {block.interval_rounds}×{block.interval_work_s}/{block.interval_recovery_s} timer</button> : null}
+                  <span className="badge badge--neutral">{workoutRoleLabel(block.role)}</span>
+                  <strong>{blockFormatLabel(block.format)}</strong>
+                  {block.format === 'circuit' ? (
+                    <small className="muted">
+                      {t('workout.circuitMeta', {
+                        rounds: block.rounds_initial,
+                        rest: block.rest_after_round_s ?? 0,
+                      })}
+                    </small>
+                  ) : null}
+                  {block.format === 'superset' ? (
+                    <small className="muted">
+                      {t('workout.supersetMeta', { rest: block.rest_after_round_s ?? 0 })}
+                    </small>
+                  ) : null}
+                  {block.format === 'interval' ? (
+                    <button type="button" className="btn btn--small" onClick={() => setIntervalsOpen(true)}>
+                      {t('workout.openTimer', {
+                        rounds: block.interval_rounds ?? 0,
+                        work: block.interval_work_s ?? 0,
+                        rest: block.interval_recovery_s ?? 0,
+                      })}
+                    </button>
+                  ) : null}
                   {block.notes ? <small className="muted">{block.notes}</small> : null}
                 </div>
               ) : null}
@@ -235,7 +254,7 @@ export function Workout() {
             </Fragment>
           )})}
           <button type="button" className="btn" onClick={() => setPickerMode('add')}>
-            <IconPlus width={18} height={18} /> Add exercise
+            <IconPlus width={18} height={18} /> {t('workout.addExercise')}
           </button>
         </div>
       )}
@@ -273,7 +292,7 @@ export function Workout() {
 
       {swapTarget ? (
         <ExercisePicker
-          title="Swap exercise"
+          title={t('workout.swapExercise')}
           onClose={() => setSwapTarget(null)}
           onSelect={(exerciseId) =>
             void store.swapSessionExercise(active.id, swapTarget, exerciseId)
@@ -329,11 +348,8 @@ export function Workout() {
       ) : null}
 
       {conflict ? (
-        <Modal title="Workout already in progress" onClose={() => setConflict(false)}>
-          <p>
-            You have an active workout (<strong>{active.name}</strong>). Only one workout can run at
-            a time.
-          </p>
+        <Modal title={t('workout.conflictTitle')} onClose={() => setConflict(false)}>
+          <p>{t('workout.conflictBody', { name: active.name })}</p>
           <div className="stack">
             <button
               type="button"
@@ -343,7 +359,7 @@ export function Workout() {
                 navigate('/workout', { replace: true, state: null })
               }}
             >
-              Resume current workout
+              {t('workout.resume')}
             </button>
             <button
               type="button"
@@ -362,14 +378,14 @@ export function Workout() {
                   } catch (caught) {
                     setConflict(false)
                     setStartError(
-                      caught instanceof Error ? caught.message : 'Could not start the workout.',
+                      caught instanceof Error ? caught.message : t('errors.startWorkout'),
                     )
                   }
                   navigate('/workout', { replace: true, state: null })
                 })()
               }}
             >
-              Discard it and start the new one
+              {t('workout.discardStartNew')}
             </button>
           </div>
         </Modal>
@@ -513,7 +529,7 @@ function prescriptionLabel(
   if (exercise.measurement_snapshot === 'weight_reps' || exercise.measurement_snapshot === 'reps') {
     const reps = rangeLabel(exercise.target_reps_min ?? exercise.target_reps, exercise.target_reps_max ?? exercise.target_reps)
     const load = exercise.target_weight_kg != null ? ` @ ${formatWeight(exercise.target_weight_kg, units)}` : ''
-    return `${sets} × ${reps} reps${load}`
+    return `${sets} × ${reps} ${translate('set.reps')}${load}`
   }
   if (exercise.measurement_snapshot === 'duration' || exercise.measurement_snapshot === 'weight_duration') {
     const duration = rangeLabel(exercise.target_duration_min_s ?? exercise.target_duration_s, exercise.target_duration_max_s ?? exercise.target_duration_s)
@@ -623,12 +639,12 @@ function ExerciseCard({
   const blockPartners = block?.format === 'superset'
     ? session.session_exercises
       .filter((row) => row.session_block_id === block.id && row.id !== exercise.id)
-      .map((row) => row.name_snapshot)
+      .map((row) => displaySnapshotName(row.name_snapshot, row.exercise_id))
     : []
   const partners = blockPartners.length > 0 ? blockPartners : supersetPartners(
     session.session_exercises,
     exercise,
-    (se) => se.name_snapshot,
+    (se) => displaySnapshotName(se.name_snapshot, se.exercise_id),
   )
   const logged = exercise.sets.some((set) => set.completed_at !== null)
   const role = normalizeBlockRole(exercise.block_role)
@@ -691,8 +707,10 @@ function ExerciseCard({
 
       {partners.length > 0 ? (
         <div className="exercise-superset">
-          <span className="badge badge--in-progress">Superset</span>
-          <span className="exercise-superset__with">with {partners.join(', ')}</span>
+          <span className="badge badge--in-progress">{t('blockFormat.superset')}</span>
+          <span className="exercise-superset__with">
+            {t('workout.withPartners', { names: partners.join(', ') })}
+          </span>
         </div>
       ) : null}
 
@@ -704,10 +722,16 @@ function ExerciseCard({
         {exercise.target_rir_min != null || exercise.target_rir_max != null ? (
           <span className="badge badge--neutral">RIR {rangeLabel(exercise.target_rir_min, exercise.target_rir_max)}</span>
         ) : null}
-        {exercise.side_mode && exercise.side_mode !== 'bilateral' ? <span className="badge badge--neutral">{exercise.side_mode === 'per_leg' ? 'per leg' : 'per side'}</span> : null}
-        {exercise.tempo_intent === 'explosive' ? <span className="badge badge--in-progress">Explosive intent</span> : null}
-        {block?.role === 'warmup' ? <span className="badge badge--planned">Warm-up</span> : null}
-        {block?.role === 'tendon' ? <span className="badge badge--planned">Tendon</span> : null}
+        {exercise.side_mode && exercise.side_mode !== 'bilateral' ? (
+          <span className="badge badge--neutral">
+            {exercise.side_mode === 'per_leg' ? t('workout.perLeg') : t('workout.perSide')}
+          </span>
+        ) : null}
+        {exercise.tempo_intent === 'explosive' ? (
+          <span className="badge badge--in-progress">{t('workout.explosive')}</span>
+        ) : null}
+        {block?.role === 'warmup' ? <span className="badge badge--planned">{t('workout.warmup')}</span> : null}
+        {block?.role === 'tendon' ? <span className="badge badge--planned">{t('workoutRole.tendon')}</span> : null}
         {catalogSource && catalogSource !== catalogVideo ? (
           <a
             href={catalogSource}
@@ -733,14 +757,14 @@ function ExerciseCard({
             aria-expanded={notesOpen}
             onClick={() => setNotesOpen((open) => !open)}
           >
-            Notes
+            {t('workout.notes')}
           </button>
         ) : (
           <span />
         )}
         {exercise.tempo ? (
-          <span className="badge badge--neutral tempo-badge" title="Prescribed tempo">
-            Tempo {exercise.tempo}
+          <span className="badge badge--neutral tempo-badge" title={t('workout.prescribedTempo')}>
+            {t('editor.tempo')} {exercise.tempo}
           </span>
         ) : null}
         <div className="row">
@@ -752,7 +776,7 @@ function ExerciseCard({
                 data-no-drag
                 onClick={() => setCalcOpen('plates')}
               >
-                Plates
+                {t('workout.plates')}
               </button>
               <button
                 type="button"
@@ -760,7 +784,7 @@ function ExerciseCard({
                 data-no-drag
                 onClick={() => setCalcOpen('warmup')}
               >
-                Warm-up
+                {t('workout.warmup')}
               </button>
             </>
           ) : null}
@@ -791,25 +815,29 @@ function ExerciseCard({
 
       {previous ? (
         <small className="muted">
-          Previous:{' '}
+          {t('workout.previous')}{' '}
           {previous
             .map((set) => {
               if (exercise.measurement_snapshot === 'weight_reps') {
                 return `${formatWeight(set.weight_kg ?? 0, units)} × ${set.reps ?? '–'}`
               }
-              if (exercise.measurement_snapshot === 'reps') return `${set.reps ?? '–'} reps`
+              if (exercise.measurement_snapshot === 'reps')
+                return `${set.reps ?? '–'} ${t('set.reps')}`
               if (exercise.measurement_snapshot === 'duration')
                 return formatDuration(set.duration_s ?? 0)
               if (exercise.measurement_snapshot === 'weight_duration')
                 return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDuration(set.duration_s ?? 0)}`
               if (exercise.measurement_snapshot === 'weight_distance')
                 return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDistance(set.distance_m ?? 0, units)}`
-              return `${formatDistance(set.distance_m ?? 0, units)} in ${formatDuration(set.duration_s ?? 0)}`
+              return t('workout.distanceInTime', {
+                distance: formatDistance(set.distance_m ?? 0, units),
+                duration: formatDuration(set.duration_s ?? 0),
+              })
             })
             .join(', ')}
         </small>
       ) : (
-        <small className="muted">First time with this exercise — no history yet.</small>
+        <small className="muted">{t('workout.firstTime')}</small>
       )}
 
       <div className="stack" style={{ gap: '0.35rem' }}>
@@ -838,7 +866,9 @@ function ExerciseCard({
         <AddSetButton onAdd={addSet} />
         {exercise.planned_sets > exercise.sets.length ? (
           <small className="muted">
-            {exercise.planned_sets - exercise.sets.length} more set(s) planned
+            {t('workout.morePlanned', {
+              count: exercise.planned_sets - exercise.sets.length,
+            })}
           </small>
         ) : null}
       </div>
@@ -890,7 +920,7 @@ function FinishModal({
   const [acceptProgression, setAcceptProgression] = useState(suggestions.length > 0)
 
   async function submit() {
-    if (completed === 0 && !window.confirm('Finish without any completed sets?')) return
+    if (completed === 0 && !window.confirm(t('workout.finishEmpty'))) return
     if (acceptProgression) await store.applyProgressionSuggestions(session.id)
     await onFinish({
       notes: notes.trim() === '' ? null : notes.trim(),
@@ -908,7 +938,7 @@ function FinishModal({
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="How did it go?"
+          placeholder={t('workout.notesPlaceholder')}
         />
       </div>
       <div className="field">
@@ -923,7 +953,10 @@ function FinishModal({
         </select>
       </div>
       <p className="muted">
-        {completed} completed set(s). {formatDuration(elapsedOf(session))} total.
+        {t('workout.completedSummary', {
+          count: completed,
+          duration: formatDuration(elapsedOf(session)),
+        })}
       </p>
       {suggestions.length > 0 ? (
         <label className="card row" style={{ alignItems: 'flex-start' }}>
@@ -967,6 +1000,7 @@ function RestChip({
   onTick(value: number): void
   onDone(): void
 }) {
+  const { t } = useT()
   useEffect(() => {
     if (remaining <= 0) {
       timerCue()
@@ -980,12 +1014,12 @@ function RestChip({
   return (
     <div className="rest-chip" role="status">
       <IconTimer width={18} height={18} />
-      <span className="mono">Rest {formatDuration(remaining)}</span>
+      <span className="mono">{t('workout.rest', { time: formatDuration(remaining) })}</span>
       <button type="button" className="btn btn--small" onClick={() => onTick(remaining + 15)}>
-        +15s
+        {t('common.plus15')}
       </button>
       <button type="button" className="btn btn--small btn--ghost" onClick={onDone}>
-        Skip
+        {t('common.skip')}
       </button>
     </div>
   )

@@ -7,6 +7,14 @@ describe('t', () => {
     expect(t('nav.today', undefined, 'sr')).toBe('Danas')
   })
 
+  it('translates routine and plan editor chrome', () => {
+    expect(t('editor.newTitle', undefined, 'en')).toBe('New routine')
+    expect(t('editor.newTitle', undefined, 'sr')).toBe('Nova rutina')
+    expect(t('editor.editTitle', undefined, 'sr')).toBe('Izmeni rutinu')
+    expect(t('editor.saveRoutine', undefined, 'sr')).toBe('Sačuvaj rutinu')
+    expect(t('editor.newPlanTitle', undefined, 'sr')).toBe('Novi plan')
+  })
+
   it('interpolates placeholders', () => {
     expect(t('today.hi', { name: 'Ana' }, 'en')).toBe('Hi, Ana')
     expect(t('today.hi', { name: 'Ana' }, 'sr')).toBe('Zdravo, Ana')

@@ -10,6 +10,34 @@ export function categoryLabel(value: ExerciseCategory | 'all'): string {
   return t('category.strength')
 }
 
+const WORKOUT_ROLES = [
+  'warmup',
+  'strength',
+  'assistance',
+  'power',
+  'carry',
+  'core',
+  'conditioning',
+  'zone_2',
+  'tendon',
+] as const
+
+export function workoutRoleLabel(value: string): string {
+  if ((WORKOUT_ROLES as readonly string[]).includes(value)) {
+    return t(`workoutRole.${value as (typeof WORKOUT_ROLES)[number]}`)
+  }
+  return value.replaceAll('_', ' ')
+}
+
+const BLOCK_FORMATS = ['straight', 'superset', 'circuit', 'interval'] as const
+
+export function blockFormatLabel(value: string): string {
+  if ((BLOCK_FORMATS as readonly string[]).includes(value)) {
+    return t(`blockFormat.${value as (typeof BLOCK_FORMATS)[number]}`)
+  }
+  return value
+}
+
 export {
   applyLocale,
   applySavedLocale,

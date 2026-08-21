@@ -11,10 +11,11 @@ import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import { IconTrash } from '../components/Icons'
-import { displaySnapshotName } from '../lib/i18n'
+import { displaySnapshotName, useT } from '../lib/i18n'
 import './history.css'
 
 export function HistoryDetail() {
+  const { t } = useT()
   const { id } = useParams()
   const navigate = useNavigate()
   const store = useStore()
@@ -37,7 +38,7 @@ export function HistoryDetail() {
 
   if (!store.ready) return <Loader />
   if (!session) {
-    return <EmptyState title="Workout not found" hint="It may have been deleted." />
+    return <EmptyState title={t('history.notFoundTitle')} hint={t('common.mayHaveDeleted')} />
   }
   const current: SessionDoc = session
 
@@ -72,8 +73,9 @@ export function HistoryDetail() {
           <h1>{session.name}</h1>
           <small className="muted">
             {formatDateLong(session.planned_date ?? session.started_at.slice(0, 10))}
-            {duration !== null ? ` · ${formatDuration(duration)}` : ''} · {completedSets} sets ·{' '}
-            {formatWeight(sessionVolume(session), units)} volume
+            {duration !== null ? ` · ${formatDuration(duration)}` : ''} ·{' '}
+            {t('history.setsCount', { count: completedSets })} ·{' '}
+            {formatWeight(sessionVolume(session), units)} {t('common.volume')}
           </small>
         </div>
         <div className="row">
@@ -81,7 +83,7 @@ export function HistoryDetail() {
             <button
               type="button"
               className="btn btn--icon btn--danger"
-              aria-label={`Delete ${session.name}`}
+              aria-label={t('calendar.deleteWorkout', { name: session.name })}
               onClick={() => setPendingDelete(true)}
             >
               <IconTrash width={18} height={18} />
@@ -100,7 +102,7 @@ export function HistoryDetail() {
       </div>
 
       <div className="field">
-        <label htmlFor="history-notes">Notes</label>
+        <label htmlFor="history-notes">{t('history.notes')}</label>
         <textarea
           id="history-notes"
           className="input"
@@ -128,12 +130,16 @@ export function HistoryDetail() {
               <span className="row">
                 <strong>{displaySnapshotName(se.name_snapshot, se.exercise_id)}</strong>
                 {se.tempo ? (
-                  <span className="badge badge--neutral" title="Prescribed tempo">
-                    Tempo {se.tempo}
+                  <span className="badge badge--neutral" title={t('history.prescribedTempo')}>
+                    {t('editor.tempo')} {se.tempo}
                   </span>
                 ) : null}
               </span>
-              <small className="muted">{se.sets.filter((s) => s.completed_at !== null).length} sets</small>
+              <small className="muted">
+                {t('history.setsCount', {
+                  count: se.sets.filter((s) => s.completed_at !== null).length,
+                })}
+              </small>
             </div>
             {se.notes ? (
               <p className="muted" style={{ margin: '0.35rem 0 0', whiteSpace: 'pre-wrap' }}>
@@ -142,7 +148,7 @@ export function HistoryDetail() {
             ) : null}
             <div className="stack" style={{ gap: '0.35rem', marginTop: '0.5rem' }}>
               {se.sets.length === 0 ? (
-                <small className="muted">No sets logged.</small>
+                <small className="muted">{t('history.noSets')}</small>
               ) : (
                 se.sets.map((set, index) => (
                   <SetEditor
@@ -165,16 +171,16 @@ export function HistoryDetail() {
 
       <div className="row" style={{ marginTop: '1rem' }}>
         <button type="button" className="btn btn--ghost" onClick={() => void navigate(-1)}>
-          Back
+          {t('common.back')}
         </button>
         <button type="button" className="btn btn--ghost" onClick={() => void navigate('/history')}>
-          All history
+          {t('history.allHistory')}
         </button>
       </div>
 
       {pendingDelete ? (
-        <Modal title="Delete this workout?" onClose={() => setPendingDelete(false)}>
-          <p>This removes the logged workout from history. The routine itself stays in your library.</p>
+        <Modal title={t('calendar.deleteTitle')} onClose={() => setPendingDelete(false)}>
+          <p>{t('calendar.deleteBody')}</p>
           <div className="stack">
             <button
               type="button"
@@ -185,10 +191,10 @@ export function HistoryDetail() {
                 void navigate(-1)
               }}
             >
-              Delete workout
+              {t('calendar.deleteConfirm')}
             </button>
             <button type="button" className="btn btn--block" onClick={() => setPendingDelete(false)}>
-              Keep it
+              {t('history.keepIt')}
             </button>
           </div>
         </Modal>

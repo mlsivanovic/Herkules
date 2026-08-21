@@ -4,6 +4,7 @@
 // Grip (immediate): touch-action:none + drag starts on pointerdown.
 // Title (hold): long-press so the list can still scroll from the title.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { t } from './i18n'
 
 const MOUSE_HOLD_MS = 180
 const TOUCH_HOLD_MS = 380
@@ -149,7 +150,7 @@ export function usePointerReorder(options: {
       document.body.classList.remove('is-reordering')
       if (commit && drag && drag.from !== drag.over) {
         onMove(drag.from, drag.over)
-        announce?.(`Moved to position ${drag.over + 1}`)
+        announce?.(t('common.movedTo', { n: drag.over + 1 }))
       }
     },
     [announce, clearHold, detach, onMove, stopAutoScroll],
@@ -175,7 +176,7 @@ export function usePointerReorder(options: {
       const to = index + delta
       if (to < 0 || to >= itemCount) return
       onMove(index, to)
-      announce?.(`Moved to position ${to + 1}`)
+      announce?.(t('common.movedTo', { n: to + 1 }))
     },
     [announce, itemCount, onMove],
   )

@@ -151,7 +151,19 @@ export function Calendar() {
               className={`calendar-day ${inMonth ? '' : 'calendar-day--outside'} ${
                 key === today ? 'calendar-day--today' : ''
               } ${status ? `calendar-day--${status}` : ''}`}
-              aria-label={`${key}${status ? `, ${status.replace('-', ' ')}` : ''}${
+              aria-label={`${key}${
+                status
+                  ? `, ${
+                      status === 'in-progress'
+                        ? t('status.inProgress')
+                        : status === 'planned'
+                          ? t('status.planned')
+                          : status === 'completed'
+                            ? t('status.completed')
+                            : t('status.skipped')
+                    }`
+                  : ''
+              }${
                 plannedCount > 0 ? `, ${t('calendar.plannedCount', { count: plannedCount })}` : ''
               }`}
               aria-current={key === today ? 'date' : undefined}

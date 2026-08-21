@@ -63,6 +63,14 @@
 
 .workout-prescription {
   margin: 0.45rem 0;
+  align-items: center;
+}
+
+.workout-prescription .form-link-icon {
+  margin-left: auto;
+  flex: 0 0 32px;
+  width: 32px;
+  min-height: 32px;
 }
 
 .workout-exercise--logged {

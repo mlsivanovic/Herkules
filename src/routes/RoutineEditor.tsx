@@ -351,8 +351,8 @@ export function RoutineEditor() {
                       target="_blank"
                       rel="noreferrer noopener"
                       className="form-link-icon"
-                      aria-label={`YouTube pravilno izvođenje za ${name}`}
-                      title={`YouTube pravilno izvođenje za ${name}`}
+                      aria-label={`Watch form video for ${name}`}
+                      title={`Watch form video for ${name}`}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span aria-hidden="true">▶️</span>
@@ -366,8 +366,8 @@ export function RoutineEditor() {
                       target="_blank"
                       rel="noreferrer noopener"
                       className="form-link-icon"
-                      aria-label={`Otvori vodič za ${name}`}
-                      title={`Otvori vodič za ${name}`}
+                      aria-label={`Open guide for ${name}`}
+                      title={`Open guide for ${name}`}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span aria-hidden="true">📖</span>

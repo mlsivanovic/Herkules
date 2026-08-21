@@ -676,30 +676,14 @@ function ExerciseCard({
             target="_blank"
             rel="noreferrer noopener"
             className="form-link-icon"
-            aria-label={`YouTube pravilno izvođenje za ${exercise.name_snapshot}`}
-            title={`YouTube pravilno izvođenje za ${exercise.name_snapshot}`}
+            aria-label={`Watch form video for ${exercise.name_snapshot}`}
+            title={`Watch form video for ${exercise.name_snapshot}`}
             onClick={(event) => event.stopPropagation()}
           >
             <span aria-hidden="true">▶️</span>
           </a>
         ) : null}
       </div>
-
-      {catalogSource && catalogSource !== catalogVideo ? (
-        <div className="exercise-guide-row">
-          <a
-            href={catalogSource}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="form-link-icon"
-            aria-label={`Otvori vodič za ${exercise.name_snapshot}`}
-            title={`Otvori vodič za ${exercise.name_snapshot}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span aria-hidden="true">📖</span>
-          </a>
-        </div>
-      ) : null}
 
       {partners.length > 0 ? (
         <div className="exercise-superset">
@@ -720,6 +704,19 @@ function ExerciseCard({
         {exercise.tempo_intent === 'explosive' ? <span className="badge badge--in-progress">Explosive intent</span> : null}
         {block?.role === 'warmup' ? <span className="badge badge--planned">Warm-up</span> : null}
         {block?.role === 'tendon' ? <span className="badge badge--planned">Tendon</span> : null}
+        {catalogSource && catalogSource !== catalogVideo ? (
+          <a
+            href={catalogSource}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="form-link-icon"
+            aria-label={`Open guide for ${exercise.name_snapshot}`}
+            title={`Open guide for ${exercise.name_snapshot}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span aria-hidden="true">📖</span>
+          </a>
+        ) : null}
       </div>
 
       {expanded ? (

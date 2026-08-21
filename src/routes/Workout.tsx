@@ -670,31 +670,36 @@ function ExerciseCard({
             <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
           </button>
         </div>
-        {catalogSource && catalogSource !== catalogVideo ? (
-          <a
-            href={catalogSource}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="form-chip"
-            aria-label={`Written instructions for ${exercise.name_snapshot}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            Guide ↗
-          </a>
-        ) : null}
         {catalogVideo ? (
           <a
             href={catalogVideo}
             target="_blank"
             rel="noreferrer noopener"
-            className="form-chip"
-            aria-label={`Form video for ${exercise.name_snapshot}`}
+            className="form-link-icon"
+            aria-label={`YouTube pravilno izvođenje za ${exercise.name_snapshot}`}
+            title={`YouTube pravilno izvođenje za ${exercise.name_snapshot}`}
             onClick={(event) => event.stopPropagation()}
           >
-            {catalogVideo.includes('youtube.com') ? 'YouTube ↗' : 'Form ↗'}
+            <span aria-hidden="true">▶️</span>
           </a>
         ) : null}
       </div>
+
+      {catalogSource && catalogSource !== catalogVideo ? (
+        <div className="exercise-guide-row">
+          <a
+            href={catalogSource}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="form-link-icon"
+            aria-label={`Otvori vodič za ${exercise.name_snapshot}`}
+            title={`Otvori vodič za ${exercise.name_snapshot}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span aria-hidden="true">📖</span>
+          </a>
+        </div>
+      ) : null}
 
       {partners.length > 0 ? (
         <div className="exercise-superset">

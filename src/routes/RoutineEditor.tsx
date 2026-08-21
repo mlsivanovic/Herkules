@@ -345,29 +345,35 @@ export function RoutineEditor() {
                     </button>
                     <strong className="exercise-head__title">{name}</strong>
                   </div>
-                  {exercise?.source_url && exercise.source_url !== exercise.video_url ? (
-                    <a
-                      href={exercise.source_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="form-chip"
-                      aria-label={`Written instructions for ${name}`}
-                    >
-                      Guide ↗
-                    </a>
-                  ) : null}
                   {exercise?.video_url ? (
                     <a
                       href={exercise.video_url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="form-chip"
-                      aria-label={`Form video for ${name}`}
+                      className="form-link-icon"
+                      aria-label={`YouTube pravilno izvođenje za ${name}`}
+                      title={`YouTube pravilno izvođenje za ${name}`}
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      {exercise.video_url.includes('youtube.com') ? 'YouTube ↗' : 'Form ↗'}
+                      <span aria-hidden="true">▶️</span>
                     </a>
                   ) : null}
                 </div>
+                {exercise?.source_url && exercise.source_url !== exercise.video_url ? (
+                  <div className="exercise-guide-row">
+                    <a
+                      href={exercise.source_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="form-link-icon"
+                      aria-label={`Otvori vodič za ${name}`}
+                      title={`Otvori vodič za ${name}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <span aria-hidden="true">📖</span>
+                    </a>
+                  </div>
+                ) : null}
                 {partners.length > 0 ? (
                   <div className="exercise-superset">
                     <span className="badge badge--in-progress">Superset</span>

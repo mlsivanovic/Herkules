@@ -349,6 +349,27 @@ textarea.input {
   text-underline-offset: 2px;
 }
 
+.form-link-icon {
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: 1rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.exercise-guide-row {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .notes-chip {
   flex-shrink: 0;
   display: inline-flex;

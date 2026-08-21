@@ -241,14 +241,21 @@ export function ExerciseEditor() {
           </button>
         </div>
       </form>
-      {exercise?.video_url ? (
-        <p style={{ marginTop: '1rem' }}>
+      {exercise?.source_url || exercise?.video_url ? (
+        <div className="stack" style={{ marginTop: '1rem' }}>
+          {exercise?.source_url ? (
+            <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
+              Read {exercise.source_provider ? `${exercise.source_provider} ` : ''}instructions ↗
+            </a>
+          ) : null}
+          {exercise?.video_url ? (
           <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
             {exercise.video_url.includes('youtube.com/results')
               ? 'Watch form videos on YouTube ↗'
               : 'Open video explanation ↗'}
           </a>
-        </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

@@ -26,10 +26,24 @@ export function setVolume(set: SetRow): number {
   return weight * reps
 }
 
+function exerciseSetVolume(exercise: SessionExerciseDoc, set: SetRow): number {
+  const sharedUnilateralResult =
+    (exercise.side_mode === 'per_side' || exercise.side_mode === 'per_leg') && set.side == null
+  return setVolume(set) * (sharedUnilateralResult ? 2 : 1)
+}
+
+function completedSetGroups(exercise: SessionExerciseDoc): number {
+  const groups = new Set<string>()
+  for (const set of exercise.sets.filter(countsForStats)) {
+    groups.add(`${set.round_index ?? set.position}:${set.direction ?? ''}`)
+  }
+  return groups.size
+}
+
 export function sessionVolume(doc: SessionDoc): number {
   let total = 0
   for (const exercise of doc.session_exercises) {
-    for (const set of exercise.sets) total += setVolume(set)
+    for (const set of exercise.sets) total += exerciseSetVolume(exercise, set)
   }
   return total
 }
@@ -77,10 +91,10 @@ export function exerciseProgress(
       sessionId: doc.id,
       sessionName: doc.name,
       date: doc.started_at.slice(0, 10),
-      volume: match.sets.reduce((sum, s) => sum + setVolume(s), 0),
+      volume: match.sets.reduce((sum, s) => sum + exerciseSetVolume(match, s), 0),
       bestE1RM: bestE1RM(match.sets),
       topSet: topSetOf(match),
-      completedSets: match.sets.filter(countsForStats).length,
+      completedSets: completedSetGroups(match),
     })
   }
   return rows
@@ -255,7 +269,7 @@ export function setsPerMuscleGroup(
     for (const se of doc.session_exercises) {
       const info = se.exercise_id ? catalog.get(se.exercise_id) : undefined
       const groups = info?.muscle_groups?.length ? info.muscle_groups : [se.name_snapshot]
-      const count = se.sets.filter(countsForStats).length
+      const count = completedSetGroups(se)
       if (count === 0) continue
       for (const group of groups) {
         totals.set(group, (totals.get(group) ?? 0) + count)

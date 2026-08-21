@@ -99,11 +99,11 @@ test.describe('Hybrid V1 → V2 direct migration', () => {
 
     const first = await readRecipe(client, planId, templateIds)
     expect(first.plan?.id).toBe(planId)
-    expect(first.plan?.source_version).toBe(2)
+    expect(first.plan?.source_version).toBe(3)
     expect(first.templates.map((row) => row.id)).toEqual([
       templateIds.A, templateIds.B, templateIds.C, templateIds.D,
     ])
-    expect(first.blocks).toHaveLength(16)
+    expect(first.blocks).toHaveLength(23)
     expect(first.items).toHaveLength(43)
     expect(first.items.filter((row) => row.template_id === templateIds.C)).toHaveLength(12)
     expect(first.items.some((row) =>

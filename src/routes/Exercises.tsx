@@ -128,11 +128,18 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
         </span>
         <small className="muted">{details.join(' · ')}</small>
       </button>
-      {exercise.video_url ? (
-        <small style={{ display: 'block', marginTop: '0.35rem' }}>
-          <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
-            Form videos ↗
-          </a>
+      {exercise.source_url || exercise.video_url ? (
+        <small className="row row--wrap" style={{ marginTop: '0.35rem' }}>
+          {exercise.source_url ? (
+            <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
+              {exercise.source_provider ? `${exercise.source_provider} guide` : 'Instructions'} ↗
+            </a>
+          ) : null}
+          {exercise.video_url && exercise.video_url !== exercise.source_url ? (
+            <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
+              YouTube proper form ↗
+            </a>
+          ) : null}
         </small>
       ) : null}
     </li>

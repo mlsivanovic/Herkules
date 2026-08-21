@@ -44,24 +44,25 @@ describe('V2 session prescription', () => {
     expect(snapshot).toMatchObject({ id: 'sb-2', session_id: 's-2', template_block_id: 'sb-1' })
   })
 
-  it('materializes blank planned rows for both legs', () => {
+  it('materializes one shared planned row per unilateral set', () => {
     let id = 0
     const rows = materializePlannedSets({ exercise: exercise(), block: block(), newId: () => `set-${++id}`, now: NOW })
-    expect(rows).toHaveLength(6)
+    expect(rows).toHaveLength(3)
     expect(rows.map((row) => [row.round_index, row.side])).toEqual([
-      [1, 'left'], [1, 'right'], [2, 'left'], [2, 'right'], [3, 'left'], [3, 'right'],
+      [1, null], [2, null], [3, null],
     ])
     expect(rows.every((row) => row.weight_kg === null && row.reps === null && row.completed_at === null)).toBe(true)
   })
 
-  it('materializes arm × direction for pronation/supination', () => {
+  it('materializes one shared arm result per pronation/supination direction', () => {
     let id = 0
     const rows = materializePlannedSets({
       exercise: exercise({ planned_sets: 2, side_mode: 'per_side', directions: 2 }),
       block: block(), newId: () => `set-${++id}`, now: NOW,
     })
-    expect(rows).toHaveLength(8)
+    expect(rows).toHaveLength(4)
     expect(new Set(rows.map((row) => row.direction))).toEqual(new Set(['pronation', 'supination']))
+    expect(rows.every((row) => row.side === null)).toBe(true)
   })
 
   it('uses block rounds for circuits and starts rest only after a complete set-group', () => {
@@ -71,12 +72,9 @@ describe('V2 session prescription', () => {
       block: block({ format: 'circuit', rounds_initial: 3, rounds_max: 4 }),
       newId: () => `set-${++id}`, now: NOW,
     })
-    expect(rows).toHaveLength(6)
-    const leftDone = { ...rows[0]!, completed_at: NOW }
-    expect(isSetGroupComplete(rows, leftDone)).toBe(false)
-    rows[0] = leftDone
-    const rightDone = { ...rows[1]!, completed_at: NOW }
-    expect(isSetGroupComplete(rows, rightDone)).toBe(true)
+    expect(rows).toHaveLength(3)
+    const roundDone = { ...rows[0]!, completed_at: NOW }
+    expect(isSetGroupComplete(rows, roundDone)).toBe(true)
   })
 
   it('waits for every exercise in a superset round before the round rest', () => {

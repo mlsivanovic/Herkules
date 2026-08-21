@@ -13,7 +13,8 @@ import type { HybridSlot } from './rotate'
 
 export const HYBRID_PROGRAM_TAG = 'Program: Hybrid 4-day'
 export const HYBRID_SOURCE_KEY = 'hybrid-4-day'
-export const HYBRID_SOURCE_VERSION = 2
+// Internal recipe revision. The user-facing program remains Hybrid V2.
+export const HYBRID_SOURCE_VERSION = 3
 
 export const SYS = {
   romanianDeadlift: '11111111-1111-4111-8111-111111111107',
@@ -135,12 +136,19 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
       },
       {
         key: 'strength', role: 'strength', format: 'straight',
+        items: [{ exerciseId: SYS.gobletSquat, plannedSets: 4, reps: [6, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Whole foot down; knees track the feet. Front squat is an allowed long-term swap.' }],
+      },
+      {
+        key: 'push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 120,
+        notes: 'Alternate bench and row. Rest only after both exercises are complete.',
         items: [
-          { exerciseId: SYS.gobletSquat, plannedSets: 4, reps: [6, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Whole foot down; knees track the feet. Front squat is an allowed long-term swap.' },
           { exerciseId: SYS.dumbbellBenchPress, plannedSets: 3, reps: [6, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(2, 1, 1, 0), notes: 'Keep elbows roughly 30–60° from the torso.' },
           { exerciseId: SYS.chestSupportedRow, plannedSets: 3, reps: [8, 10], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2, tempo: controlled(3, 0, 1, 1), notes: 'Pull the elbow toward the hip; lower under control.' },
-          { exerciseId: SYS.bulgarianSplitSquat, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Complete both legs before starting the rest timer.' },
         ],
+      },
+      {
+        key: 'unilateral', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.bulgarianSplitSquat, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Do both legs with the same load and log one shared set.' }],
       },
       {
         key: 'carry', role: 'carry', format: 'straight',
@@ -168,12 +176,19 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
       },
       {
         key: 'strength', role: 'strength', format: 'straight',
+        items: [{ exerciseId: SYS.trapBarDeadlift, plannedSets: 4, reps: [4, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 150, loadIncrementKg: 5, tempo: controlled(2, 0, 1, 0), notes: 'Brace, push the floor away and finish tall without leaning back.' }],
+      },
+      {
+        key: 'vertical_push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 90,
+        notes: 'Alternate landmine press and pulldown. Rest after both exercises.',
         items: [
-          { exerciseId: SYS.trapBarDeadlift, plannedSets: 4, reps: [4, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 150, loadIncrementKg: 5, tempo: controlled(2, 0, 1, 0), notes: 'Brace, push the floor away and finish tall without leaning back.' },
           { exerciseId: SYS.landminePress, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(2, 0, 1, 0), notes: 'Half-kneeling is the default; keep ribs down.' },
           { exerciseId: SYS.latPulldown, plannedSets: 3, reps: [8, 10], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2.5, tempo: controlled(3, 0, 2, 1), notes: 'Neutral grip. A clean neutral-grip pull-up is an allowed swap.' },
-          { exerciseId: SYS.romanianDeadlift, plannedSets: 2, reps: [8, 8], rpe: [7, 7], rir: [3, 3], restSeconds: 120, loadIncrementKg: 2.5, tempo: controlled(3, 1, 1, 0), notes: 'Hips back, soft knees, neutral spine; keep the load close.' },
         ],
+      },
+      {
+        key: 'hinge_assistance', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.romanianDeadlift, plannedSets: 2, reps: [8, 8], rpe: [7, 7], rir: [3, 3], restSeconds: 120, loadIncrementKg: 2.5, tempo: controlled(3, 1, 1, 0), notes: 'Hips back, soft knees, neutral spine; keep the load close.' }],
       },
       {
         key: 'power', role: 'power', format: 'straight',
@@ -186,12 +201,16 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         items: [{ exerciseId: SYS.rowingMachine, plannedSets: 1, durationS: [540, 540], rpe: [8, 8], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: 'Use the linked block timer: 6 × 30 s fast / 60 s easy.' }],
       },
       {
-        key: 'tendon', role: 'tendon', format: 'straight',
+        key: 'tendon_push_pull', role: 'tendon', format: 'superset', restAfterRoundS: 45,
+        notes: 'Alternate face pull and triceps pushdown, then rest.',
         items: [
           { exerciseId: SYS.facePull, plannedSets: 2, reps: [15, 15], rpe: [6, 7], restSeconds: 45, loadIncrementKg: 1, tempo: controlled(3, 0, 2, 1), notes: 'Control the return and externally rotate at the finish.' },
           { exerciseId: SYS.tricepsPushdown, plannedSets: 2, reps: [12, 12], rpe: [6, 7], restSeconds: 45, loadIncrementKg: 1, tempo: controlled(4, 0, 2, 0), notes: 'Slow return; no shoulder movement.' },
-          { exerciseId: SYS.wristPronationSupination, plannedSets: 2, reps: [12, 12], rpe: [5, 7], restSeconds: 45, sideMode: 'per_side', directions: 2, loadIncrementKg: 0.5, tempo: controlled(3, 0, 2, 0), notes: 'Both arms × pronation and supination. Forearm supported; use a very light load.' },
         ],
+      },
+      {
+        key: 'tendon_forearm', role: 'tendon', format: 'straight',
+        items: [{ exerciseId: SYS.wristPronationSupination, plannedSets: 2, reps: [12, 12], rpe: [5, 7], restSeconds: 45, sideMode: 'per_side', directions: 2, loadIncrementKg: 0.5, tempo: controlled(3, 0, 2, 0), notes: 'Use the same load for both arms. Log pronation and supination once per set; forearm supported.' }],
       },
     ],
   },
@@ -205,11 +224,20 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         key: 'strength', role: 'strength', format: 'straight',
         items: [
           { exerciseId: SYS.gobletSquat, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Goblet or front squat; keep the chosen variation for 8–12 weeks.' },
-          { exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load.' },
+          { exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load. Log both legs together.' },
+        ],
+      },
+      {
+        key: 'unilateral_push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 75,
+        notes: 'Alternate one-arm row and cable press. Complete both sides of an exercise, then move to its partner.',
+        items: [
           { exerciseId: SYS.oneArmDumbbellRow, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 75, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(3, 0, 1, 1), notes: 'Keep the torso square.' },
           { exerciseId: SYS.halfKneelingCablePress, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 75, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(2, 0, 1, 0), notes: 'Squeeze the down-knee glute; do not rotate.' },
-          { exerciseId: SYS.stepUp, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 0, 1, 0), notes: 'Front leg does the work; avoid pushing off the floor leg.' },
         ],
+      },
+      {
+        key: 'step_up', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.stepUp, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 0, 1, 0), notes: 'Front leg does the work; avoid pushing off the floor leg. Log both legs together.' }],
       },
       {
         key: 'carry_core', role: 'carry', format: 'straight',

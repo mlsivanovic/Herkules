@@ -14,7 +14,7 @@ import {
 
 describe('Hybrid V2 canonical recipe', () => {
   it('tags every template with a unique source slot', () => {
-    expect(HYBRID_SOURCE_VERSION).toBe(2)
+    expect(HYBRID_SOURCE_VERSION).toBe(3)
     expect(HYBRID_TEMPLATES.map((row) => hybridSlotFromNotes(row.notes))).toEqual(['A', 'B', 'C', 'D'])
     expect(HYBRID_TEMPLATES.every((row) => row.notes.startsWith(HYBRID_PROGRAM_TAG))).toBe(true)
   })
@@ -46,9 +46,21 @@ describe('Hybrid V2 canonical recipe', () => {
       recipe.items.filter((item) => item.template_id === template.id).length,
     ]))
     expect(counts).toEqual({ A: 9, B: 10, C: 12, D: 12 })
-    expect(recipe.blocks).toHaveLength(16)
+    expect(recipe.blocks).toHaveLength(23)
     expect(recipe.items.every((item) => item.block_id && item.tempo)).toBe(true)
     expect(recipe.items.every((item) => item.tempo_intent === 'controlled' || item.tempo_intent === 'explosive')).toBe(true)
+  })
+
+  it('pairs time-efficient assistance work as real block-level supersets', () => {
+    const pairs = HYBRID_TEMPLATES.flatMap((day) => day.blocks
+      .filter((block) => block.format === 'superset')
+      .map((block) => [day.slot, block.items.map((item) => item.exerciseId)] as const))
+    expect(pairs).toEqual([
+      ['A', [SYS.dumbbellBenchPress, SYS.chestSupportedRow]],
+      ['B', [SYS.landminePress, SYS.latPulldown]],
+      ['B', [SYS.facePull, SYS.tricepsPushdown]],
+      ['C', [SYS.oneArmDumbbellRow, SYS.halfKneelingCablePress]],
+    ])
   })
 
   it('includes the missing C swing and structured circuit progression', () => {
@@ -92,7 +104,7 @@ describe('Hybrid V2 canonical recipe', () => {
     })
     expect(upgrade.created).toBe(false)
     expect(upgrade.plan.id).toBe('plan-existing')
-    expect(upgrade.plan.source_version).toBe(2)
+    expect(upgrade.plan.source_version).toBe(3)
     expect(Object.values(upgrade.templates).map((row) => row.id)).toEqual([
       'template-A', 'template-B', 'template-C', 'template-D',
     ])

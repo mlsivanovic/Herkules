@@ -297,9 +297,18 @@ export function RoutineEditor() {
             const exercise = exerciseById.get(item.exercise_id)
             const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
             const name = exercise?.name ?? 'Unknown exercise'
-            const partners = supersetPartners(items, item, (row) => {
+            const itemBlock = item.block_id
+              ? templateBlocks.find((block) => block.id === item.block_id) ?? null
+              : null
+            const blockPartners = itemBlock?.format === 'superset'
+              ? items
+                .filter((row) => row.block_id === item.block_id && row !== item)
+                .map((row) => exerciseById.get(row.exercise_id)?.name ?? 'Unknown exercise')
+              : []
+            const legacyPartners = supersetPartners(items, item, (row) => {
               return exerciseById.get(row.exercise_id)?.name ?? 'Unknown exercise'
             })
+            const partners = blockPartners.length > 0 ? blockPartners : legacyPartners
             const notesOpen = Boolean(openNotes[index])
             const dragging = reorder.active?.from === index
             const dropTarget =
@@ -310,7 +319,7 @@ export function RoutineEditor() {
               <li
                 key={item.id ?? `draft-${index}`}
                 ref={reorder.setItemRef(index)}
-                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group || itemBlock?.format === 'superset' ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
               >
                 <div className="exercise-head">
                   <div className="exercise-head__drag" {...reorder.getHandleProps(index)}>
@@ -336,6 +345,17 @@ export function RoutineEditor() {
                     </button>
                     <strong className="exercise-head__title">{name}</strong>
                   </div>
+                  {exercise?.source_url && exercise.source_url !== exercise.video_url ? (
+                    <a
+                      href={exercise.source_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="form-chip"
+                      aria-label={`Written instructions for ${name}`}
+                    >
+                      Guide ↗
+                    </a>
+                  ) : null}
                   {exercise?.video_url ? (
                     <a
                       href={exercise.video_url}
@@ -344,7 +364,7 @@ export function RoutineEditor() {
                       className="form-chip"
                       aria-label={`Form video for ${name}`}
                     >
-                      Form ↗
+                      {exercise.video_url.includes('youtube.com') ? 'YouTube ↗' : 'Form ↗'}
                     </a>
                   ) : null}
                 </div>
@@ -357,10 +377,10 @@ export function RoutineEditor() {
                 {item.block_id ? (
                   <div className="exercise-superset">
                     <span className="badge badge--neutral">
-                      {templateBlocks.find((block) => block.id === item.block_id)?.role.replace('_', ' ') ?? 'block'}
+                      {itemBlock?.role.replace('_', ' ') ?? 'block'}
                     </span>
                     <span className="exercise-superset__with">
-                      {templateBlocks.find((block) => block.id === item.block_id)?.format}
+                      {itemBlock?.format}
                     </span>
                   </div>
                 ) : null}
@@ -695,14 +715,18 @@ export function RoutineEditor() {
                   </label>
                 ) : null}
 
-                <button
-                  type="button"
-                  className={`btn btn--small ${item.superset_group ? 'btn--accent' : ''}`}
-                  aria-pressed={Boolean(item.superset_group)}
-                  onClick={() => toggleSuperset(index)}
-                >
-                  {item.superset_group ? 'In superset — remove' : 'Superset with next'}
-                </button>
+                {itemBlock ? (
+                  <small className="muted">Grouping is managed by this V2 block.</small>
+                ) : (
+                  <button
+                    type="button"
+                    className={`btn btn--small ${item.superset_group ? 'btn--accent' : ''}`}
+                    aria-pressed={Boolean(item.superset_group)}
+                    onClick={() => toggleSuperset(index)}
+                  >
+                    {item.superset_group ? 'In superset — remove' : 'Superset with next'}
+                  </button>
+                )}
               </li>
             )
           })}

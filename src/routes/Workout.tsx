@@ -196,6 +196,7 @@ export function Workout() {
                   <span className="badge badge--neutral">{block.role.replace('_', ' ')}</span>
                   <strong>{block.format}</strong>
                   {block.format === 'circuit' ? <small className="muted">{block.rounds_initial} rounds · {block.rest_after_round_s ?? 0}s after each round</small> : null}
+                  {block.format === 'superset' ? <small className="muted">Alternate the pair · {block.rest_after_round_s ?? 0}s after both</small> : null}
                   {block.format === 'interval' ? <button type="button" className="btn btn--small" onClick={() => setIntervalsOpen(true)}>Open {block.interval_rounds}×{block.interval_work_s}/{block.interval_recovery_s} timer</button> : null}
                   {block.notes ? <small className="muted">{block.notes}</small> : null}
                 </div>
@@ -557,9 +558,11 @@ function ExerciseCard({
   const units = store.profile?.unit_system ?? 'metric'
   const [notesOpen, setNotesOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState<'plates' | 'warmup' | null>(null)
-  const catalogVideo = exercise.exercise_id
-    ? store.exercises.find((row) => row.id === exercise.exercise_id)?.video_url
+  const catalogExercise = exercise.exercise_id
+    ? store.exercises.find((row) => row.id === exercise.exercise_id)
     : null
+  const catalogVideo = catalogExercise?.video_url ?? null
+  const catalogSource = catalogExercise?.source_url ?? null
 
   const previous = useMemo(
     () =>
@@ -613,7 +616,12 @@ function ExerciseCard({
     void store.upsertSet(session.id, set)
   }
 
-  const partners = supersetPartners(
+  const blockPartners = block?.format === 'superset'
+    ? session.session_exercises
+      .filter((row) => row.session_block_id === block.id && row.id !== exercise.id)
+      .map((row) => row.name_snapshot)
+    : []
+  const partners = blockPartners.length > 0 ? blockPartners : supersetPartners(
     session.session_exercises,
     exercise,
     (se) => se.name_snapshot,
@@ -662,6 +670,18 @@ function ExerciseCard({
             <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
           </button>
         </div>
+        {catalogSource && catalogSource !== catalogVideo ? (
+          <a
+            href={catalogSource}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="form-chip"
+            aria-label={`Written instructions for ${exercise.name_snapshot}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            Guide ↗
+          </a>
+        ) : null}
         {catalogVideo ? (
           <a
             href={catalogVideo}
@@ -671,7 +691,7 @@ function ExerciseCard({
             aria-label={`Form video for ${exercise.name_snapshot}`}
             onClick={(event) => event.stopPropagation()}
           >
-            Form ↗
+            {catalogVideo.includes('youtube.com') ? 'YouTube ↗' : 'Form ↗'}
           </a>
         ) : null}
       </div>

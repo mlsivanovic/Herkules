@@ -108,6 +108,16 @@ describe('volume and e1RM', () => {
     expect(sessionVolume(doc)).toBe(60 * 8 * 2 + 20 * 12)
   })
 
+  it('counts a shared unilateral result for both sides without duplicate inputs', () => {
+    const doc = makeSession({
+      session_exercises: [makeSessionEx(
+        { id: 'se-unilateral', side_mode: 'per_leg' },
+        [makeSet({ session_exercise_id: 'se-unilateral', round_index: 1, side: null, weight_kg: 20, reps: 8 })],
+      )],
+    })
+    expect(sessionVolume(doc)).toBe(20 * 8 * 2)
+  })
+
   it('Epley e1RM formula', () => {
     expect(e1RM(100, 1)).toBeCloseTo(100 * (1 + 1 / 30), 5)
     expect(e1RM(100, 5)).toBeCloseTo(100 * (1 + 5 / 30), 5)

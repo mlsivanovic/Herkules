@@ -117,9 +117,10 @@ export function materializePlannedSets(input: {
   const groups = block?.format === 'circuit'
     ? block.rounds_initial
     : exercise.planned_sets
-  const sides: SetRow['side'][] = (exercise.side_mode ?? 'bilateral') === 'bilateral'
-    ? [null]
-    : ['left', 'right']
+  // A unilateral prescription still means "per side/per leg", but the user
+  // logs one shared result because both sides use the same load and target.
+  // Legacy session snapshots may still contain explicit left/right rows.
+  const sides: SetRow['side'][] = [null]
   const directions: SetRow['direction'][] = (exercise.directions ?? 1) > 1
     ? ['pronation', 'supination']
     : [null]

@@ -839,6 +839,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!installed) return
         const planId = installed.A.plan_id
         const plan = planId ? all.plans.find((row) => row.id === planId) : null
+        // A stale client must never overwrite a recipe created by a newer app.
+        if (
+          plan?.source_key === HYBRID_SOURCE_KEY &&
+          (plan.source_version ?? 0) > HYBRID_SOURCE_VERSION
+        ) return
         const canonical =
           plan?.source_key === HYBRID_SOURCE_KEY &&
           (plan.source_version ?? 0) >= HYBRID_SOURCE_VERSION &&

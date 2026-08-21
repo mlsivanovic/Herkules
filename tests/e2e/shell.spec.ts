@@ -1,7 +1,7 @@
 // E2E: app shell checks — direct hash-route deep links, theme persistence,
 // PWA installability basics (manifest + service worker + icons) and focus
 // visibility for keyboard users.
-import { test, expect, signUpFresh } from './fixtures'
+import { test, expect, signUpFresh, expandSettingsSection } from './fixtures'
 
 test.describe('app shell', () => {
   test('deep link to a hash route works after a cold open', async ({ page }) => {
@@ -34,6 +34,7 @@ test.describe('app shell', () => {
   test('system theme follows the device color scheme', async ({ page }) => {
     await signUpFresh(page, 'theme-sys')
     await page.getByRole('button', { name: 'Open settings' }).click()
+    await expandSettingsSection(page, 'preferences')
     await page.getByLabel('Theme').selectOption('system')
     await expect(page.getByLabel('Theme')).toHaveValue('system')
 
@@ -47,6 +48,7 @@ test.describe('app shell', () => {
   test('top bar theme toggle overrides system and persists', async ({ page }) => {
     await signUpFresh(page, 'theme-ovr')
     await page.getByRole('button', { name: 'Open settings' }).click()
+    await expandSettingsSection(page, 'preferences')
     await page.getByLabel('Theme').selectOption('system')
     await page.emulateMedia({ colorScheme: 'light' })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')

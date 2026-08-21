@@ -3,7 +3,7 @@
 // preservation and recipe idempotency against the real database schema.
 import { createClient } from '@supabase/supabase-js'
 import { loadEnv } from 'vite'
-import { test, expect, signUpFresh, TEST_PASSWORD, waitForAllSaved } from './fixtures'
+import { test, expect, signUpFresh, TEST_PASSWORD, waitForAllSaved, expandSettingsSection } from './fixtures'
 
 const env = loadEnv('test', process.cwd(), '')
 const EXTERNAL_ROTATION = '11111111-1111-4111-8111-111111111217'
@@ -94,6 +94,7 @@ test.describe('Hybrid V1 → V2 direct migration', () => {
 
     // Pull the seeded V1 hierarchy and allow the debounced direct upgrade to flush.
     await page.goto('/#/settings')
+    await expandSettingsSection(page, 'sync')
     await page.getByRole('button', { name: 'Retry sync' }).click()
     await waitForAllSaved(page)
 

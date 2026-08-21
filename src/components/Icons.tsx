@@ -150,6 +150,14 @@ export function IconChevronRight(props: IconProps) {
   )
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="m6 10 6 6 6-6" />
+    </svg>
+  )
+}
+
 export function IconUser(props: IconProps) {
   return (
     <svg {...base(props)}>

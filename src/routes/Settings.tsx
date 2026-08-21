@@ -1,6 +1,6 @@
-// Settings: profile (name, sex, birth date, height), body weight, units,
-// theme (light / dark / system), sync, CSV/JSON import/export, password and sign-out.
-import { useEffect, useMemo, useRef, useState } from 'react'
+// Settings: collapsible groups for profile, preferences, body weight, sync,
+// data (CSV/JSON import/export/backup), password and sign-out.
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
@@ -27,7 +27,88 @@ import { setSoundEnabled, setVibrationEnabled, soundEnabled, vibrationEnabled } 
 import { useTheme, type ThemePreference } from '../lib/theme'
 import type { Sex } from '../types/db'
 import { LineChart } from '../components/Chart'
+import { IconChevronDown } from '../components/Icons'
 import { Modal } from '../components/ui'
+import './settings.css'
+
+const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'account'] as const
+type SettingsPane = (typeof SETTINGS_PANES)[number]
+const SETTINGS_OPEN_KEY = 'herkules:settings-open'
+
+const THEME_LABEL: Record<ThemePreference, string> = {
+  light: 'Light',
+  dark: 'Dark',
+  system: 'System',
+}
+
+function readOpenPane(): SettingsPane | null {
+  try {
+    const stored = sessionStorage.getItem(SETTINGS_OPEN_KEY)
+    if (stored && (SETTINGS_PANES as readonly string[]).includes(stored)) {
+      return stored as SettingsPane
+    }
+  } catch {
+    /* private mode */
+  }
+  return null
+}
+
+function persistOpenPane(pane: SettingsPane | null) {
+  try {
+    if (pane) sessionStorage.setItem(SETTINGS_OPEN_KEY, pane)
+    else sessionStorage.removeItem(SETTINGS_OPEN_KEY)
+  } catch {
+    /* private mode */
+  }
+}
+
+function joinSummary(parts: Array<string | null | undefined>): string {
+  return parts.filter((part): part is string => Boolean(part && part.trim())).join(' · ')
+}
+
+function SettingsSection({
+  id,
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  id: SettingsPane
+  title: string
+  summary: string
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <section className="settings-section">
+      <div className="card settings-section__card">
+        <h2 className="settings-section__heading">
+          <button
+            type="button"
+            className="settings-section__toggle"
+            data-settings-section={id}
+            aria-expanded={open}
+            aria-controls={`settings-panel-${id}`}
+            onClick={onToggle}
+          >
+            <span className="settings-section__copy">
+              <span className="settings-section__title">{title}</span>
+              <span className="settings-section__summary">{summary}</span>
+            </span>
+            <IconChevronDown className="settings-section__chevron" width={20} height={20} />
+          </button>
+        </h2>
+        {open ? (
+          <div id={`settings-panel-${id}`} className="stack settings-section__body">
+            {children}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+}
 
 export function Settings() {
   const navigate = useNavigate()
@@ -37,6 +118,7 @@ export function Settings() {
   const { preference, setPreference } = useTheme()
   const [cueSound, setCueSound] = useState(() => soundEnabled())
   const [cueVibration, setCueVibration] = useState(() => vibrationEnabled())
+  const [openPane, setOpenPane] = useState<SettingsPane | null>(readOpenPane)
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [saved, setSaved] = useState(false)
@@ -86,6 +168,20 @@ export function Settings() {
     [],
   )
 
+  useEffect(() => {
+    if (!openPane) return
+    const section = document.getElementById(`settings-panel-${openPane}`)?.closest('.settings-section')
+    section?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [openPane])
+
+  function togglePane(id: SettingsPane) {
+    setOpenPane((current) => {
+      const next = current === id ? null : id
+      persistOpenPane(next)
+      return next
+    })
+  }
+
   async function saveProfile() {
     try {
       await store.updateProfile({ display_name: displayName })
@@ -130,14 +226,39 @@ export function Settings() {
     void handleLogout()
   }
 
+  const age =
+    profile?.birth_date != null ? `${ageYears(profile.birth_date, todayKey())} years` : null
+  const heightSummary =
+    profile?.height_cm != null
+      ? `${heightForInput(profile.height_cm, units)} ${heightUnitLabel(units)}`
+      : null
+  const restSeconds = profile?.default_rest_seconds ?? 90
+  const syncSummary = store.syncing
+    ? 'Syncing…'
+    : store.pending > 0
+      ? `${store.pending} change${store.pending === 1 ? '' : 's'} waiting`
+      : 'All changes saved'
+
   return (
     <div>
       <div className="page-head">
         <h1>Settings</h1>
       </div>
 
-      <div className="section-title">Profile</div>
-      <div className="card stack">
+      <SettingsSection
+        id="profile"
+        title="Profile"
+        summary={
+          joinSummary([
+            displayName.trim() || null,
+            age,
+            heightSummary,
+            session?.user.email,
+          ]) || 'Name, sex, height'
+        }
+        open={openPane === 'profile'}
+        onToggle={() => togglePane('profile')}
+      >
         <div className="field">
           <label htmlFor="settings-name">Display name</label>
           <input
@@ -148,42 +269,44 @@ export function Settings() {
             onBlur={() => void saveProfile()}
           />
         </div>
-        <div className="field">
-          <label htmlFor="settings-sex">Sex</label>
-          <select
-            id="settings-sex"
-            className="input"
-            value={profile?.sex ?? ''}
-            onChange={(e) => {
-              const value = e.target.value
-              void store.updateProfile({
-                sex: value === '' ? null : (value as Sex),
-              })
-            }}
-          >
-            <option value="">Prefer not to say</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="settings-birth">Date of birth</label>
-          <input
-            id="settings-birth"
-            className="input"
-            type="date"
-            max={todayKey()}
-            value={profile?.birth_date ?? ''}
-            onChange={(e) =>
-              void store.updateProfile({
-                birth_date: e.target.value === '' ? null : e.target.value,
-              })
-            }
-          />
-          {profile?.birth_date ? (
-            <small className="muted">{ageYears(profile.birth_date, todayKey())} years old</small>
-          ) : null}
+        <div className="settings-fields">
+          <div className="field">
+            <label htmlFor="settings-sex">Sex</label>
+            <select
+              id="settings-sex"
+              className="input"
+              value={profile?.sex ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                void store.updateProfile({
+                  sex: value === '' ? null : (value as Sex),
+                })
+              }}
+            >
+              <option value="">Prefer not to say</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-birth">Date of birth</label>
+            <input
+              id="settings-birth"
+              className="input"
+              type="date"
+              max={todayKey()}
+              value={profile?.birth_date ?? ''}
+              onChange={(e) =>
+                void store.updateProfile({
+                  birth_date: e.target.value === '' ? null : e.target.value,
+                })
+              }
+            />
+            {profile?.birth_date ? (
+              <small className="muted">{ageYears(profile.birth_date, todayKey())} years old</small>
+            ) : null}
+          </div>
         </div>
         <div className="field">
           <label htmlFor="settings-height">Height ({heightUnitLabel(profile?.unit_system ?? 'metric')})</label>
@@ -212,143 +335,170 @@ export function Settings() {
             {saveError}
           </p>
         ) : null}
-      </div>
+      </SettingsSection>
 
-      <div className="section-title">Preferences</div>
-      <div className="card stack">
-        <div className="field">
-          <label htmlFor="settings-theme">Theme</label>
-          <select
-            id="settings-theme"
-            className="input"
-            value={preference}
-            onChange={(e) => setPreference(e.target.value as ThemePreference)}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="system">System</option>
-          </select>
+      <SettingsSection
+        id="preferences"
+        title="Preferences"
+        summary={joinSummary([
+          THEME_LABEL[preference],
+          units === 'imperial' ? 'Imperial' : 'Metric',
+          (profile?.week_start ?? 'monday') === 'sunday' ? 'Sunday' : 'Monday',
+          `${restSeconds}s rest`,
+          cueSound ? null : 'Sound off',
+          cueVibration ? null : 'Vibration off',
+        ])}
+        open={openPane === 'preferences'}
+        onToggle={() => togglePane('preferences')}
+      >
+        <div className="settings-fields">
+          <div className="field">
+            <label htmlFor="settings-theme">Theme</label>
+            <select
+              id="settings-theme"
+              className="input"
+              value={preference}
+              onChange={(e) => setPreference(e.target.value as ThemePreference)}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-units">Units</label>
+            <select
+              id="settings-units"
+              className="input"
+              value={profile?.unit_system ?? 'metric'}
+              onChange={(e) =>
+                void store.updateProfile({ unit_system: e.target.value as 'metric' | 'imperial' })
+              }
+            >
+              <option value="metric">Metric (kg, km)</option>
+              <option value="imperial">Imperial (lb, mi)</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-week">Week starts on</label>
+            <select
+              id="settings-week"
+              className="input"
+              value={profile?.week_start ?? 'monday'}
+              onChange={(e) =>
+                void store.updateProfile({ week_start: e.target.value as 'monday' | 'sunday' })
+              }
+            >
+              <option value="monday">Monday</option>
+              <option value="sunday">Sunday</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-rest">Default rest timer (seconds)</label>
+            <input
+              id="settings-rest"
+              className="input"
+              type="number"
+              min={0}
+              max={3600}
+              value={profile?.default_rest_seconds ?? 90}
+              onChange={(e) =>
+                void store.updateProfile({
+                  default_rest_seconds: Math.max(0, Math.min(3600, Number(e.target.value) || 0)),
+                })
+              }
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="settings-cue-sound">Rest timer sound</label>
+            <select
+              id="settings-cue-sound"
+              className="input"
+              value={cueSound ? 'on' : 'off'}
+              onChange={(e) => {
+                const enabled = e.target.value === 'on'
+                setCueSound(enabled)
+                setSoundEnabled(enabled)
+              }}
+            >
+              <option value="on">On (double beep)</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-cue-vibration">Rest timer vibration</label>
+            <select
+              id="settings-cue-vibration"
+              className="input"
+              value={cueVibration ? 'on' : 'off'}
+              onChange={(e) => {
+                const enabled = e.target.value === 'on'
+                setCueVibration(enabled)
+                setVibrationEnabled(enabled)
+              }}
+            >
+              <option value="on">On (where supported)</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="settings-units">Units</label>
-          <select
-            id="settings-units"
-            className="input"
-            value={profile?.unit_system ?? 'metric'}
-            onChange={(e) =>
-              void store.updateProfile({ unit_system: e.target.value as 'metric' | 'imperial' })
-            }
-          >
-            <option value="metric">Metric (kg, km)</option>
-            <option value="imperial">Imperial (lb, mi)</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="settings-week">Week starts on</label>
-          <select
-            id="settings-week"
-            className="input"
-            value={profile?.week_start ?? 'monday'}
-            onChange={(e) =>
-              void store.updateProfile({ week_start: e.target.value as 'monday' | 'sunday' })
-            }
-          >
-            <option value="monday">Monday</option>
-            <option value="sunday">Sunday</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="settings-rest">Default rest timer (seconds)</label>
-          <input
-            id="settings-rest"
-            className="input"
-            type="number"
-            min={0}
-            max={3600}
-            value={profile?.default_rest_seconds ?? 90}
-            onChange={(e) =>
-              void store.updateProfile({
-                default_rest_seconds: Math.max(0, Math.min(3600, Number(e.target.value) || 0)),
-              })
-            }
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="settings-cue-sound">Rest timer sound</label>
-          <select
-            id="settings-cue-sound"
-            className="input"
-            value={cueSound ? 'on' : 'off'}
-            onChange={(e) => {
-              const enabled = e.target.value === 'on'
-              setCueSound(enabled)
-              setSoundEnabled(enabled)
-            }}
-          >
-            <option value="on">On (double beep)</option>
-            <option value="off">Off</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="settings-cue-vibration">Rest timer vibration</label>
-          <select
-            id="settings-cue-vibration"
-            className="input"
-            value={cueVibration ? 'on' : 'off'}
-            onChange={(e) => {
-              const enabled = e.target.value === 'on'
-              setCueVibration(enabled)
-              setVibrationEnabled(enabled)
-            }}
-          >
-            <option value="on">On (where supported)</option>
-            <option value="off">Off</option>
-          </select>
-        </div>
-      </div>
+      </SettingsSection>
 
-      <div className="section-title">Body weight</div>
-      <div className="card stack">
+      <SettingsSection
+        id="weight"
+        title="Body weight"
+        summary={
+          latestWeight
+            ? joinSummary([
+                formatWeight(latestWeight.weight_kg, units),
+                latestWeight.recorded_on,
+                bmi !== null ? `BMI ${bmi}` : null,
+              ])
+            : 'Log a weigh-in'
+        }
+        open={openPane === 'weight'}
+        onToggle={() => togglePane('weight')}
+      >
         {latestWeight ? (
           <p style={{ margin: 0 }}>
             Latest: <strong>{formatWeight(latestWeight.weight_kg, units)}</strong>
             <small className="muted"> · {latestWeight.recorded_on}</small>
-            {bmi !== null ? (
-              <small className="muted"> · BMI {bmi}</small>
-            ) : null}
+            {bmi !== null ? <small className="muted"> · BMI {bmi}</small> : null}
           </p>
         ) : (
           <p className="muted" style={{ margin: 0 }}>
             Log your first weigh-in. Entries are stored in kg and shown in your unit system.
           </p>
         )}
-        <div className="field">
-          <label htmlFor="settings-weight-date">Date</label>
-          <input
-            id="settings-weight-date"
-            className="input"
-            type="date"
-            max={todayKey()}
-            value={weightDate}
-            onChange={(e) => {
-              const next = e.target.value || todayKey()
-              setWeightDate(next)
-              const existing = store.bodyWeights.find((row) => row.recorded_on === next)
-              setWeightInput(existing ? weightForInput(existing.weight_kg, units) : '')
-            }}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="settings-weight">Weight ({weightUnitLabel(units)})</label>
-          <input
-            id="settings-weight"
-            className="input"
-            type="number"
-            min={0}
-            step="0.1"
-            value={weightInput}
-            onChange={(e) => setWeightInput(e.target.value)}
-          />
+        <div className="settings-fields">
+          <div className="field">
+            <label htmlFor="settings-weight-date">Date</label>
+            <input
+              id="settings-weight-date"
+              className="input"
+              type="date"
+              max={todayKey()}
+              value={weightDate}
+              onChange={(e) => {
+                const next = e.target.value || todayKey()
+                setWeightDate(next)
+                const existing = store.bodyWeights.find((row) => row.recorded_on === next)
+                setWeightInput(existing ? weightForInput(existing.weight_kg, units) : '')
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="settings-weight">Weight ({weightUnitLabel(units)})</label>
+            <input
+              id="settings-weight"
+              className="input"
+              type="number"
+              min={0}
+              step="0.1"
+              value={weightInput}
+              onChange={(e) => setWeightInput(e.target.value)}
+            />
+          </div>
         </div>
         <button
           type="button"
@@ -378,7 +528,7 @@ export function Settings() {
         ) : null}
         {weights.length > 0 ? (
           <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {weights.slice(0, 8).map((row) => (
+            {weights.slice(0, 3).map((row) => (
               <li key={row.id} className="row row--between">
                 <span>
                   {row.recorded_on} · {formatWeight(row.weight_kg, units)}
@@ -393,21 +543,44 @@ export function Settings() {
                 </button>
               </li>
             ))}
+            {weights.length > 3 ? (
+              <li className="settings-older">
+                <details>
+                  <summary>Older weigh-ins ({Math.min(weights.length - 3, 5)})</summary>
+                  <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+                    {weights.slice(3, 8).map((row) => (
+                      <li key={row.id} className="row row--between">
+                        <span>
+                          {row.recorded_on} · {formatWeight(row.weight_kg, units)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn--small btn--danger"
+                          aria-label={`Delete weigh-in from ${row.recorded_on}`}
+                          onClick={() => void store.deleteWeight(row.id)}
+                        >
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </li>
+            ) : null}
           </ul>
         ) : null}
-      </div>
+      </SettingsSection>
 
-      <div className="section-title">Sync</div>
-      <div className="card stack">
+      <SettingsSection
+        id="sync"
+        title="Sync"
+        summary={joinSummary([store.online ? 'Online' : 'Offline', syncSummary])}
+        open={openPane === 'sync'}
+        onToggle={() => togglePane('sync')}
+      >
         <div className="row row--between">
           <span>{store.online ? 'Online' : 'Offline'}</span>
-          <span className="muted">
-            {store.syncing
-              ? 'Syncing…'
-              : store.pending > 0
-                ? `${store.pending} change${store.pending === 1 ? '' : 's'} waiting`
-                : 'All changes saved'}
-          </span>
+          <span className="muted">{syncSummary}</span>
         </div>
         {store.lastSyncedAt ? (
           <small className="muted">
@@ -447,267 +620,274 @@ export function Settings() {
         >
           {syncBusy ? 'Retrying…' : 'Retry sync'}
         </button>
-      </div>
+      </SettingsSection>
 
-      <div className="section-title">Workouts</div>
-      <div className="card stack">
-        <p className="muted" style={{ margin: 0 }}>
-          Export or import completed and skipped workouts as CSV. Units are stored as kg, meters and
-          seconds.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            void store.exportWorkoutsCsv().then((csv) => {
-              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-              const url = URL.createObjectURL(blob)
-              const link = document.createElement('a')
-              link.href = url
-              link.download = `herkules-workouts-${new Date().toISOString().slice(0, 10)}.csv`
-              link.click()
-              URL.revokeObjectURL(url)
-            })
-          }}
-        >
-          Export workouts CSV
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,text/csv"
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            event.target.value = ''
-            if (!file) return
-            setImportBusy(true)
-            setImportError(null)
-            setImportMessage(null)
-            void file
-              .text()
-              .then((text) => store.importWorkoutsCsv(text))
-              .then((result) => {
-                setImportMessage(
-                  `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
-                    result.createdExercises > 0
-                      ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
-                      : ''
-                  }).`,
-                )
-              })
-              .catch((error: unknown) => {
-                setImportError(error instanceof Error ? error.message : 'Could not import that file.')
-              })
-              .finally(() => setImportBusy(false))
-          }}
-        />
-        <button
-          type="button"
-          className="btn"
-          disabled={importBusy}
-          onClick={() => fileRef.current?.click()}
-        >
-          {importBusy ? 'Importing…' : 'Import workouts CSV'}
-        </button>
-        {importMessage ? <small className="badge badge--completed">{importMessage}</small> : null}
-        {importError ? (
-          <p className="field-error" role="alert">
-            {importError}
+      <SettingsSection
+        id="data"
+        title="Data"
+        summary="Workouts, routines and backup"
+        open={openPane === 'data'}
+        onToggle={() => togglePane('data')}
+      >
+        <div className="settings-group">
+          <h3 className="settings-group__title">Workouts</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            CSV of completed and skipped workouts. Units are stored as kg, meters and seconds.
           </p>
-        ) : null}
-
-        <input
-          ref={externalFileRef}
-          type="file"
-          accept=".csv,text/csv"
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            event.target.value = ''
-            if (!file) return
-            setImportError(null)
-            setImportMessage(null)
-            void file
-              .text()
-              .then((text) => {
-                const parsed = parseExternalCsv(text)
-                if (parsed.length === 0) throw new Error('No workouts found in that file.')
-                setExternalPreview({
-                  text,
-                  sessions: parsed.length,
-                  sets: parsed.reduce((sum, s) => sum + s.exercises.reduce((n, e) => n + e.sets.length, 0), 0),
-                  exercises: new Set(parsed.flatMap((s) => s.exercises.map((e) => e.name))).size,
-                })
-              })
-              .catch((error: unknown) => {
-                setImportError(error instanceof Error ? error.message : 'Could not read that file.')
-              })
-          }}
-        />
-        <button type="button" className="btn" onClick={() => externalFileRef.current?.click()}>
-          Import from Strong / Hevy…
-        </button>
-        <small className="muted">
-          Reads the workout CSV exports from Strong and Hevy (units are converted automatically).
-          Re-importing the same file updates instead of duplicating.
-        </small>
-      </div>
-
-      <div className="section-title">Routines</div>
-      <div className="card stack">
-        <p className="muted" style={{ margin: 0 }}>
-          Export reusable workout templates as JSON — exercise names travel with the file, so it
-          works on another account. Re-importing the same file updates instead of duplicating.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          disabled={routinesBusy || store.templates.length === 0}
-          onClick={() => {
-            setRoutinesBusy(true)
-            setRoutinesError(null)
-            setRoutinesMessage(null)
-            void store
-              .exportRoutines()
-              .then((json) => {
-                downloadTextFile(routinesExportFilename(), json, 'application/json')
-                setRoutinesMessage(
-                  `Exported ${store.templates.length} routine${store.templates.length === 1 ? '' : 's'}.`,
-                )
-              })
-              .catch((error: unknown) => {
-                setRoutinesError(
-                  error instanceof Error ? error.message : 'Could not export routines.',
-                )
-              })
-              .finally(() => setRoutinesBusy(false))
-          }}
-        >
-          {routinesBusy ? 'Preparing…' : 'Export routines (JSON)'}
-        </button>
-        <input
-          ref={routinesFileRef}
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            event.target.value = ''
-            if (!file) return
-            setRoutinesBusy(true)
-            setRoutinesError(null)
-            setRoutinesMessage(null)
-            void file
-              .text()
-              .then((text) => store.importRoutines(text))
-              .then((result) => {
-                setRoutinesMessage(formatRoutineImportMessage(result))
-              })
-              .catch((error: unknown) => {
-                setRoutinesError(
-                  error instanceof Error ? error.message : 'Could not import that file.',
-                )
-              })
-              .finally(() => setRoutinesBusy(false))
-          }}
-        />
-        <button
-          type="button"
-          className="btn"
-          disabled={routinesBusy}
-          onClick={() => routinesFileRef.current?.click()}
-        >
-          {routinesBusy ? 'Importing…' : 'Import routines…'}
-        </button>
-        {routinesMessage ? (
-          <small className="badge badge--completed">{routinesMessage}</small>
-        ) : null}
-        {routinesError ? (
-          <p className="field-error" role="alert">
-            {routinesError}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="section-title">Backup</div>
-      <div className="card stack">
-        <p className="muted" style={{ margin: 0 }}>
-          A full JSON snapshot of everything you own: workouts, routines, schedules, custom
-          exercises, weigh-ins and tendon check-ins. Restoring merges into this account — nothing
-          is deleted.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          disabled={backupBusy}
-          onClick={() => {
-            setBackupBusy(true)
-            setBackupError(null)
-            setBackupMessage(null)
-            void store
-              .exportBackup()
-              .then((json) => {
-                const blob = new Blob([json], { type: 'application/json' })
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void store.exportWorkoutsCsv().then((csv) => {
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
                 const url = URL.createObjectURL(blob)
                 const link = document.createElement('a')
                 link.href = url
-                link.download = `herkules-backup-${new Date().toISOString().slice(0, 10)}.json`
+                link.download = `herkules-workouts-${new Date().toISOString().slice(0, 10)}.csv`
                 link.click()
                 URL.revokeObjectURL(url)
               })
-              .catch((error: unknown) => {
-                setBackupError(error instanceof Error ? error.message : 'Could not create the backup.')
-              })
-              .finally(() => setBackupBusy(false))
-          }}
-        >
-          {backupBusy ? 'Preparing…' : 'Export full backup (JSON)'}
-        </button>
-        <input
-          ref={backupFileRef}
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            event.target.value = ''
-            if (!file) return
-            setBackupBusy(true)
-            setBackupError(null)
-            setBackupMessage(null)
-            void file
-              .text()
-              .then((text) => store.restoreBackup(text))
-              .then((result) => {
-                setBackupMessage(
-                  `Restored ${result.sessions} workout${result.sessions === 1 ? '' : 's'}, ${result.templates} routine${result.templates === 1 ? '' : 's'}, ${result.exercises} custom exercise${result.exercises === 1 ? '' : 's'} and ${result.checkins} check-in${result.checkins === 1 ? '' : 's'}.`,
-                )
-              })
-              .catch((error: unknown) => {
-                setBackupError(error instanceof Error ? error.message : 'Could not restore that file.')
-              })
-              .finally(() => setBackupBusy(false))
-          }}
-        />
-        <button
-          type="button"
-          className="btn"
-          disabled={backupBusy}
-          onClick={() => backupFileRef.current?.click()}
-        >
-          {backupBusy ? 'Restoring…' : 'Restore from backup…'}
-        </button>
-        {backupMessage ? <small className="badge badge--completed">{backupMessage}</small> : null}
-        {backupError ? (
-          <p className="field-error" role="alert">
-            {backupError}
-          </p>
-        ) : null}
-      </div>
+            }}
+          >
+            Export workouts CSV
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setImportBusy(true)
+              setImportError(null)
+              setImportMessage(null)
+              void file
+                .text()
+                .then((text) => store.importWorkoutsCsv(text))
+                .then((result) => {
+                  setImportMessage(
+                    `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
+                      result.createdExercises > 0
+                        ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
+                        : ''
+                    }).`,
+                  )
+                })
+                .catch((error: unknown) => {
+                  setImportError(error instanceof Error ? error.message : 'Could not import that file.')
+                })
+                .finally(() => setImportBusy(false))
+            }}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={importBusy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {importBusy ? 'Importing…' : 'Import workouts CSV'}
+          </button>
+          {importMessage ? <small className="badge badge--completed">{importMessage}</small> : null}
+          {importError ? (
+            <p className="field-error" role="alert">
+              {importError}
+            </p>
+          ) : null}
+          <input
+            ref={externalFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setImportError(null)
+              setImportMessage(null)
+              void file
+                .text()
+                .then((text) => {
+                  const parsed = parseExternalCsv(text)
+                  if (parsed.length === 0) throw new Error('No workouts found in that file.')
+                  setExternalPreview({
+                    text,
+                    sessions: parsed.length,
+                    sets: parsed.reduce((sum, s) => sum + s.exercises.reduce((n, e) => n + e.sets.length, 0), 0),
+                    exercises: new Set(parsed.flatMap((s) => s.exercises.map((e) => e.name))).size,
+                  })
+                })
+                .catch((error: unknown) => {
+                  setImportError(error instanceof Error ? error.message : 'Could not read that file.')
+                })
+            }}
+          />
+          <button type="button" className="btn" onClick={() => externalFileRef.current?.click()}>
+            Import from Strong / Hevy…
+          </button>
+          <small className="muted">
+            Strong and Hevy CSV exports. Re-importing the same file updates instead of duplicating.
+          </small>
+        </div>
 
-      <div className="section-title">Account</div>
-      <div className="card stack">
+        <div className="settings-group">
+          <h3 className="settings-group__title">Routines</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            JSON templates with exercise names, so they work on another account.
+          </p>
+          <button
+            type="button"
+            className="btn"
+            disabled={routinesBusy || store.templates.length === 0}
+            onClick={() => {
+              setRoutinesBusy(true)
+              setRoutinesError(null)
+              setRoutinesMessage(null)
+              void store
+                .exportRoutines()
+                .then((json) => {
+                  downloadTextFile(routinesExportFilename(), json, 'application/json')
+                  setRoutinesMessage(
+                    `Exported ${store.templates.length} routine${store.templates.length === 1 ? '' : 's'}.`,
+                  )
+                })
+                .catch((error: unknown) => {
+                  setRoutinesError(
+                    error instanceof Error ? error.message : 'Could not export routines.',
+                  )
+                })
+                .finally(() => setRoutinesBusy(false))
+            }}
+          >
+            {routinesBusy ? 'Preparing…' : 'Export routines (JSON)'}
+          </button>
+          <input
+            ref={routinesFileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setRoutinesBusy(true)
+              setRoutinesError(null)
+              setRoutinesMessage(null)
+              void file
+                .text()
+                .then((text) => store.importRoutines(text))
+                .then((result) => {
+                  setRoutinesMessage(formatRoutineImportMessage(result))
+                })
+                .catch((error: unknown) => {
+                  setRoutinesError(
+                    error instanceof Error ? error.message : 'Could not import that file.',
+                  )
+                })
+                .finally(() => setRoutinesBusy(false))
+            }}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={routinesBusy}
+            onClick={() => routinesFileRef.current?.click()}
+          >
+            {routinesBusy ? 'Importing…' : 'Import routines…'}
+          </button>
+          {routinesMessage ? (
+            <small className="badge badge--completed">{routinesMessage}</small>
+          ) : null}
+          {routinesError ? (
+            <p className="field-error" role="alert">
+              {routinesError}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="settings-group">
+          <h3 className="settings-group__title">Backup</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Full JSON snapshot. Restore merges into this account — nothing is deleted.
+          </p>
+          <button
+            type="button"
+            className="btn"
+            disabled={backupBusy}
+            onClick={() => {
+              setBackupBusy(true)
+              setBackupError(null)
+              setBackupMessage(null)
+              void store
+                .exportBackup()
+                .then((json) => {
+                  const blob = new Blob([json], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = `herkules-backup-${new Date().toISOString().slice(0, 10)}.json`
+                  link.click()
+                  URL.revokeObjectURL(url)
+                })
+                .catch((error: unknown) => {
+                  setBackupError(error instanceof Error ? error.message : 'Could not create the backup.')
+                })
+                .finally(() => setBackupBusy(false))
+            }}
+          >
+            {backupBusy ? 'Preparing…' : 'Export full backup (JSON)'}
+          </button>
+          <input
+            ref={backupFileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (!file) return
+              setBackupBusy(true)
+              setBackupError(null)
+              setBackupMessage(null)
+              void file
+                .text()
+                .then((text) => store.restoreBackup(text))
+                .then((result) => {
+                  setBackupMessage(
+                    `Restored ${result.sessions} workout${result.sessions === 1 ? '' : 's'}, ${result.templates} routine${result.templates === 1 ? '' : 's'}, ${result.exercises} custom exercise${result.exercises === 1 ? '' : 's'} and ${result.checkins} check-in${result.checkins === 1 ? '' : 's'}.`,
+                  )
+                })
+                .catch((error: unknown) => {
+                  setBackupError(error instanceof Error ? error.message : 'Could not restore that file.')
+                })
+                .finally(() => setBackupBusy(false))
+            }}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={backupBusy}
+            onClick={() => backupFileRef.current?.click()}
+          >
+            {backupBusy ? 'Restoring…' : 'Restore from backup…'}
+          </button>
+          {backupMessage ? <small className="badge badge--completed">{backupMessage}</small> : null}
+          {backupError ? (
+            <p className="field-error" role="alert">
+              {backupError}
+            </p>
+          ) : null}
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        id="account"
+        title="Account"
+        summary={session?.user.email ?? 'Password and sign out'}
+        open={openPane === 'account'}
+        onToggle={() => togglePane('account')}
+      >
         <button
           type="button"
           className="btn"
@@ -728,7 +908,7 @@ export function Settings() {
             {logoutError}
           </p>
         ) : null}
-      </div>
+      </SettingsSection>
 
       <p className="muted" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
         Herkules v1.1 · offline-first workout log

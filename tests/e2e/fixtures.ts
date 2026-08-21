@@ -47,5 +47,19 @@ export async function signIn(page: Page, email: string): Promise<void> {
 
 /** Waits until everything queued has been pushed (status badge in the top bar). */
 export async function waitForAllSaved(page: Page): Promise<void> {
-  await expect(page.getByText('All changes saved')).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('.app-topbar-status').getByText('All changes saved')).toBeVisible({
+    timeout: 30_000,
+  })
+}
+
+/** Expands a collapsed Settings accordion pane. */
+export async function expandSettingsSection(
+  page: Page,
+  section: 'profile' | 'preferences' | 'weight' | 'sync' | 'data' | 'account',
+): Promise<void> {
+  const toggle = page.locator(`[data-settings-section="${section}"]`)
+  await expect(toggle).toBeVisible()
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
 }

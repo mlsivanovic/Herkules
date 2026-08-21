@@ -1,5 +1,5 @@
 // E2E: registration, session persistence, sign-out and login.
-import { test, expect, signUpFresh, signIn, randomEmail } from './fixtures'
+import { test, expect, signUpFresh, signIn, randomEmail, expandSettingsSection } from './fixtures'
 
 test.describe('auth', () => {
   test('sign up lands on Today and shows the system catalog', async ({ page }) => {
@@ -18,6 +18,7 @@ test.describe('auth', () => {
     await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Open settings' }).click()
+    await expandSettingsSection(page, 'account')
     await page.getByRole('button', { name: 'Sign out' }).click()
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
 
@@ -29,6 +30,7 @@ test.describe('auth', () => {
     const email = randomEmail('wrongpass')
     await signUpFresh(page, 'wrongpass')
     await page.getByRole('button', { name: 'Open settings' }).click()
+    await expandSettingsSection(page, 'account')
     await page.getByRole('button', { name: 'Sign out' }).click()
 
     await page.goto('/#/login')

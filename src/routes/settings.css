@@ -1,0 +1,122 @@
+/* Collapsible Settings sections: one card per group, summary visible when closed. */
+
+.settings-section {
+  margin-top: 0.65rem;
+  scroll-margin-top: 4.5rem;
+}
+
+.settings-section:first-of-type {
+  margin-top: 0;
+}
+
+.settings-section__card {
+  padding: 0;
+}
+
+.settings-section__heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.settings-section__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0.7rem 1rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-section__copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.settings-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.settings-section__summary {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-section__chevron {
+  flex-shrink: 0;
+  color: var(--c-muted);
+  transition: transform 0.15s ease;
+}
+
+.settings-section__toggle[aria-expanded='true'] .settings-section__chevron {
+  transform: rotate(180deg);
+}
+
+.settings-section__body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--c-border);
+  padding-top: 0.9rem;
+}
+
+.settings-section__body .field {
+  margin-bottom: 0;
+}
+
+.settings-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 560px) {
+  .settings-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.settings-group + .settings-group {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--c-border);
+}
+
+.settings-group__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.settings-older {
+  border-top: 1px solid var(--c-border);
+  padding-top: 0.5rem;
+}
+
+.settings-older > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--c-muted);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}

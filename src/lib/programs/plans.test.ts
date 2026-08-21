@@ -4,6 +4,7 @@ import { HYBRID_TEMPLATES } from './hybrid4day'
 import {
   applyHybridPlanMembership,
   compactPlanPositions,
+  extraDuplicateSlotTemplates,
   hybridPlanFrom,
   nextPlanPosition,
   nextTemplateForPlan,
@@ -55,6 +56,15 @@ describe('plan membership', () => {
       template('b', { name: 'B', plan_id: 'p1', plan_position: 4 }),
     ]
     expect(compactPlanPositions(rows, 'p1').map((row) => row.plan_position)).toEqual([0, 1])
+  })
+
+  it('keeps the oldest template when a plan has two rows in the same slot', () => {
+    const rows = [
+      template('new-a', { name: 'Hybrid A', plan_id: 'p1', plan_position: 0, source_slot: 'A', created_at: '2026-08-22T00:00:00.000Z' }),
+      template('old-a', { name: 'Hybrid A', plan_id: 'p1', plan_position: 0, source_slot: 'A', created_at: '2026-08-01T00:00:00.000Z' }),
+      template('only-b', { name: 'Hybrid B', plan_id: 'p1', plan_position: 1, source_slot: 'B', created_at: '2026-08-01T00:00:00.000Z' }),
+    ]
+    expect(extraDuplicateSlotTemplates(rows).map((row) => row.id)).toEqual(['new-a'])
   })
 
   it('lists unassigned routines', () => {

@@ -68,9 +68,11 @@ import {
   buildHybridV2Upgrade,
   isHybridV2CanonicalRecipe,
   hybridTemplatesFrom,
+  hybridTemplatesOnPlan,
 } from './programs/hybrid4day'
 import {
   compactPlanPositions,
+  extraDuplicateSlotTemplates,
   hybridPlanFrom,
   HYBRID_PLAN_NAME,
   HYBRID_PLAN_NOTES,
@@ -204,6 +206,7 @@ export interface StoreActions {
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
   installHybridProgram(): Promise<{ created: boolean; planId: string }>
   installStarterProgram(sourceKey: string): Promise<{ created: boolean; planId: string }>
+  repairDuplicatePlanSlots(): Promise<void>
   ensureHybridV2(): Promise<void>
   ensureHybridBlockRoles(): Promise<void>
   ensureHybridPlan(): Promise<void>
@@ -379,6 +382,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     syncingRef.current = true
     setState((prev) => ({ ...prev, syncing: true }))
     try {
+      await actionsRef.current?.repairDuplicatePlanSlots()
       await flushOutbox(client)
       await clearDirtyFlags()
       await clearProfileDirty()
@@ -769,23 +773,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit(writes, ops)
       },
 
+      async repairDuplicatePlanSlots() {
+        const all = await readAll()
+        const extras = extraDuplicateSlotTemplates(all.templates)
+        if (extras.length === 0) return
+        const referenced = new Set<string>()
+        for (const session of all.sessions) {
+          if (session.template_id) referenced.add(session.template_id)
+        }
+        for (const schedule of all.schedules) {
+          if (schedule.template_id) referenced.add(schedule.template_id)
+        }
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        for (const extra of extras) {
+          if (referenced.has(extra.id)) {
+            const row: TemplateRow = {
+              ...extra,
+              plan_id: null,
+              plan_position: 0,
+              source_slot: null,
+              updated_at: stamp,
+            }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+            continue
+          }
+          const items = all.templateItems.filter((item) => item.template_id === extra.id)
+          const blocks = all.templateBlocks.filter((block) => block.template_id === extra.id)
+          const itemIds = new Set(items.map((item) => item.id))
+          const blockIds = new Set(blocks.map((block) => block.id))
+          await removeMatchingOps((op) =>
+            op.kind === 'upsert' &&
+            ((op.table === 'template_items' && itemIds.has(String(op.row.id))) ||
+              (op.table === 'template_blocks' && blockIds.has(String(op.row.id))) ||
+              (op.table === 'workout_templates' && String(op.row.id) === extra.id)),
+          )
+          for (const item of items) {
+            await removeFrom('templateItems', item.id)
+            ops.push({ kind: 'delete', table: 'template_items', id: item.id })
+          }
+          for (const block of blocks) {
+            await removeFrom('templateBlocks', block.id)
+            ops.push({ kind: 'delete', table: 'template_blocks', id: block.id })
+          }
+          await removeFrom('templates', extra.id)
+          ops.push({ kind: 'delete', table: 'workout_templates', id: extra.id })
+        }
+        if (writes.length > 0 || ops.length > 0) await commit(writes, ops)
+      },
+
       async installHybridProgram() {
         const all = await readAll()
         const owner = userIdRef.current ?? ''
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
-        const installed = hybridTemplatesFrom(all.templates)
-        const commonPlanId = installed
-          ? (() => {
-              const ids = new Set(Object.values(installed).map((row) => row.plan_id).filter(Boolean))
-              return ids.size === 1 ? ([...ids][0] as string) : null
-            })()
-          : null
         const existingPlan =
           all.plans.find((row) => row.source_key === HYBRID_SOURCE_KEY) ??
-          (commonPlanId ? all.plans.find((row) => row.id === commonPlanId) : null) ??
           hybridPlanFrom(all.plans)
+        const installed = existingPlan
+          ? hybridTemplatesOnPlan(all.templates, existingPlan.id)
+          : hybridTemplatesFrom(all.templates)
         const upgrade = buildHybridV2Upgrade({
           ownerId: owner,
           existingPlan: existingPlan ?? null,
@@ -889,11 +939,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async ensureHybridV2() {
+        await actionsRef.current?.repairDuplicatePlanSlots()
         const all = await readAll()
-        const installed = hybridTemplatesFrom(all.templates)
+        const plan =
+          all.plans.find((row) => row.source_key === HYBRID_SOURCE_KEY) ??
+          hybridPlanFrom(all.plans)
+        const installed = plan
+          ? hybridTemplatesOnPlan(all.templates, plan.id)
+          : hybridTemplatesFrom(all.templates)
         if (!installed) return
-        const planId = installed.A.plan_id
-        const plan = planId ? all.plans.find((row) => row.id === planId) : null
         // A stale client must never overwrite a recipe created by a newer app.
         if (
           plan?.source_key === HYBRID_SOURCE_KEY &&

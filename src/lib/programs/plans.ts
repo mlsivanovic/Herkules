@@ -42,6 +42,30 @@ export function unassignedTemplates<T extends { plan_id: string | null }>(templa
   return templates.filter((row) => !row.plan_id)
 }
 
+/** Newer extras that share a plan + source_slot with an older keeper. */
+export function extraDuplicateSlotTemplates<T extends {
+  id: string
+  plan_id: string | null
+  source_slot?: string | null
+  created_at: string
+}>(templates: T[]): T[] {
+  const groups = new Map<string, T[]>()
+  for (const row of templates) {
+    if (!row.plan_id || !row.source_slot) continue
+    const key = `${row.plan_id}:${row.source_slot}`
+    const list = groups.get(key)
+    if (list) list.push(row)
+    else groups.set(key, [row])
+  }
+  const extras: T[] = []
+  for (const list of groups.values()) {
+    if (list.length < 2) continue
+    const ranked = [...list].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    extras.push(...ranked.slice(1))
+  }
+  return extras
+}
+
 export function hybridPlanFrom(plans: TrainingPlanRow[]): TrainingPlanRow | null {
   return plans.find((plan) => plan.source_key === 'hybrid-4-day')
     ?? plans.find((plan) => plan.name === HYBRID_PLAN_NAME)

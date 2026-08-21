@@ -13,6 +13,7 @@ import {
   controlled,
   explosive,
   isCanonicalRecipe,
+  templatesBySlot,
   withFlatItems,
   type ProgramTemplate,
 } from './recipe'
@@ -223,10 +224,18 @@ export function hybridSlotFromNotes(notes: string | null | undefined): HybridSlo
   return asDaySlot(notes.match(SLOT_RE)?.[1])
 }
 
+export function isHybridTaggedTemplate(
+  template: Pick<TemplateRow, 'name' | 'notes'>,
+): boolean {
+  return hybridSlotFromNotes(template.notes) !== null || NAME_RE.test(template.name)
+}
+
 export function hybridSlotFromTemplate(
   template: Pick<TemplateRow, 'name' | 'notes'> & { source_slot?: string | null },
 ): HybridSlot | null {
-  return asDaySlot(template.source_slot) ?? hybridSlotFromNotes(template.notes) ?? asDaySlot(template.name.match(NAME_RE)?.[1])
+  return hybridSlotFromNotes(template.notes)
+    ?? asDaySlot(template.name.match(NAME_RE)?.[1])
+    ?? (isHybridTaggedTemplate(template) ? asDaySlot(template.source_slot) : null)
 }
 
 export function hybridTemplatesFrom<T extends Pick<TemplateRow, 'id' | 'name' | 'notes'>>(
@@ -240,6 +249,14 @@ export function hybridTemplatesFrom<T extends Pick<TemplateRow, 'id' | 'name' | 
   return found.A && found.B && found.C && found.D
     ? (found as Record<HybridSlot, T & { source_slot?: string | null }>)
     : null
+}
+
+export function hybridTemplatesOnPlan<T extends Pick<TemplateRow, 'id' | 'name' | 'notes' | 'plan_id'> & { source_slot?: string | null }>(
+  templates: T[],
+  planId: string,
+): Record<HybridSlot, T> | null {
+  const onPlan = templates.filter((row) => row.plan_id === planId)
+  return templatesBySlot(onPlan, ['A', 'B', 'C', 'D']) ?? hybridTemplatesFrom(onPlan)
 }
 
 export function isHybridProgramInstalled(

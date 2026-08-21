@@ -29,6 +29,23 @@ describe('Hybrid V2 canonical recipe', () => {
     expect(HYBRID_TEMPLATES.every((row) => row.notes.startsWith(HYBRID_PROGRAM_TAG))).toBe(true)
   })
 
+  it('ignores other starter programs that reuse A–D slots', () => {
+    const mixed = [
+      { id: 'street-A', name: 'Street A — Push', notes: 'Program: Street 3-day A', source_slot: 'A' as const },
+      { id: 'street-B', name: 'Street B — Pull', notes: 'Program: Street 3-day B', source_slot: 'B' as const },
+      { id: 'street-C', name: 'Street C — Legs + Skill', notes: 'Program: Street 3-day C', source_slot: 'C' as const },
+      ...HYBRID_TEMPLATES.map((row) => ({
+        id: `hybrid-${row.slot}`,
+        name: row.name,
+        notes: row.notes,
+        source_slot: row.slot,
+        plan_id: 'plan-hybrid',
+      })),
+    ]
+    expect(hybridTemplatesFrom(mixed)?.A.id).toBe('hybrid-A')
+    expect(isHybridProgramInstalled(mixed.slice(0, 3))).toBe(false)
+  })
+
   it('detects all four routines by source slot, notes or canonical name', () => {
     const installed = HYBRID_TEMPLATES.map((row, index) => ({
       id: `t-${index}`,

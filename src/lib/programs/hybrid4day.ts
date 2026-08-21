@@ -13,16 +13,18 @@ import type { HybridSlot } from './rotate'
 
 export const HYBRID_PROGRAM_TAG = 'Program: Hybrid 4-day'
 export const HYBRID_SOURCE_KEY = 'hybrid-4-day'
-// Internal recipe revision. The user-facing program remains Hybrid V2.
-export const HYBRID_SOURCE_VERSION = 3
+// Internal recipe revision. The user-facing program remains Hybrid 4-day; notes say V2.1.
+export const HYBRID_SOURCE_VERSION = 4
 
 export const SYS = {
+  barbellBackSquat: '11111111-1111-4111-8111-111111111101',
   romanianDeadlift: '11111111-1111-4111-8111-111111111107',
   stationaryBike: '11111111-1111-4111-8111-111111111110',
   rowingMachine: '11111111-1111-4111-8111-111111111111',
   trapBarDeadlift: '11111111-1111-4111-8111-111111111120',
   walkingLunge: '11111111-1111-4111-8111-111111111135',
   bulgarianSplitSquat: '11111111-1111-4111-8111-111111111136',
+  hammerCurl: '11111111-1111-4111-8111-111111111150',
   landminePress: '11111111-1111-4111-8111-111111111137',
   standingCalfRaise: '11111111-1111-4111-8111-111111111138',
   dumbbellBenchPress: '11111111-1111-4111-8111-111111111139',
@@ -34,6 +36,7 @@ export const SYS = {
   latPulldown: '11111111-1111-4111-8111-111111111165',
   facePull: '11111111-1111-4111-8111-111111111167',
   tricepsPushdown: '11111111-1111-4111-8111-111111111169',
+  dip: '11111111-1111-4111-8111-111111111176',
   pushUp: '11111111-1111-4111-8111-111111111177',
   invertedRow: '11111111-1111-4111-8111-111111111180',
   deadHang: '11111111-1111-4111-8111-111111111210',
@@ -127,7 +130,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   {
     slot: 'A',
     name: 'Hybrid A — Squat + Push/Pull + Carry',
-    notes: `${HYBRID_PROGRAM_TAG} A · V2\n\nSquat + push/pull + carry. ~65–75 min.\n${DAY_RULES}`,
+    notes: `${HYBRID_PROGRAM_TAG} A · V2.1\n\nBack squat + push/pull + carry. ~70 min.\n${DAY_RULES}`,
     blocks: [
       {
         key: 'warmup', role: 'warmup', format: 'straight',
@@ -136,7 +139,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
       },
       {
         key: 'strength', role: 'strength', format: 'straight',
-        items: [{ exerciseId: SYS.gobletSquat, plannedSets: 4, reps: [6, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Whole foot down; knees track the feet. Front squat is an allowed long-term swap.' }],
+        items: [{ exerciseId: SYS.barbellBackSquat, plannedSets: 4, reps: [5, 6], rpe: [7, 8], rir: [2, 3], restSeconds: 150, loadIncrementKg: 2.5, tempo: controlled(3, 1, 1, 0), notes: 'The only heavy squat of the week. Whole foot down; brace before the descent. Do not grind. Hack squat or leg press is the swap if the back is not ready.' }],
       },
       {
         key: 'push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 120,
@@ -147,12 +150,20 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         ],
       },
       {
+        key: 'push_up', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.pushUp, plannedSets: 2, reps: [8, 15], rpe: [7, 8], restSeconds: 75, tempo: controlled(2, 0, 1, 0), notes: 'Quality work, not a warm-up. If 15 is easy, elevate the feet or add a plate.' }],
+      },
+      {
         key: 'unilateral', role: 'assistance', format: 'straight',
-        items: [{ exerciseId: SYS.bulgarianSplitSquat, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Do both legs with the same load and log one shared set.' }],
+        items: [{ exerciseId: SYS.bulgarianSplitSquat, plannedSets: 3, reps: [6, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Do both legs with the same load and log one shared set.' }],
       },
       {
         key: 'carry', role: 'carry', format: 'straight',
-        items: [{ exerciseId: SYS.farmerCarry, plannedSets: 4, distanceM: [30, 40], rpe: [7, 8], restSeconds: 75, loadIncrementKg: 2, tempo: controlled(1, 0, 1, 0), notes: 'Tall posture, neutral shoulders, short stable steps. Log load and distance.' }],
+        items: [{ exerciseId: SYS.farmerCarry, plannedSets: 3, distanceM: [30, 40], rpe: [7, 8], restSeconds: 75, loadIncrementKg: 2, tempo: controlled(1, 0, 1, 0), notes: 'Tall posture, neutral shoulders, short stable steps. Log load and distance.' }],
+      },
+      {
+        key: 'arms', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.hammerCurl, plannedSets: 2, reps: [10, 12], rpe: [7, 7], restSeconds: 60, loadIncrementKg: 1, tempo: controlled(2, 0, 1, 1), notes: 'The only direct biceps work. No swing; squeeze at the top.' }],
       },
       {
         key: 'tendon', role: 'tendon', format: 'straight',
@@ -166,8 +177,8 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   },
   {
     slot: 'B',
-    name: 'Hybrid B — Hinge + Vertical Push/Pull',
-    notes: `${HYBRID_PROGRAM_TAG} B · V2\n\nHinge + vertical push/pull + intervals. ~65–75 min.\n${DAY_RULES}`,
+    name: 'Hybrid B — Hinge + Vertical + Dips',
+    notes: `${HYBRID_PROGRAM_TAG} B · V2.1\n\nHinge + vertical push/pull + dips + intervals. ~70–75 min.\n${DAY_RULES}`,
     blocks: [
       {
         key: 'warmup', role: 'warmup', format: 'straight',
@@ -191,8 +202,12 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         items: [{ exerciseId: SYS.romanianDeadlift, plannedSets: 2, reps: [8, 8], rpe: [7, 7], rir: [3, 3], restSeconds: 120, loadIncrementKg: 2.5, tempo: controlled(3, 1, 1, 0), notes: 'Hips back, soft knees, neutral spine; keep the load close.' }],
       },
       {
+        key: 'dips', role: 'assistance', format: 'straight',
+        items: [{ exerciseId: SYS.dip, plannedSets: 3, reps: [6, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2.5, tempo: controlled(3, 0, 1, 0), notes: 'Slight forward lean. Do not grind or chase shoulder pain. Add a small plate when 8 is easy; shorten the range or swap if the shoulder complains.' }],
+      },
+      {
         key: 'power', role: 'power', format: 'straight',
-        items: [{ exerciseId: SYS.kettlebellSwing, plannedSets: 4, reps: [8, 8], rpe: [6, 7], restSeconds: 60, loadIncrementKg: 2, tempo: explosive, notes: 'Explosive hip hinge. End the set when bell speed or crispness drops.' }],
+        items: [{ exerciseId: SYS.kettlebellSwing, plannedSets: 3, reps: [8, 8], rpe: [6, 7], restSeconds: 60, loadIncrementKg: 2, tempo: explosive, notes: 'Explosive hip hinge. End the set when bell speed or crispness drops.' }],
       },
       {
         key: 'conditioning', role: 'conditioning', format: 'interval', roundsInitial: 6, roundsMax: 6, restAfterRoundS: 0,
@@ -201,12 +216,8 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         items: [{ exerciseId: SYS.rowingMachine, plannedSets: 1, durationS: [540, 540], rpe: [8, 8], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: 'Use the linked block timer: 6 × 30 s fast / 60 s easy.' }],
       },
       {
-        key: 'tendon_push_pull', role: 'tendon', format: 'superset', restAfterRoundS: 45,
-        notes: 'Alternate face pull and triceps pushdown, then rest.',
-        items: [
-          { exerciseId: SYS.facePull, plannedSets: 2, reps: [15, 15], rpe: [6, 7], restSeconds: 45, loadIncrementKg: 1, tempo: controlled(3, 0, 2, 1), notes: 'Control the return and externally rotate at the finish.' },
-          { exerciseId: SYS.tricepsPushdown, plannedSets: 2, reps: [12, 12], rpe: [6, 7], restSeconds: 45, loadIncrementKg: 1, tempo: controlled(4, 0, 2, 0), notes: 'Slow return; no shoulder movement.' },
-        ],
+        key: 'tendon_rear_delt', role: 'tendon', format: 'straight',
+        items: [{ exerciseId: SYS.facePull, plannedSets: 2, reps: [15, 15], rpe: [6, 7], restSeconds: 45, loadIncrementKg: 1, tempo: controlled(3, 0, 2, 1), notes: 'Control the return and externally rotate at the finish.' }],
       },
       {
         key: 'tendon_forearm', role: 'tendon', format: 'straight',
@@ -217,27 +228,24 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   {
     slot: 'C',
     name: 'Hybrid C — Unilateral / Athletic',
-    notes: `${HYBRID_PROGRAM_TAG} C · V2\n\nUnilateral strength, anti-rotation, carries and a quality finisher.\n${DAY_RULES}`,
+    notes: `${HYBRID_PROGRAM_TAG} C · V2.1\n\nUnilateral hinge, TRX row, anti-rotation, carries and a short finisher. ~70 min.\n${DAY_RULES}`,
     blocks: [
-      { key: 'warmup', role: 'warmup', format: 'straight', notes: 'Short warm-up: 3–5 minutes easy cyclical work, then one easy preparation round for squat, hinge and shoulders.', items: [] },
+      {
+        key: 'warmup', role: 'warmup', format: 'straight',
+        notes: '3–5 minutes easy cyclical work, then one easy hinge and squat preparation round.',
+        items: [{ exerciseId: SYS.externalRotation, plannedSets: 1, reps: [12, 12], rpe: [4, 5], restSeconds: 30, sideMode: 'per_side', tempo: controlled(2, 0, 2, 0), notes: 'Light band. Elbow pinned. Warm-up, not fatigue work.' }],
+      },
       {
         key: 'strength', role: 'strength', format: 'straight',
-        items: [
-          { exerciseId: SYS.gobletSquat, plannedSets: 3, reps: [8, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2, tempo: controlled(3, 1, 1, 0), notes: 'Goblet or front squat; keep the chosen variation for 8–12 weeks.' },
-          { exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load. Log both legs together.' },
-        ],
+        items: [{ exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load. Log both legs together. Back squat is on day A — do not add another squat here.' }],
       },
       {
         key: 'unilateral_push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 75,
-        notes: 'Alternate one-arm row and cable press. Complete both sides of an exercise, then move to its partner.',
+        notes: 'Alternate TRX low row and cable press. Rest after both exercises.',
         items: [
-          { exerciseId: SYS.oneArmDumbbellRow, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 75, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(3, 0, 1, 1), notes: 'Keep the torso square.' },
+          { exerciseId: SYS.invertedRow, plannedSets: 3, reps: [8, 12], rpe: [7, 8], restSeconds: 75, tempo: controlled(3, 0, 1, 1), notes: 'TRX low row. More horizontal = harder. Pull the handles to the chest. Rings or a bar are allowed swaps.' },
           { exerciseId: SYS.halfKneelingCablePress, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 75, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(2, 0, 1, 0), notes: 'Squeeze the down-knee glute; do not rotate.' },
         ],
-      },
-      {
-        key: 'step_up', role: 'assistance', format: 'straight',
-        items: [{ exerciseId: SYS.stepUp, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 2, tempo: controlled(3, 0, 1, 0), notes: 'Front leg does the work; avoid pushing off the floor leg. Log both legs together.' }],
       },
       {
         key: 'carry_core', role: 'carry', format: 'straight',
@@ -248,12 +256,11 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         ],
       },
       {
-        key: 'finisher', role: 'conditioning', format: 'circuit', roundsInitial: 3, roundsMax: 4, restAfterRoundS: 60,
-        notes: 'Quality over wreckage. Progress from three to four rounds only when the last round looks like the first.',
+        key: 'finisher', role: 'conditioning', format: 'circuit', roundsInitial: 3, roundsMax: 3, restAfterRoundS: 60,
+        notes: 'Three quality rounds. Stop if the last round no longer looks like the first.',
         items: [
           { exerciseId: SYS.kettlebellSwing, plannedSets: 1, reps: [12, 12], rpe: [7, 8], restSeconds: 0, tempo: explosive, notes: 'Explosive hinge; stop if speed falls.' },
-          { exerciseId: SYS.pushUp, plannedSets: 1, reps: [10, 10], rpe: [7, 8], restSeconds: 0, tempo: controlled(2, 0, 1, 0) },
-          { exerciseId: SYS.walkingLunge, plannedSets: 1, reps: [10, 10], rpe: [7, 8], restSeconds: 0, tempo: controlled(2, 0, 1, 0), notes: '10 total steps, not per leg.' },
+          { exerciseId: SYS.pushUp, plannedSets: 1, reps: [10, 10], rpe: [7, 8], restSeconds: 0, tempo: controlled(2, 0, 1, 0), notes: 'Easier than the day A sets; keep quality.' },
           { exerciseId: SYS.rowingMachine, plannedSets: 1, distanceM: [200, 200], rpe: [7, 8], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: '200 m, then use the block-level 60 s round rest.' },
         ],
       },
@@ -262,14 +269,14 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   {
     slot: 'D',
     name: 'Hybrid D — Longevity',
-    notes: `${HYBRID_PROGRAM_TAG} D · V2\n\nIntentionally easier: functional circuit, Zone 2 and focused tendon work. Circuit RPE 6–7.`,
+    notes: `${HYBRID_PROGRAM_TAG} D · V2.1\n\nIntentionally easier: functional circuit, Zone 2 and focused tendon work. Circuit RPE 6–7. Do not place this day immediately after C.`,
     blocks: [
       {
-        key: 'circuit', role: 'conditioning', format: 'circuit', roundsInitial: 3, roundsMax: 4, restAfterRoundS: 75,
-        notes: 'Start with three rounds. Add a fourth only when quality and recovery stay good.',
+        key: 'circuit', role: 'conditioning', format: 'circuit', roundsInitial: 3, roundsMax: 3, restAfterRoundS: 75,
+        notes: 'Three rounds. Keep RPE 6–7. No dips — shoulders rest.',
         items: [
           { exerciseId: SYS.gobletSquat, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(2, 0, 1, 0) },
-          { exerciseId: SYS.invertedRow, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(3, 0, 1, 1), notes: 'TRX or bar.' },
+          { exerciseId: SYS.invertedRow, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(3, 0, 1, 1), notes: 'TRX low row or bar. Easy version of the day C work.' },
           { exerciseId: SYS.pushUp, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(2, 0, 1, 0) },
           { exerciseId: SYS.kettlebellDeadlift, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(3, 0, 1, 0) },
           { exerciseId: SYS.farmerCarry, plannedSets: 1, distanceM: [30, 30], rpe: [6, 7], restSeconds: 0, tempo: controlled(1, 0, 1, 0), notes: '30 m. Rest only after the full round.' },
@@ -277,7 +284,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
       },
       {
         key: 'zone2', role: 'zone_2', format: 'straight',
-        items: [{ exerciseId: SYS.stationaryBike, plannedSets: 1, durationS: [1500, 1800], rpe: [4, 6], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: '25–30 min. Talk test: you can still speak in sentences.' }],
+        items: [{ exerciseId: SYS.stationaryBike, plannedSets: 1, durationS: [1800, 2400], rpe: [4, 6], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: '30–40 min. Talk test: you can still speak in sentences.' }],
       },
       {
         key: 'tendon', role: 'tendon', format: 'straight',
@@ -286,7 +293,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
           { exerciseId: SYS.scaptionRaise, plannedSets: 2, reps: [12, 12], rpe: [5, 7], restSeconds: 45, loadIncrementKg: 0.5, tempo: controlled(3, 0, 2, 0), notes: 'Very light; thumbs up; stop around shoulder height.' },
           { exerciseId: SYS.wristExtension, plannedSets: 2, reps: [15, 15], rpe: [6, 7], restSeconds: 45, sideMode: 'per_side', loadIncrementKg: 0.5, tempo: controlled(4, 0, 2, 0), notes: 'Forearm fully supported.' },
           { exerciseId: SYS.standingCalfRaise, plannedSets: 3, reps: [8, 12], rpe: [7, 8], restSeconds: 60, loadIncrementKg: 2.5, tempo: controlled(3, 1, 2, 1), notes: 'Heavier calf/Achilles work.' },
-          { exerciseId: SYS.seatedCalfRaise, plannedSets: 3, reps: [12, 15], rpe: [7, 8], restSeconds: 60, loadIncrementKg: 2.5, tempo: controlled(3, 1, 2, 1), notes: 'Soleus/Achilles focus.' },
+          { exerciseId: SYS.seatedCalfRaise, plannedSets: 2, reps: [12, 15], rpe: [7, 8], restSeconds: 60, loadIncrementKg: 2.5, tempo: controlled(3, 1, 2, 1), notes: 'Soleus/Achilles focus.' },
           { exerciseId: SYS.deadHang, plannedSets: 2, durationS: [20, 40], rpe: [4, 6], restSeconds: 60, tempo: controlled(0, 0, 0, 0), notes: 'Optional and only fully pain-free; keep light scapular tone if a passive hang is uncomfortable.' },
         ],
       },

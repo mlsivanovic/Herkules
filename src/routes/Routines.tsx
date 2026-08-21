@@ -140,8 +140,8 @@ export function Routines() {
           <span className="badge badge--neutral">Starter</span>
         </div>
         <p className="muted starter-card__blurb">
-          Health, strength, function, and tendon work. Four days (A–D), ~65–80 min, mostly RPE 7–8.
-          Adds a training plan with four editable routines — coaching notes are defaults you can change.
+          Health, strength, function, and tendon work. Four days (A–D): back squat, trap bar, dips, TRX.
+          ~65–80 min, mostly RPE 7–8. Adds a training plan with four editable routines.
         </p>
         <div className="row row--wrap">
           {installed && hybridPlan ? (

@@ -14,7 +14,7 @@ import {
 
 describe('Hybrid V2 canonical recipe', () => {
   it('tags every template with a unique source slot', () => {
-    expect(HYBRID_SOURCE_VERSION).toBe(3)
+    expect(HYBRID_SOURCE_VERSION).toBe(4)
     expect(HYBRID_TEMPLATES.map((row) => hybridSlotFromNotes(row.notes))).toEqual(['A', 'B', 'C', 'D'])
     expect(HYBRID_TEMPLATES.every((row) => row.notes.startsWith(HYBRID_PROGRAM_TAG))).toBe(true)
   })
@@ -45,8 +45,8 @@ describe('Hybrid V2 canonical recipe', () => {
       slot,
       recipe.items.filter((item) => item.template_id === template.id).length,
     ]))
-    expect(counts).toEqual({ A: 9, B: 10, C: 12, D: 12 })
-    expect(recipe.blocks).toHaveLength(23)
+    expect(counts).toEqual({ A: 11, B: 10, C: 10, D: 12 })
+    expect(recipe.blocks).toHaveLength(25)
     expect(recipe.items.every((item) => item.block_id && item.tempo)).toBe(true)
     expect(recipe.items.every((item) => item.tempo_intent === 'controlled' || item.tempo_intent === 'explosive')).toBe(true)
   })
@@ -58,17 +58,19 @@ describe('Hybrid V2 canonical recipe', () => {
     expect(pairs).toEqual([
       ['A', [SYS.dumbbellBenchPress, SYS.chestSupportedRow]],
       ['B', [SYS.landminePress, SYS.latPulldown]],
-      ['B', [SYS.facePull, SYS.tricepsPushdown]],
-      ['C', [SYS.oneArmDumbbellRow, SYS.halfKneelingCablePress]],
+      ['C', [SYS.invertedRow, SYS.halfKneelingCablePress]],
     ])
   })
 
   it('includes the missing C swing and structured circuit progression', () => {
     const day = HYBRID_TEMPLATES.find((row) => row.slot === 'C')
     const finisher = day?.blocks.find((block) => block.key === 'finisher')
-    expect(day?.items).toHaveLength(12)
+    expect(day?.items).toHaveLength(10)
     expect(finisher?.items[0]?.exerciseId).toBe(SYS.kettlebellSwing)
-    expect(finisher).toMatchObject({ format: 'circuit', roundsInitial: 3, roundsMax: 4, restAfterRoundS: 60 })
+    expect(finisher?.items.map((item) => item.exerciseId)).toEqual([
+      SYS.kettlebellSwing, SYS.pushUp, SYS.rowingMachine,
+    ])
+    expect(finisher).toMatchObject({ format: 'circuit', roundsInitial: 3, roundsMax: 3, restAfterRoundS: 60 })
   })
 
   it('encodes the B interval instead of a generic duration/rest slot', () => {
@@ -84,7 +86,16 @@ describe('Hybrid V2 canonical recipe', () => {
     expect(day?.items).toHaveLength(12)
     const a = HYBRID_TEMPLATES.find((row) => row.slot === 'A')
     expect(a?.items.find((item) => item.exerciseId === SYS.farmerCarry)?.distanceM).toEqual([30, 40])
+    expect(a?.items.find((item) => item.exerciseId === SYS.farmerCarry)?.plannedSets).toBe(3)
     expect(a?.items.find((item) => item.exerciseId === SYS.isometricHammerCurl)?.durationS).toEqual([20, 30])
+    expect(a?.items.find((item) => item.exerciseId === SYS.barbellBackSquat)?.reps).toEqual([5, 6])
+    expect(a?.items.find((item) => item.exerciseId === SYS.pushUp)?.reps).toEqual([8, 15])
+    expect(a?.items.find((item) => item.exerciseId === SYS.hammerCurl)?.reps).toEqual([10, 12])
+    const b = HYBRID_TEMPLATES.find((row) => row.slot === 'B')
+    expect(b?.items.find((item) => item.exerciseId === SYS.dip)?.reps).toEqual([6, 8])
+    expect(b?.items.some((item) => item.exerciseId === SYS.tricepsPushdown)).toBe(false)
+    expect(day?.items.find((item) => item.exerciseId === SYS.stationaryBike)?.durationS).toEqual([1800, 2400])
+    expect(tendon?.items.find((item) => item.exerciseId === SYS.seatedCalfRaise)?.plannedSets).toBe(2)
   })
 
   it('preserves existing plan/template ids while replacing the V1 recipe', () => {
@@ -104,12 +115,12 @@ describe('Hybrid V2 canonical recipe', () => {
     })
     expect(upgrade.created).toBe(false)
     expect(upgrade.plan.id).toBe('plan-existing')
-    expect(upgrade.plan.source_version).toBe(3)
+    expect(upgrade.plan.source_version).toBe(4)
     expect(Object.values(upgrade.templates).map((row) => row.id)).toEqual([
       'template-A', 'template-B', 'template-C', 'template-D',
     ])
     expect(new Set(upgrade.items.map((row) => row.id)).size).toBe(43)
-    expect(upgrade.items.filter((row) => row.template_id === 'template-C')).toHaveLength(12)
+    expect(upgrade.items.filter((row) => row.template_id === 'template-C')).toHaveLength(10)
     expect(isHybridV2CanonicalRecipe({
       templates: upgrade.templates,
       blocks: upgrade.blocks,

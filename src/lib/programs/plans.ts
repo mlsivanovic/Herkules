@@ -7,7 +7,7 @@ import type { HybridSlot } from './rotate'
 export const HYBRID_PLAN_NAME = 'Hybrid 4-day'
 
 export const HYBRID_PLAN_NOTES =
-  'Health, strength, function, and tendon work. Four days (A–D), ~65–80 min, mostly RPE 7–8.'
+  'Health, strength, function, and tendon work. Four days (A–D): back squat, trap bar, dips, TRX. ~65–80 min, mostly RPE 7–8. Do not run C and D on consecutive days.'
 
 export function sortPlanTemplates<T extends { id: string; plan_id: string | null; plan_position: number }>(
   templates: T[],

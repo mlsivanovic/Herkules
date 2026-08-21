@@ -414,6 +414,7 @@ export const sr: Messages = {
     muscleSets: 'Serije po mišićnoj grupi (30 dana)',
     muscleSetsAria: 'Završene serije po mišićnoj grupi u poslednjih 30 dana',
     setsFmt: '{value} serija',
+    chartEmpty: 'Još nema podataka.',
     trend: 'Trend po vežbi',
     exercise: 'Vežba',
     e1rm: '{value} procenjeni 1RM',

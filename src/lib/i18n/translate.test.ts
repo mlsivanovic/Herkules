@@ -15,6 +15,11 @@ describe('t', () => {
     expect(t('editor.newPlanTitle', undefined, 'sr')).toBe('Novi plan')
   })
 
+  it('translates progress chart empty copy', () => {
+    expect(t('progress.chartEmpty', undefined, 'en')).toBe('No data yet.')
+    expect(t('progress.chartEmpty', undefined, 'sr')).toBe('Još nema podataka.')
+  })
+
   it('interpolates placeholders', () => {
     expect(t('today.hi', { name: 'Ana' }, 'en')).toBe('Hi, Ana')
     expect(t('today.hi', { name: 'Ana' }, 'sr')).toBe('Zdravo, Ana')

@@ -413,6 +413,7 @@ export const en = {
     muscleSets: 'Sets per muscle group (30 days)',
     muscleSetsAria: 'Completed sets per muscle group over the last 30 days',
     setsFmt: '{value} sets',
+    chartEmpty: 'No data yet.',
     trend: 'Per-exercise trend',
     exercise: 'Exercise',
     e1rm: '{value} estimated 1RM',

@@ -126,6 +126,7 @@ export function Progress() {
                 }))}
               formatValue={(value) => formatWeight(value, units)}
               ariaLabel={t('progress.bodyWeightAria')}
+              emptyText={t('progress.chartEmpty')}
             />
           </div>
         </>
@@ -140,18 +141,20 @@ export function Progress() {
           }))}
           formatValue={(value) => t('progress.volumeFmt', { value: formatWeight(value, units) })}
           ariaLabel={t('progress.weeklyVolumeAria')}
+          emptyText={t('progress.chartEmpty')}
         />
       </div>
 
       <div className="section-title">{t('progress.muscleSets')}</div>
       <div className="card">
         <BarChart
-          bars={stats.muscleSets.slice(0, 10).map((entry) => ({
+          bars={stats.muscleSets.map((entry) => ({
             label: displayTag(entry.group),
             value: entry.sets,
           }))}
           formatValue={(value) => t('progress.setsFmt', { value })}
           ariaLabel={t('progress.muscleSetsAria')}
+          emptyText={t('progress.chartEmpty')}
         />
       </div>
 
@@ -181,6 +184,7 @@ export function Progress() {
               }))}
               formatValue={(value) => t('progress.e1rm', { value: formatWeight(value, units) })}
               ariaLabel={t('progress.e1rmAria', { name: displayExerciseName(selected) })}
+              emptyText={t('progress.chartEmpty')}
             />
           ) : selectedProgress[0] ? (
             <p className="muted">
@@ -298,11 +302,13 @@ function TendonTrend({
             points={rows.map((row) => ({ label: row.label, value: row.pain }))}
             formatValue={(value) => t('progress.painFmt', { value })}
             ariaLabel={t('progress.painFor', { site: displayTendonSite(selected) })}
+            emptyText={t('progress.chartEmpty')}
           />
           <LineChart
             points={rows.map((row) => ({ label: row.label, value: row.stiffness }))}
             formatValue={(value) => t('progress.stiffnessFmt', { value })}
             ariaLabel={t('progress.stiffnessFor', { site: displayTendonSite(selected) })}
+            emptyText={t('progress.chartEmpty')}
           />
         </>
       ) : (

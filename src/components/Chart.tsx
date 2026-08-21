@@ -1,4 +1,6 @@
-// Minimal accessible SVG charts (no chart library).
+// Minimal accessible charts (no chart library). Line charts stay SVG;
+// category bars are HTML so long labels stay readable on a 360px screen.
+import { t } from '../lib/i18n'
 import './chart.css'
 
 export interface ChartPoint {
@@ -10,13 +12,15 @@ export function LineChart({
   points,
   formatValue,
   ariaLabel,
+  emptyText,
 }: {
   points: ChartPoint[]
   formatValue(value: number): string
   ariaLabel: string
+  emptyText?: string
 }) {
   if (points.length === 0) {
-    return <p className="muted">No data yet.</p>
+    return <p className="muted">{emptyText ?? t('progress.chartEmpty')}</p>
   }
 
   const width = 320
@@ -93,65 +97,35 @@ export function BarChart({
   bars,
   formatValue,
   ariaLabel,
+  emptyText,
 }: {
   bars: ChartPoint[]
   formatValue(value: number): string
   ariaLabel: string
+  emptyText?: string
 }) {
   if (bars.length === 0) {
-    return <p className="muted">No data yet.</p>
+    return <p className="muted">{emptyText ?? t('progress.chartEmpty')}</p>
   }
-  const width = 320
-  const height = 160
-  const pad = { top: 10, right: 4, bottom: 24, left: 4 }
-  const innerW = width - pad.left - pad.right
-  const innerH = height - pad.top - pad.bottom
-  const maxValue = Math.max(...bars.map((b) => b.value), 1)
-  const slot = innerW / bars.length
-  const barW = Math.min(slot - 6, 40)
-
-  const summary = bars.map((b) => `${b.label}: ${formatValue(b.value)}`).join(', ')
+  const maxValue = Math.max(...bars.map((bar) => bar.value), 1)
+  const summary = bars.map((bar) => `${bar.label}: ${formatValue(bar.value)}`).join(', ')
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="chart"
-      role="img"
-      aria-label={`${ariaLabel}. ${summary}`}
-    >
+    <div className="bar-chart" role="img" aria-label={`${ariaLabel}. ${summary}`}>
       {bars.map((bar, i) => {
-        const barH = (bar.value / maxValue) * innerH
-        const x = pad.left + i * slot + (slot - barW) / 2
-        const y = pad.top + innerH - barH
+        const pct = bar.value <= 0 ? 0 : Math.max((bar.value / maxValue) * 100, 4)
         return (
-          <g key={bar.label}>
-            <rect
-              x={x}
-              y={y}
-              width={barW}
-              height={Math.max(barH, 0)}
-              rx="4"
-              fill="var(--c-accent)"
-              opacity={0.85}
-            />
-            <text
-              x={x + barW / 2}
-              y={height - 8}
-              textAnchor="middle"
-              className="chart-label"
-            >
-              {bar.label}
-            </text>
-          </g>
+          <div key={`${bar.label}-${i}`} className="bar-chart-row" aria-hidden="true">
+            <div className="bar-chart-head">
+              <span className="bar-chart-label">{bar.label}</span>
+              <span className="bar-chart-value">{bar.value}</span>
+            </div>
+            <div className="bar-chart-track">
+              <div className="bar-chart-fill" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
         )
       })}
-      <line
-        x1={pad.left}
-        y1={pad.top + innerH}
-        x2={width - pad.right}
-        y2={pad.top + innerH}
-        stroke="var(--c-track)"
-      />
-    </svg>
+    </div>
   )
 }

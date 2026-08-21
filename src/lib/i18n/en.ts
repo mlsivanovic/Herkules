@@ -261,6 +261,50 @@ export const en = {
     exportedOne: 'Exported {count} routine.',
     exportedOther: 'Exported {count} routines.',
   },
+  starters: {
+    title: 'Starter programs',
+    add: 'Add {name}',
+    duration: '{min}–{max} min',
+    equipmentGym: 'Gym',
+    equipmentHome: 'Home · dumbbells',
+    equipmentStreet: 'Bars · bodyweight',
+    equipmentMachines: 'Machines · dumbbells',
+    hybrid: {
+      name: 'Hybrid 4-day',
+      blurb:
+        'Health, strength, function, and tendon work. Four days (A–D): back squat, trap bar, dips, TRX. ~65–80 min, mostly RPE 7–8.',
+    },
+    foundations: {
+      name: 'Foundations 3-day',
+      blurb:
+        'Beginner full-body. Goblet squat, hinge, press and row. Standard gym, machines allowed. ~45–55 min at RPE 6–7.',
+    },
+    home: {
+      name: 'Home 3-day',
+      blurb:
+        'Apartment training with dumbbells and a band. No barbell, cables or machines. ~40–50 min.',
+    },
+    street: {
+      name: 'Street 3-day',
+      blurb:
+        'Pull-up and dip bars, bodyweight, optional dumbbells up to 15 kg each. No gym. ~45–60 min.',
+    },
+    busy: {
+      name: 'Busy 3-day',
+      blurb:
+        'Short gym sessions for limited time. One main lift plus a push/pull superset. ~30–40 min.',
+    },
+    build: {
+      name: 'Build 4-day',
+      blurb:
+        'Hypertrophy upper/lower. More isolation, 8–12 reps, standard gym. ~50–65 min at RPE 7–8.',
+    },
+    longevity: {
+      name: 'Longevity 3-day',
+      blurb:
+        'Joint-first strength, Zone 2 and tendon work. Machines and dumbbells. ~45–60 min at RPE 5–7.',
+    },
+  },
   rotation: {
     title: 'Plan rotation',
     daysPerWeek: 'Days per week',

@@ -27,8 +27,22 @@
   white-space: pre-line;
 }
 
-.starter-card {
+.starter-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-bottom: 1.25rem;
+}
+
+.starter-card {
+  margin-bottom: 0;
+}
+
+.starter-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
 }
 
 .starter-card__head {

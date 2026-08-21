@@ -60,6 +60,7 @@ import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
 import { t } from './i18n'
+import { starterBySourceKey } from './programs/catalog'
 import {
   HYBRID_SOURCE_KEY,
   HYBRID_SOURCE_VERSION,
@@ -75,8 +76,10 @@ import {
   HYBRID_PLAN_NOTES,
   nextTemplateForPlan,
   nextPlanPosition,
+  planBySourceKey,
   sortPlanTemplates,
 } from './programs/plans'
+import { buildProgramUpgrade } from './programs/recipe'
 import { normalizeBlockRole } from './blockRole'
 import {
   rotationOccurrences,
@@ -200,6 +203,7 @@ export interface StoreActions {
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
   installHybridProgram(): Promise<{ created: boolean; planId: string }>
+  installStarterProgram(sourceKey: string): Promise<{ created: boolean; planId: string }>
   ensureHybridV2(): Promise<void>
   ensureHybridBlockRoles(): Promise<void>
   ensureHybridPlan(): Promise<void>
@@ -832,6 +836,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         await commit(writes, ops)
         return { created: upgrade.created, planId: plan.id }
+      },
+
+      async installStarterProgram(sourceKey) {
+        const program = starterBySourceKey(sourceKey)
+        if (!program) throw new Error(t('errors.addProgram'))
+        if (program.sourceKey === HYBRID_SOURCE_KEY) {
+          const result = await actionsRef.current?.installHybridProgram()
+          if (!result) throw new Error(t('errors.addProgram'))
+          return result
+        }
+
+        const all = await readAll()
+        const owner = userIdRef.current ?? ''
+        const stamp = nowIso()
+        const existingPlan = planBySourceKey(all.plans, program.sourceKey)
+        if (existingPlan) {
+          return { created: false, planId: existingPlan.id }
+        }
+
+        const upgrade = buildProgramUpgrade({
+          ownerId: owner,
+          existingPlan: null,
+          installed: null,
+          now: stamp,
+          newId,
+          sourceKey: program.sourceKey,
+          sourceVersion: program.sourceVersion,
+          planName: program.planName,
+          planNotes: program.planNotes,
+          definitions: program.templates,
+        })
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        writes.push({ store: 'plans', row: upgrade.plan })
+        ops.push(upsert('training_plans', upgrade.plan))
+        for (const definition of program.templates) {
+          const template = upgrade.templates[definition.slot]
+          writes.push({ store: 'templates', row: template })
+          ops.push(upsert('workout_templates', template))
+        }
+        for (const block of upgrade.blocks) {
+          writes.push({ store: 'templateBlocks', row: block })
+          ops.push(upsert('template_blocks', block))
+        }
+        for (const item of upgrade.items) {
+          writes.push({ store: 'templateItems', row: item })
+          ops.push(upsert('template_items', item))
+        }
+        await commit(writes, ops)
+        return { created: upgrade.created, planId: upgrade.plan.id }
       },
 
       async ensureHybridV2() {

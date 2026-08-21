@@ -43,7 +43,16 @@ export function unassignedTemplates<T extends { plan_id: string | null }>(templa
 }
 
 export function hybridPlanFrom(plans: TrainingPlanRow[]): TrainingPlanRow | null {
-  return plans.find((plan) => plan.name === HYBRID_PLAN_NAME) ?? null
+  return plans.find((plan) => plan.source_key === 'hybrid-4-day')
+    ?? plans.find((plan) => plan.name === HYBRID_PLAN_NAME)
+    ?? null
+}
+
+export function planBySourceKey(
+  plans: TrainingPlanRow[],
+  sourceKey: string,
+): TrainingPlanRow | null {
+  return plans.find((plan) => plan.source_key === sourceKey) ?? null
 }
 
 /** Existing Hybrid A–D templates that are not yet attached to a shared plan. */

@@ -15,6 +15,12 @@ describe('t', () => {
     expect(t('editor.newPlanTitle', undefined, 'sr')).toBe('Novi plan')
   })
 
+  it('translates starter program names', () => {
+    expect(t('starters.street.name', undefined, 'en')).toBe('Street 3-day')
+    expect(t('starters.street.name', undefined, 'sr')).toBe('Street 3 dana')
+    expect(t('starters.add', { name: 'Street 3-day' }, 'en')).toBe('Add Street 3-day')
+  })
+
   it('translates add-notes copy', () => {
     expect(t('editor.addNotes', undefined, 'en')).toBe('Add notes')
     expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')

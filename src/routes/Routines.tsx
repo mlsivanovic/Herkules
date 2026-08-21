@@ -1,4 +1,4 @@
-// Routines list: training plans, unassigned templates, Hybrid 4-day starter.
+// Routines list: training plans, unassigned templates, starter program gallery.
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
@@ -10,8 +10,14 @@ import {
   formatRoutineImportMessage,
   routinesExportFilename,
 } from '../lib/routinesIo'
-import { isHybridProgramInstalled } from '../lib/programs/hybrid4day'
-import { hybridPlanFrom, sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import {
+  equipmentCopyKey,
+  isStarterInstalled,
+  STARTER_PROGRAMS,
+  type StarterProgram,
+} from '../lib/programs/catalog'
+import { hybridPlanFrom, planBySourceKey, sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import { HYBRID_SOURCE_KEY } from '../lib/programs/hybrid4day'
 import { useT } from '../lib/i18n'
 import './routines.css'
 
@@ -22,34 +28,32 @@ export function Routines() {
     templates,
     templateItems,
     ready,
-    installHybridProgram,
+    installStarterProgram,
     exportRoutines,
     importRoutines,
   } = useStore()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [plannerPlanId, setPlannerPlanId] = useState<string | null>(null)
   const [ioBusy, setIoBusy] = useState(false)
   const [ioMessage, setIoMessage] = useState<string | null>(null)
   const [ioError, setIoError] = useState<string | null>(null)
 
-  const installed = useMemo(() => isHybridProgramInstalled(templates), [templates])
-  const hybridPlan = useMemo(() => hybridPlanFrom(plans), [plans])
   const loose = useMemo(() => unassignedTemplates(templates), [templates])
 
-  async function addProgram() {
-    setBusy(true)
+  async function addProgram(program: StarterProgram) {
+    setBusyKey(program.sourceKey)
     setError(null)
     try {
-      const result = await installHybridProgram()
+      const result = await installStarterProgram(program.sourceKey)
       if (result.created) setPlannerPlanId(result.planId)
       else void navigate(`/plans/${result.planId}`)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('errors.addProgram'))
     } finally {
-      setBusy(false)
+      setBusyKey(null)
     }
   }
 
@@ -140,41 +144,70 @@ export function Routines() {
         </div>
       ) : null}
 
-      <section className="card starter-card">
-        <div className="starter-card__head">
-          <strong>{t('routines.hybridName')}</strong>
-          <span className="badge badge--neutral">{t('routines.starter')}</span>
-        </div>
-        <p className="muted starter-card__blurb">
-          {t('routines.hybridBlurb')}
+      <div className="section-title">{t('starters.title')}</div>
+      <div className="starter-gallery">
+        {STARTER_PROGRAMS.map((program) => {
+          const installed = isStarterInstalled(program, plans, templates)
+          const plan =
+            planBySourceKey(plans, program.sourceKey) ??
+            (program.sourceKey === HYBRID_SOURCE_KEY ? hybridPlanFrom(plans) : null)
+          const name = t(`starters.${program.copyKey}.name`)
+          const days = program.templates.length
+          return (
+            <section key={program.sourceKey} className="card starter-card">
+              <div className="starter-card__head">
+                <strong>{name}</strong>
+                <span className="badge badge--neutral">{t('routines.starter')}</span>
+              </div>
+              <div className="starter-card__meta">
+                <span className="badge badge--neutral">
+                  {days === 1
+                    ? t('routines.dayOne', { count: days })
+                    : t('routines.dayOther', { count: days })}
+                </span>
+                <span className="badge badge--neutral">
+                  {t('starters.duration', { min: program.durationMin, max: program.durationMax })}
+                </span>
+                <span className="badge badge--neutral">{t(equipmentCopyKey(program.equipment))}</span>
+              </div>
+              <p className="muted starter-card__blurb">{t(`starters.${program.copyKey}.blurb`)}</p>
+              <div className="row row--wrap">
+                {installed && plan ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => void navigate(`/plans/${plan.id}`)}
+                    >
+                      {t('routines.openPlan')}
+                    </button>
+                    <button type="button" className="btn" onClick={() => setPlannerPlanId(plan.id)}>
+                      {t('routines.planRotation')}
+                    </button>
+                    <span className="muted">{t('routines.alreadyIn')}</span>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={busyKey !== null}
+                    onClick={() => void addProgram(program)}
+                  >
+                    {busyKey === program.sourceKey
+                      ? t('routines.adding')
+                      : t('starters.add', { name })}
+                  </button>
+                )}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+      {error ? (
+        <p className="field-error" role="alert">
+          {error}
         </p>
-        <div className="row row--wrap">
-          {installed && hybridPlan ? (
-            <>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => void navigate(`/plans/${hybridPlan.id}`)}
-              >
-                {t('routines.openPlan')}
-              </button>
-              <button type="button" className="btn" onClick={() => setPlannerPlanId(hybridPlan.id)}>
-                {t('routines.planRotation')}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void addProgram()}>
-              {busy ? t('routines.adding') : t('routines.addHybrid')}
-            </button>
-          )}
-          {installed && hybridPlan ? <span className="muted">{t('routines.alreadyIn')}</span> : null}
-        </div>
-        {error ? (
-          <p className="field-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </section>
+      ) : null}
 
       <div className="section-title">{t('routines.trainingPlans')}</div>
       {plans.length === 0 ? (
@@ -272,5 +305,5 @@ export function Routines() {
 }
 
 function previewNotes(notes: string): string {
-  return notes.replace(/^Program: Hybrid 4-day [ABCD]\s*/u, '').trim()
+  return notes.replace(/^Program: .+? [ABCD]\s*/u, '').trim()
 }

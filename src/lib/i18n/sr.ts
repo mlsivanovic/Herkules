@@ -262,6 +262,50 @@ export const sr: Messages = {
     exportedOne: 'Izvezena {count} rutina.',
     exportedOther: 'Izvezeno {count} rutina.',
   },
+  starters: {
+    title: 'Početni programi',
+    add: 'Dodaj {name}',
+    duration: '{min}–{max} min',
+    equipmentGym: 'Teretana',
+    equipmentHome: 'Kuća · bučice',
+    equipmentStreet: 'Šipke · sopstvena težina',
+    equipmentMachines: 'Sprave · bučice',
+    hybrid: {
+      name: 'Hibrid 4 dana',
+      blurb:
+        'Zdravlje, snaga, funkcija i rad na tetivama. Četiri dana (A–D): čučanj, trap bar, dips, TRX. ~65–80 min, uglavnom RPE 7–8.',
+    },
+    foundations: {
+      name: 'Osnove 3 dana',
+      blurb:
+        'Početni full-body. Goblet čučanj, hinge, potisak i veslanje. Obična teretana, sprave su dozvoljene. ~45–55 min na RPE 6–7.',
+    },
+    home: {
+      name: 'Kuća 3 dana',
+      blurb:
+        'Trening u stanu sa bučicama i trakom. Bez šipke, sajli i sprava. ~40–50 min.',
+    },
+    street: {
+      name: 'Street 3 dana',
+      blurb:
+        'Vratilo i dips šipke, sopstvena težina, opciono bučice do 15 kg. Bez teretane. ~45–60 min.',
+    },
+    busy: {
+      name: 'Užurbano 3 dana',
+      blurb:
+        'Kratki treninzi u teretani. Jedan glavni pokret plus potisak/veslanje. ~30–40 min.',
+    },
+    build: {
+      name: 'Gradnja 4 dana',
+      blurb:
+        'Hipertrofija gore/dole. Više izolacije, 8–12 ponavljanja, obična teretana. ~50–65 min na RPE 7–8.',
+    },
+    longevity: {
+      name: 'Dugovečnost 3 dana',
+      blurb:
+        'Snaga sa fokusom na zglobove, zona 2 i tetive. Sprave i bučice. ~45–60 min na RPE 5–7.',
+    },
+  },
   rotation: {
     title: 'Rotacija plana',
     daysPerWeek: 'Dana nedeljno',

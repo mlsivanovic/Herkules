@@ -33,20 +33,20 @@ export {
 export const HYBRID_PROGRAM_TAG = 'Program: Hybrid 4-day'
 export const HYBRID_SOURCE_KEY = 'hybrid-4-day'
 // Internal recipe revision. The user-facing program remains Hybrid 4-day; notes say V2.1.
-export const HYBRID_SOURCE_VERSION = 4
+export const HYBRID_SOURCE_VERSION = 5
 
 const DAY_RULES =
-  'Most work at RPE 7â€“8 with 2â€“3 reps in reserve. Never grind tendon work. Use double progression: add load only after every work set reaches the top of its range at RPE 8 or lower.'
+  'Most work at RPE 7–8 with 2–3 reps in reserve. Never grind tendon work. Use double progression: add load only after every work set reaches the top of its range at RPE 8 or lower.'
 
 const definitions: Omit<ProgramTemplate, 'items'>[] = [
   {
     slot: 'A',
-    name: 'Hybrid A â€” Squat + Push/Pull + Carry',
-    notes: `${HYBRID_PROGRAM_TAG} A Â· V2.1\n\nBack squat + push/pull + carry. ~70 min.\n${DAY_RULES}`,
+    name: 'Hybrid A — Squat + Push/Pull + Carry',
+    notes: `${HYBRID_PROGRAM_TAG} A · V2.1\n\nBack squat + push/pull + carry. ~70 min.\n${DAY_RULES}`,
     blocks: [
       {
         key: 'warmup', role: 'warmup', format: 'straight',
-        notes: 'Add 3â€“5 minutes of easy cyclical work if useful, then prepare the shoulders.',
+        notes: 'Add 3–5 minutes of easy cyclical work if useful, then prepare the shoulders.',
         items: [{ exerciseId: SYS.externalRotation, plannedSets: 1, reps: [12, 12], rpe: [4, 5], restSeconds: 30, sideMode: 'per_side', tempo: controlled(2, 0, 2, 0), notes: 'Light band. Elbow pinned to the ribs. Warm-up, not fatigue work.' }],
       },
       {
@@ -57,7 +57,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         key: 'push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 120,
         notes: 'Alternate bench and row. Rest only after both exercises are complete.',
         items: [
-          { exerciseId: SYS.dumbbellBenchPress, plannedSets: 3, reps: [6, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(2, 1, 1, 0), notes: 'Keep elbows roughly 30â€“60Â° from the torso.' },
+          { exerciseId: SYS.dumbbellBenchPress, plannedSets: 3, reps: [6, 8], rpe: [7, 8], rir: [2, 3], restSeconds: 120, loadIncrementKg: 2, tempo: controlled(2, 1, 1, 0), notes: 'Keep elbows roughly 30–60° from the torso.' },
           { exerciseId: SYS.chestSupportedRow, plannedSets: 3, reps: [8, 10], rpe: [7, 8], rir: [2, 3], restSeconds: 90, loadIncrementKg: 2, tempo: controlled(3, 0, 1, 1), notes: 'Pull the elbow toward the hip; lower under control.' },
         ],
       },
@@ -82,19 +82,19 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         items: [
           { exerciseId: SYS.externalRotation, plannedSets: 2, reps: [12, 15], rpe: [6, 7], restSeconds: 60, sideMode: 'per_side', loadIncrementKg: 0.5, tempo: controlled(3, 0, 2, 0), notes: 'Cable or band; pain-free, slow return.' },
           { exerciseId: SYS.wristExtension, plannedSets: 2, reps: [12, 15], rpe: [6, 7], restSeconds: 45, sideMode: 'per_side', loadIncrementKg: 0.5, tempo: controlled(4, 0, 1, 0), notes: 'Forearm supported; only the wrist moves.' },
-          { exerciseId: SYS.isometricHammerCurl, plannedSets: 2, durationS: [20, 30], rpe: [6, 7], restSeconds: 45, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(0, 0, 0, 0), notes: 'Elbow near 90Â°. Strong, controlled and pain-free; not a maximal hold.' },
+          { exerciseId: SYS.isometricHammerCurl, plannedSets: 2, durationS: [20, 30], rpe: [6, 7], restSeconds: 45, sideMode: 'per_side', loadIncrementKg: 1, tempo: controlled(0, 0, 0, 0), notes: 'Elbow near 90°. Strong, controlled and pain-free; not a maximal hold.' },
         ],
       },
     ],
   },
   {
     slot: 'B',
-    name: 'Hybrid B â€” Hinge + Vertical + Dips',
-    notes: `${HYBRID_PROGRAM_TAG} B Â· V2.1\n\nHinge + vertical push/pull + dips + intervals. ~70â€“75 min.\n${DAY_RULES}`,
+    name: 'Hybrid B — Hinge + Vertical + Dips',
+    notes: `${HYBRID_PROGRAM_TAG} B · V2.1\n\nHinge + vertical push/pull + dips + intervals. ~70–75 min.\n${DAY_RULES}`,
     blocks: [
       {
         key: 'warmup', role: 'warmup', format: 'straight',
-        notes: 'Add 3â€“5 minutes easy bike and hinge preparation as needed.',
+        notes: 'Add 3–5 minutes easy bike and hinge preparation as needed.',
         items: [{ exerciseId: SYS.externalRotation, plannedSets: 1, reps: [12, 12], rpe: [4, 5], restSeconds: 30, sideMode: 'per_side', tempo: controlled(2, 0, 2, 0), notes: 'Light band. Elbow pinned.' }],
       },
       {
@@ -125,7 +125,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
         key: 'conditioning', role: 'conditioning', format: 'interval', roundsInitial: 6, roundsMax: 6, restAfterRoundS: 0,
         interval: { prepareS: 10, workS: 30, recoveryS: 60, rounds: 6, targetRpe: [8, 8] },
         notes: 'Rower, bike or SkiErg. Fast work is RPE 8, not an all-out sprint.',
-        items: [{ exerciseId: SYS.rowingMachine, plannedSets: 1, durationS: [540, 540], rpe: [8, 8], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: 'Use the linked block timer: 6 Ã— 30 s fast / 60 s easy.' }],
+        items: [{ exerciseId: SYS.rowingMachine, plannedSets: 1, durationS: [540, 540], rpe: [8, 8], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: 'Use the linked block timer: 6 × 30 s fast / 60 s easy.' }],
       },
       {
         key: 'tendon_rear_delt', role: 'tendon', format: 'straight',
@@ -139,17 +139,17 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   },
   {
     slot: 'C',
-    name: 'Hybrid C â€” Unilateral / Athletic',
-    notes: `${HYBRID_PROGRAM_TAG} C Â· V2.1\n\nUnilateral hinge, TRX row, anti-rotation, carries and a short finisher. ~70 min.\n${DAY_RULES}`,
+    name: 'Hybrid C — Unilateral / Athletic',
+    notes: `${HYBRID_PROGRAM_TAG} C · V2.1\n\nUnilateral hinge, TRX row, anti-rotation, carries and a short finisher. ~70 min.\n${DAY_RULES}`,
     blocks: [
       {
         key: 'warmup', role: 'warmup', format: 'straight',
-        notes: '3â€“5 minutes easy cyclical work, then one easy hinge and squat preparation round.',
+        notes: '3–5 minutes easy cyclical work, then one easy hinge and squat preparation round.',
         items: [{ exerciseId: SYS.externalRotation, plannedSets: 1, reps: [12, 12], rpe: [4, 5], restSeconds: 30, sideMode: 'per_side', tempo: controlled(2, 0, 2, 0), notes: 'Light band. Elbow pinned. Warm-up, not fatigue work.' }],
       },
       {
         key: 'strength', role: 'strength', format: 'straight',
-        items: [{ exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load. Log both legs together. Back squat is on day A â€” do not add another squat here.' }],
+        items: [{ exerciseId: SYS.singleLegRdl, plannedSets: 3, reps: [8, 8], rpe: [7, 8], restSeconds: 90, sideMode: 'per_leg', loadIncrementKg: 1, tempo: controlled(3, 1, 1, 0), notes: 'Balance, hinge and pelvis control come before load. Log both legs together. Back squat is on day A — do not add another squat here.' }],
       },
       {
         key: 'unilateral_push_pull', role: 'assistance', format: 'superset', restAfterRoundS: 75,
@@ -180,12 +180,12 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
   },
   {
     slot: 'D',
-    name: 'Hybrid D â€” Longevity',
-    notes: `${HYBRID_PROGRAM_TAG} D Â· V2.1\n\nIntentionally easier: functional circuit, Zone 2 and focused tendon work. Circuit RPE 6â€“7. Do not place this day immediately after C.`,
+    name: 'Hybrid D — Longevity',
+    notes: `${HYBRID_PROGRAM_TAG} D · V2.1\n\nIntentionally easier: functional circuit, Zone 2 and focused tendon work. Circuit RPE 6–7. Do not place this day immediately after C.`,
     blocks: [
       {
         key: 'circuit', role: 'conditioning', format: 'circuit', roundsInitial: 3, roundsMax: 3, restAfterRoundS: 75,
-        notes: 'Three rounds. Keep RPE 6â€“7. No dips â€” shoulders rest.',
+        notes: 'Three rounds. Keep RPE 6–7. No dips — shoulders rest.',
         items: [
           { exerciseId: SYS.gobletSquat, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(2, 0, 1, 0) },
           { exerciseId: SYS.invertedRow, plannedSets: 1, reps: [10, 10], rpe: [6, 7], restSeconds: 0, tempo: controlled(3, 0, 1, 1), notes: 'TRX low row or bar. Easy version of the day C work.' },
@@ -196,7 +196,7 @@ const definitions: Omit<ProgramTemplate, 'items'>[] = [
       },
       {
         key: 'zone2', role: 'zone_2', format: 'straight',
-        items: [{ exerciseId: SYS.stationaryBike, plannedSets: 1, durationS: [1800, 2400], rpe: [4, 6], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: '30â€“40 min. Talk test: you can still speak in sentences.' }],
+        items: [{ exerciseId: SYS.stationaryBike, plannedSets: 1, durationS: [1800, 2400], rpe: [4, 6], restSeconds: 0, tempo: controlled(0, 0, 0, 0), notes: '30–40 min. Talk test: you can still speak in sentences.' }],
       },
       {
         key: 'tendon', role: 'tendon', format: 'straight',

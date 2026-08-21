@@ -13,8 +13,18 @@ import {
 } from './hybrid4day'
 
 describe('Hybrid V2 canonical recipe', () => {
+  it('keeps unicode dashes in day names instead of mojibake', () => {
+    expect(HYBRID_TEMPLATES.map((row) => row.name)).toEqual([
+      'Hybrid A \u2014 Squat + Push/Pull + Carry',
+      'Hybrid B \u2014 Hinge + Vertical + Dips',
+      'Hybrid C \u2014 Unilateral / Athletic',
+      'Hybrid D \u2014 Longevity',
+    ])
+    expect(HYBRID_TEMPLATES.some((row) => row.name.includes('\u00e2') || row.notes.includes('\u00e2'))).toBe(false)
+  })
+
   it('tags every template with a unique source slot', () => {
-    expect(HYBRID_SOURCE_VERSION).toBe(4)
+    expect(HYBRID_SOURCE_VERSION).toBe(5)
     expect(HYBRID_TEMPLATES.map((row) => hybridSlotFromNotes(row.notes))).toEqual(['A', 'B', 'C', 'D'])
     expect(HYBRID_TEMPLATES.every((row) => row.notes.startsWith(HYBRID_PROGRAM_TAG))).toBe(true)
   })
@@ -115,7 +125,7 @@ describe('Hybrid V2 canonical recipe', () => {
     })
     expect(upgrade.created).toBe(false)
     expect(upgrade.plan.id).toBe('plan-existing')
-    expect(upgrade.plan.source_version).toBe(4)
+    expect(upgrade.plan.source_version).toBe(5)
     expect(Object.values(upgrade.templates).map((row) => row.id)).toEqual([
       'template-A', 'template-B', 'template-C', 'template-D',
     ])

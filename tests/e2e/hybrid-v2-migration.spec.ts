@@ -100,7 +100,7 @@ test.describe('Hybrid V1 → V2 direct migration', () => {
 
     const first = await readRecipe(client, planId, templateIds)
     expect(first.plan?.id).toBe(planId)
-    expect(first.plan?.source_version).toBe(4)
+    expect(first.plan?.source_version).toBe(5)
     expect(first.templates.map((row) => row.id)).toEqual([
       templateIds.A, templateIds.B, templateIds.C, templateIds.D,
     ])

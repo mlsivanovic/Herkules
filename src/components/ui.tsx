@@ -132,10 +132,10 @@ export function NotesDisclosure({
         aria-controls={open ? panelId : undefined}
         onClick={onToggle}
       >
-        <IconNote className="notes-toggle__icon" width={16} height={16} />
+        <IconNote className="notes-toggle__icon" width={14} height={14} />
         <span className="notes-toggle__label">{label}</span>
         {showPreview ? <span className="notes-toggle__preview">{previewText}</span> : null}
-        <IconChevronDown className="notes-toggle__chevron" width={16} height={16} />
+        <IconChevronDown className="notes-toggle__chevron" width={14} height={14} />
       </button>
       {open && children ? (
         <div className="notes-panel" id={panelId}>

@@ -19,6 +19,11 @@ export const WORKOUT_CSV_HEADERS = [
   'distance_m',
   'set_rpe',
   'set_notes',
+  'round_index',
+  'side',
+  'direction',
+  'is_warmup',
+  'completed_at',
 ] as const
 
 export interface WorkoutCsvRow {
@@ -37,6 +42,11 @@ export interface WorkoutCsvRow {
   distance_m: string
   set_rpe: string
   set_notes: string
+  round_index: string
+  side: string
+  direction: string
+  is_warmup: string
+  completed_at: string
 }
 
 function escapeCell(value: string): string {
@@ -44,7 +54,7 @@ function escapeCell(value: string): string {
   return value
 }
 
-function cell(value: string | number | null | undefined): string {
+function cell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
   return String(value)
 }
@@ -131,13 +141,19 @@ export function serializeWorkoutCsv(sessions: SessionDoc[]): string {
           '',
           '',
           '',
+          '',
+          '',
+          '',
+          '',
+          '',
         ].join(','),
       )
       continue
     }
 
     for (const exercise of session.session_exercises) {
-      const sets = exercise.sets.length > 0 ? exercise.sets : [null]
+      const completedSets = exercise.sets.filter((set) => set.completed_at !== null)
+      const sets = completedSets.length > 0 ? completedSets : [null]
       for (const set of sets) {
         lines.push(
           [
@@ -156,6 +172,11 @@ export function serializeWorkoutCsv(sessions: SessionDoc[]): string {
             set ? cell(set.distance_m) : '',
             set ? cell(set.rpe) : '',
             set ? escapeCell(set.notes ?? '') : '',
+            set ? cell(set.round_index) : '',
+            set ? cell(set.side) : '',
+            set ? cell(set.direction) : '',
+            set ? cell(set.is_warmup) : '',
+            set ? cell(set.completed_at) : '',
           ].join(','),
         )
       }
@@ -185,6 +206,7 @@ const MEASUREMENTS: ExerciseMeasurement[] = [
   'duration',
   'distance_duration',
   'weight_duration',
+  'weight_distance',
 ]
 
 function asStatus(value: string): SessionStatus {
@@ -234,6 +256,11 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
     distance_m: index('distance_m'),
     set_rpe: index('set_rpe'),
     set_notes: index('set_notes'),
+    round_index: index('round_index'),
+    side: index('side'),
+    direction: index('direction'),
+    is_warmup: index('is_warmup'),
+    completed_at: index('completed_at'),
   }
 
   if (col.workout_name < 0 && col.session_id < 0) {
@@ -284,15 +311,26 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
       weight_kg: asNumber(take(row, 'weight_kg')),
       reps: asInt(take(row, 'reps')),
       duration_s: asInt(take(row, 'duration_s')),
-      distance_m: asInt(take(row, 'distance_m')),
+      distance_m: asNumber(take(row, 'distance_m')),
       rpe: asInt(take(row, 'set_rpe')),
       notes: take(row, 'set_notes') || null,
-      is_warmup: false,
-      completed_at: `${session.date}T12:00:00.000Z`,
+      is_warmup: take(row, 'is_warmup') === 'true',
+      round_index: asInt(take(row, 'round_index')),
+      side: asSide(take(row, 'side')),
+      direction: asDirection(take(row, 'direction')),
+      completed_at: take(row, 'completed_at') || `${session.date}T12:00:00.000Z`,
     })
   })
 
   return [...bySession.values()]
+}
+
+function asSide(value: string): SetRow['side'] {
+  return value === 'left' || value === 'right' ? value : null
+}
+
+function asDirection(value: string): SetRow['direction'] {
+  return value === 'pronation' || value === 'supination' ? value : null
 }
 
 export function matchExercise(

@@ -7,13 +7,14 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
-import { formatDuration, formatWeight, formatDistance } from '../lib/units'
+import { distanceForInput, formatDuration, formatWeight, formatDistance, weightForInput } from '../lib/units'
 import { previousSetsForExercise } from '../lib/metrics'
 import { timerCue } from '../lib/cues'
 import { moveIndex, supersetPartners } from '../lib/reorder'
@@ -22,6 +23,7 @@ import { EmptyState, Loader, Modal } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { PlateCalculatorModal, WarmupModal } from '../components/Calculators'
 import { IntervalTimerModal } from '../components/IntervalTimer'
+import { isBlockRoundComplete, isSetGroupComplete, progressionSuggestions } from '../lib/prescription'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
   IconGrip,
@@ -62,6 +64,7 @@ export function Workout() {
   const [announce, setAnnounce] = useState('')
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const activeId = active?.id
+  const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
 
   useEffect(() => {
     if (activeId) setCollapsedIds(readCollapsed(activeId))
@@ -173,11 +176,35 @@ export function Workout() {
         />
       ) : (
         <div className="stack">
-          {active.session_exercises.map((se, index) => (
-            <ExerciseCard
+          {(active.session_blocks ?? [])
+            .filter((block) => !active.session_exercises.some((exercise) => exercise.session_block_id === block.id))
+            .map((block) => (
+              <div key={block.id} className="card workout-block-head">
+                <span className="badge badge--planned">{block.role.replace('_', ' ')}</span>
+                <strong>{block.format}</strong>
+                {block.notes ? <small className="muted">{block.notes}</small> : null}
+              </div>
+            ))}
+          {active.session_exercises.map((se, index) => {
+            const block = active.session_blocks?.find((row) => row.id === se.session_block_id) ?? null
+            const previous = index > 0 ? active.session_exercises[index - 1] : null
+            const showBlock = block && previous?.session_block_id !== block.id
+            return (
+            <Fragment key={se.id}>
+              {showBlock ? (
+                <div className="workout-block-head">
+                  <span className="badge badge--neutral">{block.role.replace('_', ' ')}</span>
+                  <strong>{block.format}</strong>
+                  {block.format === 'circuit' ? <small className="muted">{block.rounds_initial} rounds · {block.rest_after_round_s ?? 0}s after each round</small> : null}
+                  {block.format === 'interval' ? <button type="button" className="btn btn--small" onClick={() => setIntervalsOpen(true)}>Open {block.interval_rounds}×{block.interval_work_s}/{block.interval_recovery_s} timer</button> : null}
+                  {block.notes ? <small className="muted">{block.notes}</small> : null}
+                </div>
+              ) : null}
+              <ExerciseCard
               key={se.id}
               session={active}
               exercise={se}
+              block={block}
               itemRef={reorder.setItemRef(index)}
               handleProps={reorder.getHandleProps(index)}
               gripProps={reorder.getHandleProps(index, { immediate: true })}
@@ -202,7 +229,8 @@ export function Workout() {
               onSwap={() => setSwapTarget(se.id)}
               onRestStart={(seconds) => setRestRemaining(seconds)}
             />
-          ))}
+            </Fragment>
+          )})}
           <button type="button" className="btn" onClick={() => setPickerMode('add')}>
             <IconPlus width={18} height={18} /> Add exercise
           </button>
@@ -220,7 +248,17 @@ export function Workout() {
         />
       ) : null}
 
-      {intervalsOpen ? <IntervalTimerModal onClose={() => setIntervalsOpen(false)} /> : null}
+      {intervalsOpen ? (
+        <IntervalTimerModal
+          onClose={() => setIntervalsOpen(false)}
+          initialConfig={intervalBlock ? {
+            prepare: intervalBlock.interval_prepare_s ?? 10,
+            work: intervalBlock.interval_work_s ?? 30,
+            rest: intervalBlock.interval_recovery_s ?? 60,
+            rounds: intervalBlock.interval_rounds ?? intervalBlock.rounds_initial,
+          } : undefined}
+        />
+      ) : null}
 
       {pickerMode === 'add' ? (
         <ExercisePicker
@@ -457,9 +495,39 @@ function countCompletedSets(session: SessionDoc): number {
   )
 }
 
+function rangeLabel(min: number | null | undefined, max: number | null | undefined): string {
+  if (min == null && max == null) return '—'
+  if (min == null) return String(max)
+  if (max == null || min === max) return String(min)
+  return `${min}–${max}`
+}
+
+function prescriptionLabel(
+  exercise: SessionExerciseDoc,
+  units: 'metric' | 'imperial',
+): string {
+  const sets = exercise.planned_sets
+  if (exercise.measurement_snapshot === 'weight_reps' || exercise.measurement_snapshot === 'reps') {
+    const reps = rangeLabel(exercise.target_reps_min ?? exercise.target_reps, exercise.target_reps_max ?? exercise.target_reps)
+    const load = exercise.target_weight_kg != null ? ` @ ${formatWeight(exercise.target_weight_kg, units)}` : ''
+    return `${sets} × ${reps} reps${load}`
+  }
+  if (exercise.measurement_snapshot === 'duration' || exercise.measurement_snapshot === 'weight_duration') {
+    const duration = rangeLabel(exercise.target_duration_min_s ?? exercise.target_duration_s, exercise.target_duration_max_s ?? exercise.target_duration_s)
+    const load = exercise.target_weight_kg != null ? `${formatWeight(exercise.target_weight_kg, units)} × ` : ''
+    return `${sets} × ${load}${duration}s`
+  }
+  const distance = rangeLabel(exercise.target_distance_min_m ?? exercise.target_distance_m, exercise.target_distance_max_m ?? exercise.target_distance_m)
+  const load = exercise.measurement_snapshot === 'weight_distance' && exercise.target_weight_kg != null
+    ? `${formatWeight(exercise.target_weight_kg, units)} × `
+    : ''
+  return `${sets} × ${load}${distance} m`
+}
+
 function ExerciseCard({
   session,
   exercise,
+  block,
   itemRef,
   handleProps,
   gripProps,
@@ -473,6 +541,7 @@ function ExerciseCard({
 }: {
   session: SessionDoc
   exercise: SessionExerciseDoc
+  block: NonNullable<SessionDoc['session_blocks']>[number] | null
   itemRef: (el: HTMLElement | null) => void
   handleProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
   gripProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
@@ -510,7 +579,16 @@ function ExerciseCard({
   function handleComplete(next: SetRow) {
     const wasCompleted = (exercise.sets.find((s) => s.id === next.id)?.completed_at ?? null) !== null
     void store.upsertSet(session.id, next)
-    if (!wasCompleted && next.completed_at !== null) {
+    if (!wasCompleted && next.completed_at !== null && isSetGroupComplete(exercise.sets, next)) {
+      if (block?.format === 'interval') return
+      if (block?.format === 'circuit' || block?.format === 'superset') {
+        const blockExercises = session.session_exercises.filter((row) => row.session_block_id === block.id)
+        if (isBlockRoundComplete(blockExercises, next)) {
+          const rest = block.rest_after_round_s ?? exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90
+          if (rest > 0) onRestStart(rest)
+        }
+        return
+      }
       onRestStart(exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90)
     }
   }
@@ -605,6 +683,20 @@ function ExerciseCard({
         </div>
       ) : null}
 
+      <div className="row row--wrap workout-prescription">
+        <span className="badge badge--neutral">{prescriptionLabel(exercise, units)}</span>
+        {exercise.target_rpe_min != null || exercise.target_rpe_max != null ? (
+          <span className="badge badge--neutral">RPE {rangeLabel(exercise.target_rpe_min, exercise.target_rpe_max)}</span>
+        ) : null}
+        {exercise.target_rir_min != null || exercise.target_rir_max != null ? (
+          <span className="badge badge--neutral">RIR {rangeLabel(exercise.target_rir_min, exercise.target_rir_max)}</span>
+        ) : null}
+        {exercise.side_mode && exercise.side_mode !== 'bilateral' ? <span className="badge badge--neutral">{exercise.side_mode === 'per_leg' ? 'per leg' : 'per side'}</span> : null}
+        {exercise.tempo_intent === 'explosive' ? <span className="badge badge--in-progress">Explosive intent</span> : null}
+        {block?.role === 'warmup' ? <span className="badge badge--planned">Warm-up</span> : null}
+        {block?.role === 'tendon' ? <span className="badge badge--planned">Tendon</span> : null}
+      </div>
+
       {expanded ? (
         <>
       <div className="exercise-meta-row">
@@ -684,6 +776,8 @@ function ExerciseCard({
                 return formatDuration(set.duration_s ?? 0)
               if (exercise.measurement_snapshot === 'weight_duration')
                 return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDuration(set.duration_s ?? 0)}`
+              if (exercise.measurement_snapshot === 'weight_distance')
+                return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDistance(set.distance_m ?? 0, units)}`
               return `${formatDistance(set.distance_m ?? 0, units)} in ${formatDuration(set.duration_s ?? 0)}`
             })
             .join(', ')}
@@ -700,6 +794,16 @@ function ExerciseCard({
             set={set}
             measurement={exercise.measurement_snapshot}
             units={units}
+            suggestion={{
+              weight: weightForInput(exercise.target_weight_kg ?? previous?.[setIndex]?.weight_kg ?? null, units),
+              reps: exercise.target_reps_min != null || exercise.target_reps_max != null
+                ? rangeLabel(exercise.target_reps_min, exercise.target_reps_max)
+                : previous?.[setIndex]?.reps != null ? String(previous[setIndex]?.reps) : '',
+              duration: exercise.target_duration_min_s != null || exercise.target_duration_max_s != null
+                ? `${rangeLabel(exercise.target_duration_min_s, exercise.target_duration_max_s)}s`
+                : previous?.[setIndex]?.duration_s != null ? formatDuration(previous[setIndex]?.duration_s ?? 0) : '',
+              distance: distanceForInput(exercise.target_distance_m ?? previous?.[setIndex]?.distance_m ?? null, units),
+            }}
             onChange={handleSetChange}
             onComplete={handleComplete}
             onDelete={() => void store.deleteSet(session.id, exercise.id, set.id)}
@@ -754,9 +858,13 @@ function FinishModal({
   const [notes, setNotes] = useState(session.notes ?? '')
   const [rpe, setRpe] = useState<string>(session.rpe === null ? '' : String(session.rpe))
   const completed = countCompletedSets(session)
+  const suggestions = progressionSuggestions(session)
+  const store = useStore()
+  const [acceptProgression, setAcceptProgression] = useState(suggestions.length > 0)
 
   async function submit() {
     if (completed === 0 && !window.confirm('Finish without any completed sets?')) return
+    if (acceptProgression) await store.applyProgressionSuggestions(session.id)
     await onFinish({
       notes: notes.trim() === '' ? null : notes.trim(),
       rpe: rpe === '' ? null : Number(rpe),
@@ -790,6 +898,17 @@ function FinishModal({
       <p className="muted">
         {completed} completed set(s). {formatDuration(elapsedOf(session))} total.
       </p>
+      {suggestions.length > 0 ? (
+        <label className="card row" style={{ alignItems: 'flex-start' }}>
+          <input type="checkbox" checked={acceptProgression} onChange={(event) => setAcceptProgression(event.target.checked)} />
+          <span>
+            <strong>Apply double progression</strong>
+            <small className="muted" style={{ display: 'block' }}>
+              {suggestions.map((row) => `${row.exerciseName}: ${row.fromWeightKg} → ${row.toWeightKg} kg`).join(' · ')}
+            </small>
+          </span>
+        </label>
+      ) : null}
       {error ? (
         <p className="field-error" role="alert">
           {error}

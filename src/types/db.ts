@@ -8,7 +8,21 @@ export type ExerciseMeasurement =
   | 'duration'
   | 'distance_duration'
   | 'weight_duration'
+  | 'weight_distance'
 export type ExerciseBlockRole = 'gym' | 'cardio' | 'tendon'
+export type WorkoutBlockRole =
+  | 'warmup'
+  | 'strength'
+  | 'assistance'
+  | 'power'
+  | 'carry'
+  | 'core'
+  | 'conditioning'
+  | 'zone_2'
+  | 'tendon'
+export type WorkoutBlockFormat = 'straight' | 'superset' | 'circuit' | 'interval'
+export type SideMode = 'bilateral' | 'per_side' | 'per_leg'
+export type TempoIntent = 'controlled' | 'explosive'
 export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
 export type SessionStatus = 'in_progress' | 'completed' | 'skipped'
@@ -61,6 +75,10 @@ export interface ExerciseRow {
   equipment: string[]
   instructions: string | null
   video_url: string | null
+  source_title?: string | null
+  source_provider?: string | null
+  source_url?: string | null
+  source_verified_at?: string | null
   is_archived: boolean
   created_at: string
   updated_at: string
@@ -71,6 +89,8 @@ export interface TrainingPlanRow {
   owner_id: string
   name: string
   notes: string | null
+  source_key?: string | null
+  source_version?: number
   created_at: string
   updated_at: string
 }
@@ -83,6 +103,7 @@ export interface TemplateRow {
   /** null = unassigned; a routine belongs to at most one plan */
   plan_id: string | null
   plan_position: number
+  source_slot?: 'A' | 'B' | 'C' | 'D' | null
   created_at: string
   updated_at: string
 }
@@ -103,6 +124,46 @@ export interface TemplateItemRow {
   notes: string | null
   superset_group: string | null
   block_role: ExerciseBlockRole
+  block_id?: string | null
+  block_position?: number
+  target_reps_min?: number | null
+  target_reps_max?: number | null
+  target_duration_min_s?: number | null
+  target_duration_max_s?: number | null
+  target_distance_min_m?: number | null
+  target_distance_max_m?: number | null
+  target_rpe_min?: number | null
+  target_rpe_max?: number | null
+  target_rir_min?: number | null
+  target_rir_max?: number | null
+  side_mode?: SideMode
+  directions?: number
+  load_increment_kg?: number | null
+  tempo_eccentric?: number | null
+  tempo_stretch_pause?: number | null
+  tempo_concentric?: number | null
+  tempo_contracted_pause?: number | null
+  tempo_intent?: TempoIntent
+  created_at: string
+  updated_at: string
+}
+
+export interface TemplateBlockRow {
+  id: string
+  template_id: string
+  position: number
+  role: WorkoutBlockRole
+  format: WorkoutBlockFormat
+  rounds_initial: number
+  rounds_max: number
+  rest_after_round_s: number | null
+  notes: string | null
+  interval_prepare_s: number | null
+  interval_work_s: number | null
+  interval_recovery_s: number | null
+  interval_rounds: number | null
+  target_rpe_min: number | null
+  target_rpe_max: number | null
   created_at: string
   updated_at: string
 }
@@ -122,7 +183,8 @@ export interface RecurrenceRuleRow {
 export interface ScheduleItemRow {
   id: string
   owner_id: string
-  template_id: string
+  template_id: string | null
+  plan_id?: string | null
   scheduled_date: string | null
   recurrence_rule_id: string | null
   created_at: string
@@ -141,6 +203,9 @@ export interface SessionRow {
   ended_at: string | null
   notes: string | null
   rpe: number | null
+  plan_id?: string | null
+  cycle_week?: number | null
+  is_deload?: boolean
   created_at: string
   updated_at: string
 }
@@ -158,6 +223,52 @@ export interface SessionExerciseRow {
   notes: string | null
   superset_group: string | null
   block_role: ExerciseBlockRole
+  template_item_id?: string | null
+  session_block_id?: string | null
+  block_position?: number
+  target_weight_kg?: number | null
+  target_reps?: number | null
+  target_duration_s?: number | null
+  target_distance_m?: number | null
+  target_reps_min?: number | null
+  target_reps_max?: number | null
+  target_duration_min_s?: number | null
+  target_duration_max_s?: number | null
+  target_distance_min_m?: number | null
+  target_distance_max_m?: number | null
+  target_rpe_min?: number | null
+  target_rpe_max?: number | null
+  target_rir_min?: number | null
+  target_rir_max?: number | null
+  side_mode?: SideMode
+  directions?: number
+  load_increment_kg?: number | null
+  tempo_eccentric?: number | null
+  tempo_stretch_pause?: number | null
+  tempo_concentric?: number | null
+  tempo_contracted_pause?: number | null
+  tempo_intent?: TempoIntent
+  created_at: string
+  updated_at: string
+}
+
+export interface SessionBlockRow {
+  id: string
+  session_id: string
+  template_block_id: string | null
+  position: number
+  role: WorkoutBlockRole
+  format: WorkoutBlockFormat
+  rounds_initial: number
+  rounds_max: number
+  rest_after_round_s: number | null
+  notes: string | null
+  interval_prepare_s: number | null
+  interval_work_s: number | null
+  interval_recovery_s: number | null
+  interval_rounds: number | null
+  target_rpe_min: number | null
+  target_rpe_max: number | null
   created_at: string
   updated_at: string
 }
@@ -173,6 +284,9 @@ export interface SetRow {
   rpe: number | null
   notes: string | null
   is_warmup: boolean
+  round_index?: number | null
+  side?: 'left' | 'right' | null
+  direction?: 'pronation' | 'supination' | null
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -184,7 +298,20 @@ export interface SessionExerciseDoc extends SessionExerciseRow {
 
 /** Session document as stored locally and fetched with nested selects. */
 export interface SessionDoc extends SessionRow {
+  session_blocks?: SessionBlockRow[]
   session_exercises: SessionExerciseDoc[]
+}
+
+export interface AerobicActivityRow {
+  id: string
+  owner_id: string
+  recorded_on: string
+  activity_type: 'walking' | 'cycling' | 'rowing' | 'other'
+  duration_s: number
+  moderate: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 /** Tables that can appear in the sync outbox. */
@@ -193,14 +320,17 @@ export type SyncTable =
   | 'exercises'
   | 'training_plans'
   | 'workout_templates'
+  | 'template_blocks'
   | 'template_items'
   | 'recurrence_rules'
   | 'schedule_items'
   | 'workout_sessions'
+  | 'session_blocks'
   | 'session_exercises'
   | 'workout_sets'
   | 'body_weight_entries'
   | 'tendon_checkins'
+  | 'aerobic_activities'
 
 export type OutboxOp =
   | { kind: 'upsert'; table: SyncTable; row: Record<string, unknown> }

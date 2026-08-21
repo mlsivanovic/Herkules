@@ -55,6 +55,7 @@ export function SetEditor({
   onChange,
   onComplete,
   onDelete,
+  suggestion,
 }: {
   index: number
   set: SetRow
@@ -64,6 +65,7 @@ export function SetEditor({
   onChange(next: SetRow): void
   onComplete(next: SetRow): void
   onDelete(): void
+  suggestion?: Partial<Draft>
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFromSet(set, units))
   const lastEmitted = useRef<SetRow>(set)
@@ -101,11 +103,16 @@ export function SetEditor({
 
   const completed = set.completed_at !== null
   const warmup = set.is_warmup === true
+  const identity = [
+    set.round_index ?? index + 1,
+    set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : null,
+    set.direction === 'pronation' ? 'P' : set.direction === 'supination' ? 'S' : null,
+  ].filter(Boolean).join('·')
 
   return (
     <div className={`set-row ${completed ? 'set-row--done' : ''}${warmup ? ' set-row--warmup' : ''}`}>
       <span className="set-index" aria-label={`Set ${index + 1}${warmup ? ' (warm-up)' : ''}`}>
-        {index + 1}
+        {identity}
         {warmup ? <span className="set-warmup-badge" title="Warm-up set">W</span> : null}
       </span>
 
@@ -118,7 +125,7 @@ export function SetEditor({
                 className="input input--cell"
                 type="text"
                 inputMode="decimal"
-                placeholder={`${weightUnitLabel(units)}`}
+                placeholder={suggestion?.weight || `${weightUnitLabel(units)}`}
                 value={draft.weight}
                 disabled={readonly}
                 onChange={(e) => apply({ weight: e.target.value })}
@@ -130,7 +137,7 @@ export function SetEditor({
                 className="input input--cell"
                 type="text"
                 inputMode="numeric"
-                placeholder="reps"
+                placeholder={suggestion?.reps || 'reps'}
                 value={draft.reps}
                 disabled={readonly}
                 onChange={(e) => apply({ reps: e.target.value })}
@@ -146,7 +153,7 @@ export function SetEditor({
               className="input input--cell"
               type="text"
               inputMode="numeric"
-              placeholder="reps"
+              placeholder={suggestion?.reps || 'reps'}
               value={draft.reps}
               disabled={readonly}
               onChange={(e) => apply({ reps: e.target.value })}
@@ -154,14 +161,14 @@ export function SetEditor({
           </label>
         ) : null}
 
-        {measurement === 'weight_duration' ? (
+        {measurement === 'weight_duration' || measurement === 'weight_distance' ? (
           <label className="set-field">
             <span className="visually-hidden">Weight in {weightUnitLabel(units)}</span>
             <input
               className="input input--cell"
               type="text"
               inputMode="decimal"
-              placeholder={`${weightUnitLabel(units)}`}
+              placeholder={suggestion?.weight || `${weightUnitLabel(units)}`}
               value={draft.weight}
               disabled={readonly}
               onChange={(e) => apply({ weight: e.target.value })}
@@ -175,7 +182,7 @@ export function SetEditor({
             <input
               className="input input--cell"
               type="text"
-              placeholder="mm:ss"
+              placeholder={suggestion?.duration || 'mm:ss'}
               value={draft.duration}
               disabled={readonly}
               onChange={(e) => apply({ duration: e.target.value })}
@@ -183,14 +190,14 @@ export function SetEditor({
           </label>
         ) : null}
 
-        {measurement === 'distance_duration' ? (
+        {measurement === 'distance_duration' || measurement === 'weight_distance' ? (
           <label className="set-field">
             <span className="visually-hidden">Distance in {distanceUnitLabel(units)}</span>
             <input
               className="input input--cell"
               type="text"
               inputMode="decimal"
-              placeholder={distanceUnitLabel(units)}
+              placeholder={suggestion?.distance || distanceUnitLabel(units)}
               value={draft.distance}
               disabled={readonly}
               onChange={(e) => apply({ distance: e.target.value })}

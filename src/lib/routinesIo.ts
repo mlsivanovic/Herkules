@@ -7,6 +7,7 @@ import type {
   ExerciseMeasurement,
   ExerciseRow,
   TemplateItemRow,
+  TemplateBlockRow,
   TemplateRow,
 } from '../types/db'
 import { BACKUP_FORMAT } from './backup'
@@ -14,7 +15,7 @@ import { normalizeBlockRole } from './blockRole'
 import { matchExercise } from './csv'
 
 export const ROUTINES_FORMAT = 'herkules-routines'
-export const ROUTINES_VERSION = 1
+export const ROUTINES_VERSION = 2
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -26,6 +27,7 @@ const MEASUREMENTS: ExerciseMeasurement[] = [
   'duration',
   'distance_duration',
   'weight_duration',
+  'weight_distance',
 ]
 
 export interface RoutineExerciseSnapshot {
@@ -37,6 +39,14 @@ export interface RoutineExerciseSnapshot {
   equipment: string[]
   instructions: string | null
   video_url: string | null
+  source_title: string | null
+  source_provider: string | null
+  source_url: string | null
+  source_verified_at: string | null
+}
+
+export type RoutineBlockExport = Omit<TemplateBlockRow, 'id' | 'template_id' | 'created_at' | 'updated_at'> & {
+  id: string | null
 }
 
 export interface RoutineItemExport {
@@ -52,6 +62,26 @@ export interface RoutineItemExport {
   notes: string | null
   superset_group: string | null
   block_role: TemplateItemRow['block_role']
+  block_id: string | null
+  block_position: number
+  target_reps_min: number | null
+  target_reps_max: number | null
+  target_duration_min_s: number | null
+  target_duration_max_s: number | null
+  target_distance_min_m: number | null
+  target_distance_max_m: number | null
+  target_rpe_min: number | null
+  target_rpe_max: number | null
+  target_rir_min: number | null
+  target_rir_max: number | null
+  side_mode: NonNullable<TemplateItemRow['side_mode']>
+  directions: number
+  load_increment_kg: number | null
+  tempo_eccentric: number | null
+  tempo_stretch_pause: number | null
+  tempo_concentric: number | null
+  tempo_contracted_pause: number | null
+  tempo_intent: NonNullable<TemplateItemRow['tempo_intent']>
   exercise: RoutineExerciseSnapshot
 }
 
@@ -59,6 +89,7 @@ export interface RoutineExport {
   id: string | null
   name: string
   notes: string | null
+  blocks: RoutineBlockExport[]
   items: RoutineItemExport[]
 }
 
@@ -72,8 +103,10 @@ export interface RoutinesFile {
 export interface RoutineImportPlan {
   templates: TemplateRow[]
   items: TemplateItemRow[]
+  blocks: TemplateBlockRow[]
   newExercises: ExerciseRow[]
   itemIdsToDelete: string[]
+  blockIdsToDelete: string[]
   createdTemplates: number
   updatedTemplates: number
 }
@@ -86,6 +119,7 @@ export function serializeRoutines(
   templates: TemplateRow[],
   templateItems: TemplateItemRow[],
   exercises: ExerciseRow[],
+  templateBlocks: TemplateBlockRow[] = [],
 ): string {
   const byId = new Map(exercises.map((row) => [row.id, row]))
   const sorted = [...templates].sort((a, b) => a.name.localeCompare(b.name))
@@ -93,6 +127,10 @@ export function serializeRoutines(
     id: template.id,
     name: template.name,
     notes: template.notes,
+    blocks: templateBlocks
+      .filter((block) => block.template_id === template.id)
+      .sort((a, b) => a.position - b.position)
+      .map(({ template_id: _templateId, created_at: _createdAt, updated_at: _updatedAt, ...block }) => block),
     items: templateItems
       .filter((item) => item.template_id === template.id)
       .sort((a, b) => a.position - b.position)
@@ -113,6 +151,26 @@ export function serializeRoutines(
             notes: item.notes,
             superset_group: item.superset_group,
             block_role: normalizeBlockRole(item.block_role),
+            block_id: item.block_id ?? null,
+            block_position: item.block_position ?? item.position,
+            target_reps_min: item.target_reps_min ?? item.target_reps,
+            target_reps_max: item.target_reps_max ?? item.target_reps,
+            target_duration_min_s: item.target_duration_min_s ?? item.target_duration_s,
+            target_duration_max_s: item.target_duration_max_s ?? item.target_duration_s,
+            target_distance_min_m: item.target_distance_min_m ?? item.target_distance_m,
+            target_distance_max_m: item.target_distance_max_m ?? item.target_distance_m,
+            target_rpe_min: item.target_rpe_min ?? null,
+            target_rpe_max: item.target_rpe_max ?? null,
+            target_rir_min: item.target_rir_min ?? null,
+            target_rir_max: item.target_rir_max ?? null,
+            side_mode: item.side_mode ?? 'bilateral',
+            directions: item.directions ?? 1,
+            load_increment_kg: item.load_increment_kg ?? null,
+            tempo_eccentric: item.tempo_eccentric ?? null,
+            tempo_stretch_pause: item.tempo_stretch_pause ?? null,
+            tempo_concentric: item.tempo_concentric ?? null,
+            tempo_contracted_pause: item.tempo_contracted_pause ?? null,
+            tempo_intent: item.tempo_intent ?? 'controlled',
             exercise: snapshotExercise(exercise),
           } satisfies RoutineItemExport,
         ]
@@ -166,6 +224,7 @@ export function planRoutineImport(input: {
   catalog: ExerciseRow[]
   existingTemplates: TemplateRow[]
   existingItems: TemplateItemRow[]
+  existingBlocks?: TemplateBlockRow[]
   ownerId: string
   now: string
   newId: () => string
@@ -175,8 +234,10 @@ export function planRoutineImport(input: {
   const existingItemById = new Map(input.existingItems.map((row) => [row.id, row]))
   const newExercises: ExerciseRow[] = []
   const templates: TemplateRow[] = []
+  const blocks: TemplateBlockRow[] = []
   const items: TemplateItemRow[] = []
   const keepByTemplate = new Map<string, Set<string>>()
+  const keepBlocksByTemplate = new Map<string, Set<string>>()
   let createdTemplates = 0
   let updatedTemplates = 0
 
@@ -192,12 +253,29 @@ export function planRoutineImport(input: {
       notes: routine.notes,
       plan_id: previous?.plan_id ?? null,
       plan_position: previous?.plan_position ?? 0,
+      source_slot: previous?.source_slot ?? null,
       created_at: previous?.created_at ?? input.now,
       updated_at: input.now,
     })
 
     const keep = new Set<string>()
     keepByTemplate.set(templateId, keep)
+    const keepBlocks = new Set<string>()
+    keepBlocksByTemplate.set(templateId, keepBlocks)
+    const blockIdMap = new Map<string, string>()
+    for (const [blockIndex, block] of routine.blocks.entries()) {
+      const blockId = isUuid(block.id) ? block.id : input.newId()
+      keepBlocks.add(blockId)
+      if (block.id) blockIdMap.set(block.id, blockId)
+      blocks.push({
+        ...block,
+        id: blockId,
+        template_id: templateId,
+        position: Number.isFinite(block.position) ? block.position : blockIndex,
+        created_at: input.now,
+        updated_at: input.now,
+      })
+    }
 
     for (const [index, item] of routine.items.entries()) {
       let exercise = resolveExercise(item.exercise, catalog)
@@ -212,6 +290,10 @@ export function planRoutineImport(input: {
           equipment: item.exercise.equipment,
           instructions: item.exercise.instructions,
           video_url: item.exercise.video_url,
+          source_title: item.exercise.source_title,
+          source_provider: item.exercise.source_provider,
+          source_url: item.exercise.source_url,
+          source_verified_at: item.exercise.source_verified_at,
           is_archived: false,
           created_at: input.now,
           updated_at: input.now,
@@ -238,6 +320,26 @@ export function planRoutineImport(input: {
         notes: item.notes,
         superset_group: item.superset_group,
         block_role: normalizeBlockRole(item.block_role),
+        block_id: item.block_id ? blockIdMap.get(item.block_id) ?? null : null,
+        block_position: item.block_position,
+        target_reps_min: item.target_reps_min,
+        target_reps_max: item.target_reps_max,
+        target_duration_min_s: item.target_duration_min_s,
+        target_duration_max_s: item.target_duration_max_s,
+        target_distance_min_m: item.target_distance_min_m,
+        target_distance_max_m: item.target_distance_max_m,
+        target_rpe_min: item.target_rpe_min,
+        target_rpe_max: item.target_rpe_max,
+        target_rir_min: item.target_rir_min,
+        target_rir_max: item.target_rir_max,
+        side_mode: item.side_mode,
+        directions: item.directions,
+        load_increment_kg: item.load_increment_kg,
+        tempo_eccentric: item.tempo_eccentric,
+        tempo_stretch_pause: item.tempo_stretch_pause,
+        tempo_concentric: item.tempo_concentric,
+        tempo_contracted_pause: item.tempo_contracted_pause,
+        tempo_intent: item.tempo_intent,
         created_at: previousItem?.created_at ?? input.now,
         updated_at: input.now,
       })
@@ -251,11 +353,20 @@ export function planRoutineImport(input: {
     })
     .map((row) => row.id)
 
+  const blockIdsToDelete = (input.existingBlocks ?? [])
+    .filter((row) => {
+      const keep = keepBlocksByTemplate.get(row.template_id)
+      return keep !== undefined && !keep.has(row.id)
+    })
+    .map((row) => row.id)
+
   return {
     templates,
     items,
+    blocks,
     newExercises,
     itemIdsToDelete,
+    blockIdsToDelete,
     createdTemplates,
     updatedTemplates,
   }
@@ -318,6 +429,10 @@ function snapshotExercise(row: ExerciseRow): RoutineExerciseSnapshot {
     equipment: [...row.equipment],
     instructions: row.instructions,
     video_url: row.video_url,
+    source_title: row.source_title ?? null,
+    source_provider: row.source_provider ?? null,
+    source_url: row.source_url ?? row.video_url ?? null,
+    source_verified_at: row.source_verified_at ?? null,
   }
 }
 
@@ -347,6 +462,9 @@ function parseRoutine(value: unknown, index: number): RoutineExport {
     id: isUuid(row.id) ? row.id : null,
     name,
     notes: asOptionalString(row.notes),
+    blocks: Array.isArray(row.blocks)
+      ? row.blocks.map((block, blockIndex) => parseBlock(block, blockIndex))
+      : [],
     items: row.items.map((item, itemIndex) => parseItem(item, itemIndex, name)),
   }
 }
@@ -370,6 +488,26 @@ function parseItem(value: unknown, index: number, routineName: string): RoutineI
     notes: asOptionalString(row.notes),
     superset_group: asOptionalString(row.superset_group),
     block_role: normalizeBlockRole(row.block_role),
+    block_id: isUuid(row.block_id) ? row.block_id : null,
+    block_position: asNumber(row.block_position) ?? index,
+    target_reps_min: asNumber(row.target_reps_min) ?? asNumber(row.target_reps),
+    target_reps_max: asNumber(row.target_reps_max) ?? asNumber(row.target_reps),
+    target_duration_min_s: asNumber(row.target_duration_min_s) ?? asNumber(row.target_duration_s),
+    target_duration_max_s: asNumber(row.target_duration_max_s) ?? asNumber(row.target_duration_s),
+    target_distance_min_m: asNumber(row.target_distance_min_m) ?? asNumber(row.target_distance_m),
+    target_distance_max_m: asNumber(row.target_distance_max_m) ?? asNumber(row.target_distance_m),
+    target_rpe_min: asNumber(row.target_rpe_min),
+    target_rpe_max: asNumber(row.target_rpe_max),
+    target_rir_min: asNumber(row.target_rir_min),
+    target_rir_max: asNumber(row.target_rir_max),
+    side_mode: row.side_mode === 'per_side' || row.side_mode === 'per_leg' ? row.side_mode : 'bilateral',
+    directions: Math.max(1, Math.min(4, Math.round(asNumber(row.directions) ?? 1))),
+    load_increment_kg: asNumber(row.load_increment_kg),
+    tempo_eccentric: asNumber(row.tempo_eccentric),
+    tempo_stretch_pause: asNumber(row.tempo_stretch_pause),
+    tempo_concentric: asNumber(row.tempo_concentric),
+    tempo_contracted_pause: asNumber(row.tempo_contracted_pause),
+    tempo_intent: row.tempo_intent === 'explosive' ? 'explosive' : 'controlled',
     exercise: parseExerciseSnapshot(row.exercise, index, routineName),
   }
 }
@@ -396,6 +534,38 @@ function parseExerciseSnapshot(
     equipment: asStringArray(row.equipment),
     instructions: asOptionalString(row.instructions),
     video_url: asOptionalString(row.video_url),
+    source_title: asOptionalString(row.source_title),
+    source_provider: asOptionalString(row.source_provider),
+    source_url: asOptionalString(row.source_url) ?? asOptionalString(row.video_url),
+    source_verified_at: asOptionalString(row.source_verified_at),
+  }
+}
+
+function parseBlock(value: unknown, index: number): RoutineBlockExport {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`Routine block ${index + 1} is not an object.`)
+  }
+  const row = value as Partial<RoutineBlockExport>
+  const roles = ['warmup', 'strength', 'assistance', 'power', 'carry', 'core', 'conditioning', 'zone_2', 'tendon'] as const
+  const formats = ['straight', 'superset', 'circuit', 'interval'] as const
+  const role = roles.find((candidate) => candidate === row.role) ?? 'strength'
+  const format = formats.find((candidate) => candidate === row.format) ?? 'straight'
+  const roundsInitial = Math.max(1, Math.round(asNumber(row.rounds_initial) ?? 1))
+  return {
+    id: isUuid(row.id) ? row.id : null,
+    position: asNumber(row.position) ?? index,
+    role,
+    format,
+    rounds_initial: roundsInitial,
+    rounds_max: Math.max(roundsInitial, Math.round(asNumber(row.rounds_max) ?? roundsInitial)),
+    rest_after_round_s: asNumber(row.rest_after_round_s),
+    notes: asOptionalString(row.notes),
+    interval_prepare_s: asNumber(row.interval_prepare_s),
+    interval_work_s: asNumber(row.interval_work_s),
+    interval_recovery_s: asNumber(row.interval_recovery_s),
+    interval_rounds: asNumber(row.interval_rounds),
+    target_rpe_min: asNumber(row.target_rpe_min),
+    target_rpe_max: asNumber(row.target_rpe_max),
   }
 }
 

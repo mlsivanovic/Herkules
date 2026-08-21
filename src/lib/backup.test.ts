@@ -18,7 +18,7 @@ describe('backup', () => {
     })
     const restored = parseBackup(json)
     expect(restored.format).toBe(BACKUP_FORMAT)
-    expect(restored.version).toBe(2)
+    expect(restored.version).toBe(3)
     expect(restored.sessions).toHaveLength(1)
     expect(restored.sessions[0]?.name).toBe('Push')
     expect(restored.plans).toEqual([])
@@ -44,7 +44,7 @@ describe('backup', () => {
       plans: [],
       sessions: [],
       checkins: [],
-    }).replace('"version": 2', '"version": 99')
+    }).replace('"version": 3', '"version": 99')
     expect(() => parseBackup(json)).toThrow(/newer version/)
   })
 
@@ -88,7 +88,7 @@ describe('backup', () => {
       sessions: [],
       checkins: [],
     })
-      .replace('"version": 2', '"version": 1')
+      .replace('"version": 3', '"version": 1')
       .replace(/\n {2}"plans": \[\],\n/u, '\n')
     const restored = parseBackup(json)
     expect(restored.plans).toEqual([])

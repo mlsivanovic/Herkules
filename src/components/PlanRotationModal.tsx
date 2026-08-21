@@ -90,10 +90,8 @@ export function PlanRotationModal({
   return (
     <Modal title="Plan rotation" onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>
-        Rotates the plan days in order on the days you train.
-        {days.length === 4
-          ? ' 2×/week is days 1–2 then 3–4; 3× wraps; 4× is one of each per week.'
-          : null}
+        Adds training dates. On each date, the app resolves the next routine after the last
+        completed plan workout. Skipping a date does not advance the sequence.
       </p>
 
       <div className="row" role="group" aria-label="Days per week" style={{ marginBottom: '0.9rem' }}>
@@ -165,7 +163,7 @@ export function PlanRotationModal({
             {preview.slice(0, 8).map((row) => (
               <li key={`${row.date}-${row.dayIndex}`}>
                 <span>{formatDateShort(row.date)}</span>
-                <strong> {days[row.dayIndex]?.name ?? `Day ${row.dayIndex + 1}`}</strong>
+                <strong> Training slot {row.dayIndex + 1}</strong>
               </li>
             ))}
           </ul>

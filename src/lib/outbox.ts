@@ -10,14 +10,17 @@ const UPSERT_ORDER: SyncTable[] = [
   'exercises',
   'training_plans',
   'workout_templates',
+  'template_blocks',
   'template_items',
   'recurrence_rules',
   'schedule_items',
   'workout_sessions',
+  'session_blocks',
   'session_exercises',
   'workout_sets',
   'body_weight_entries',
   'tendon_checkins',
+  'aerobic_activities',
 ]
 
 /** Children before parents so deletes never violate FKs. */

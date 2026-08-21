@@ -3,19 +3,21 @@
 // that are absent from the file.
 import type {
   BodyWeightRow,
+  AerobicActivityRow,
   ExerciseRow,
   ProfileRow,
   RecurrenceRuleRow,
   ScheduleItemRow,
   SessionDoc,
   TemplateItemRow,
+  TemplateBlockRow,
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
 } from '../types/db'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 2
+export const BACKUP_VERSION = 3
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT
@@ -27,21 +29,28 @@ export interface BackupFile {
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   checkins: TendonCheckinRow[]
+  aerobicActivities: AerobicActivityRow[]
 }
 
-export function serializeBackup(
-  input: Omit<BackupFile, 'format' | 'version' | 'exported_at'>,
-): string {
+type BackupInput = Omit<
+  BackupFile,
+  'format' | 'version' | 'exported_at' | 'templateBlocks' | 'aerobicActivities'
+> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities'>>
+
+export function serializeBackup(input: BackupInput): string {
   const file: BackupFile = {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exported_at: new Date().toISOString(),
     ...input,
+    templateBlocks: input.templateBlocks ?? [],
+    aerobicActivities: input.aerobicActivities ?? [],
   }
   return JSON.stringify(file, null, 2)
 }
@@ -87,9 +96,24 @@ export function parseBackup(text: string): BackupFile {
   if (plans === null) {
     throw new Error('The backup is missing the "plans" list.')
   }
+  const templateBlocks = Array.isArray(file.templateBlocks)
+    ? file.templateBlocks
+    : file.version < 3
+      ? []
+      : null
+  const aerobicActivities = Array.isArray(file.aerobicActivities)
+    ? file.aerobicActivities
+    : file.version < 3
+      ? []
+      : null
+  if (templateBlocks === null || aerobicActivities === null) {
+    throw new Error('The backup is missing Hybrid V2 data.')
+  }
   return {
     ...(file as BackupFile),
     plans,
+    templateBlocks,
+    aerobicActivities,
     templates: (file.templates as TemplateRow[]).map(normalizeTemplate),
   }
 }

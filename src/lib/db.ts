@@ -5,6 +5,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { collapseOps, uniqueOpCount } from './outbox'
 import type {
+  AerobicActivityRow,
   BodyWeightRow,
   ExerciseRow,
   OutboxOp,
@@ -13,6 +14,7 @@ import type {
   ScheduleItemRow,
   SessionDoc,
   TemplateItemRow,
+  TemplateBlockRow,
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
@@ -23,12 +25,14 @@ export type StoreName =
   | 'exercises'
   | 'plans'
   | 'templates'
+  | 'templateBlocks'
   | 'templateItems'
   | 'rules'
   | 'schedules'
   | 'sessions'
   | 'bodyWeights'
   | 'checkins'
+  | 'aerobicActivities'
 
 interface DirtyRow {
   value: Record<string, unknown>
@@ -41,17 +45,19 @@ interface HerkulesDB extends DBSchema {
   exercises: { key: string; value: DirtyRow }
   plans: { key: string; value: DirtyRow }
   templates: { key: string; value: DirtyRow }
+  templateBlocks: { key: string; value: DirtyRow }
   templateItems: { key: string; value: DirtyRow }
   rules: { key: string; value: DirtyRow }
   schedules: { key: string; value: DirtyRow }
   sessions: { key: string; value: DirtyRow }
   bodyWeights: { key: string; value: DirtyRow }
   checkins: { key: string; value: DirtyRow }
+  aerobicActivities: { key: string; value: DirtyRow }
   outbox: { key: number; value: OutboxOp & { seq: number }; autoIncrement: true }
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 4
+const DB_VERSION = 6
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -83,6 +89,12 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         if (oldVersion < 4 && !db.objectStoreNames.contains('plans')) {
           db.createObjectStore('plans', { keyPath: 'value.id' })
         }
+        if (oldVersion < 5 && !db.objectStoreNames.contains('templateBlocks')) {
+          db.createObjectStore('templateBlocks', { keyPath: 'value.id' })
+        }
+        if (oldVersion < 6 && !db.objectStoreNames.contains('aerobicActivities')) {
+          db.createObjectStore('aerobicActivities', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -111,46 +123,54 @@ export async function readAll(): Promise<{
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
   checkins: TendonCheckinRow[]
+  aerobicActivities: AerobicActivityRow[]
 }> {
   const db = await getDb()
   const [
     exercises,
     plans,
     templates,
+    templateBlocks,
     templateItems,
     rules,
     schedules,
     sessions,
     bodyWeights,
     checkins,
+    aerobicActivities,
   ] = await Promise.all([
     db.getAll('exercises'),
     db.getAll('plans'),
     db.getAll('templates'),
+    db.getAll('templateBlocks'),
     db.getAll('templateItems'),
     db.getAll('rules'),
     db.getAll('schedules'),
     db.getAll('sessions'),
     db.getAll('bodyWeights'),
     db.getAll('checkins'),
+    db.getAll('aerobicActivities'),
   ])
   const pick = <T>(rows: DirtyRow[]): T[] => rows.map((r) => r.value as unknown as T)
   return {
-    exercises: pick(exercises),
-    plans: pick(plans),
+    exercises: pick<ExerciseRow>(exercises).map(normalizeExercise),
+    plans: pick<TrainingPlanRow>(plans).map(normalizePlan),
     templates: pick<TemplateRow>(templates).map(normalizeTemplate),
-    templateItems: pick(templateItems),
+    templateBlocks: pick(templateBlocks),
+    templateItems: pick<TemplateItemRow>(templateItems).map(normalizeTemplateItem),
     rules: pick(rules),
-    schedules: pick(schedules),
-    sessions: pick(sessions),
+    schedules: pick<ScheduleItemRow>(schedules).map(normalizeSchedule),
+    sessions: pick<SessionDoc>(sessions).map(normalizeSession),
     bodyWeights: pick(bodyWeights),
     checkins: pick(checkins),
+    aerobicActivities: pick(aerobicActivities),
   }
 }
 
@@ -160,6 +180,95 @@ function normalizeTemplate(row: TemplateRow): TemplateRow {
     ...row,
     plan_id: row.plan_id ?? null,
     plan_position: Number.isFinite(row.plan_position) ? row.plan_position : 0,
+    source_slot: row.source_slot ?? null,
+  }
+}
+
+function normalizePlan(row: TrainingPlanRow): TrainingPlanRow {
+  return { ...row, source_key: row.source_key ?? null, source_version: row.source_version ?? 0 }
+}
+
+function normalizeExercise(row: ExerciseRow): ExerciseRow {
+  return {
+    ...row,
+    source_title: row.source_title ?? null,
+    source_provider: row.source_provider ?? null,
+    source_url: row.source_url ?? row.video_url ?? null,
+    source_verified_at: row.source_verified_at ?? null,
+  }
+}
+
+function normalizeTemplateItem(row: TemplateItemRow): TemplateItemRow {
+  return {
+    ...row,
+    block_id: row.block_id ?? null,
+    block_position: row.block_position ?? row.position,
+    target_reps_min: row.target_reps_min ?? row.target_reps ?? null,
+    target_reps_max: row.target_reps_max ?? row.target_reps ?? null,
+    target_duration_min_s: row.target_duration_min_s ?? row.target_duration_s ?? null,
+    target_duration_max_s: row.target_duration_max_s ?? row.target_duration_s ?? null,
+    target_distance_min_m: row.target_distance_min_m ?? row.target_distance_m ?? null,
+    target_distance_max_m: row.target_distance_max_m ?? row.target_distance_m ?? null,
+    target_rpe_min: row.target_rpe_min ?? null,
+    target_rpe_max: row.target_rpe_max ?? null,
+    target_rir_min: row.target_rir_min ?? null,
+    target_rir_max: row.target_rir_max ?? null,
+    side_mode: row.side_mode ?? 'bilateral',
+    directions: row.directions ?? 1,
+    load_increment_kg: row.load_increment_kg ?? null,
+    tempo_eccentric: row.tempo_eccentric ?? null,
+    tempo_stretch_pause: row.tempo_stretch_pause ?? null,
+    tempo_concentric: row.tempo_concentric ?? null,
+    tempo_contracted_pause: row.tempo_contracted_pause ?? null,
+    tempo_intent: row.tempo_intent ?? 'controlled',
+  }
+}
+
+function normalizeSchedule(row: ScheduleItemRow): ScheduleItemRow {
+  return { ...row, template_id: row.template_id ?? null, plan_id: row.plan_id ?? null }
+}
+
+function normalizeSession(row: SessionDoc): SessionDoc {
+  return {
+    ...row,
+    plan_id: row.plan_id ?? null,
+    cycle_week: row.cycle_week ?? null,
+    is_deload: row.is_deload ?? false,
+    session_blocks: row.session_blocks ?? [],
+    session_exercises: (row.session_exercises ?? []).map((exercise) => ({
+      ...exercise,
+      template_item_id: exercise.template_item_id ?? null,
+      session_block_id: exercise.session_block_id ?? null,
+      block_position: exercise.block_position ?? exercise.position,
+      target_weight_kg: exercise.target_weight_kg ?? null,
+      target_reps: exercise.target_reps ?? null,
+      target_duration_s: exercise.target_duration_s ?? null,
+      target_distance_m: exercise.target_distance_m ?? null,
+      target_reps_min: exercise.target_reps_min ?? exercise.target_reps ?? null,
+      target_reps_max: exercise.target_reps_max ?? exercise.target_reps ?? null,
+      target_duration_min_s: exercise.target_duration_min_s ?? exercise.target_duration_s ?? null,
+      target_duration_max_s: exercise.target_duration_max_s ?? exercise.target_duration_s ?? null,
+      target_distance_min_m: exercise.target_distance_min_m ?? exercise.target_distance_m ?? null,
+      target_distance_max_m: exercise.target_distance_max_m ?? exercise.target_distance_m ?? null,
+      target_rpe_min: exercise.target_rpe_min ?? null,
+      target_rpe_max: exercise.target_rpe_max ?? null,
+      target_rir_min: exercise.target_rir_min ?? null,
+      target_rir_max: exercise.target_rir_max ?? null,
+      side_mode: exercise.side_mode ?? 'bilateral',
+      directions: exercise.directions ?? 1,
+      load_increment_kg: exercise.load_increment_kg ?? null,
+      tempo_eccentric: exercise.tempo_eccentric ?? null,
+      tempo_stretch_pause: exercise.tempo_stretch_pause ?? null,
+      tempo_concentric: exercise.tempo_concentric ?? null,
+      tempo_contracted_pause: exercise.tempo_contracted_pause ?? null,
+      tempo_intent: exercise.tempo_intent ?? 'controlled',
+      sets: (exercise.sets ?? []).map((set) => ({
+        ...set,
+        round_index: set.round_index ?? null,
+        side: set.side ?? null,
+        direction: set.direction ?? null,
+      })),
+    })),
   }
 }
 
@@ -236,12 +345,14 @@ export async function clearDirtyFlags(): Promise<void> {
     'exercises',
     'plans',
     'templates',
+    'templateBlocks',
     'templateItems',
     'rules',
     'schedules',
     'sessions',
     'bodyWeights',
     'checkins',
+    'aerobicActivities',
   ]
   const tx = db.transaction(stores, 'readwrite')
   for (const store of stores) {
@@ -317,12 +428,14 @@ export async function wipeLocalData(): Promise<void> {
     'exercises',
     'plans',
     'templates',
+    'templateBlocks',
     'templateItems',
     'rules',
     'schedules',
     'sessions',
     'bodyWeights',
     'checkins',
+    'aerobicActivities',
     'outbox',
   ] as const
   const tx = db.transaction(stores, 'readwrite')

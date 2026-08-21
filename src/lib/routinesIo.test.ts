@@ -133,7 +133,7 @@ describe('routines JSON', () => {
 
   it('rejects a newer file version', () => {
     const json = serializeRoutines([template], items, [bench, curl]).replace(
-      '"version": 1',
+      '"version": 2',
       '"version": 99',
     )
     expect(() => parseRoutines(json)).toThrow(/newer version/)

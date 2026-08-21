@@ -1,6 +1,6 @@
 // Pure helpers for training-plan membership. Store I/O lives in store.tsx.
 
-import type { TemplateRow, TrainingPlanRow } from '../../types/db'
+import type { SessionDoc, TemplateRow, TrainingPlanRow } from '../../types/db'
 import { hybridSlotFromTemplate } from './hybrid4day'
 import type { HybridSlot } from './rotate'
 
@@ -73,4 +73,19 @@ export function applyHybridPlanMembership(input: {
     plan_position: index,
     updated_at: input.now,
   }))
+}
+
+/** Dynamic plan occurrence: only completed sessions started from a plan slot
+ * advance the sequence. Skips and manually-started routines do not. */
+export function nextTemplateForPlan(
+  planId: string,
+  templates: TemplateRow[],
+  sessions: SessionDoc[],
+): TemplateRow | null {
+  const days = sortPlanTemplates(templates, planId)
+  if (days.length === 0) return null
+  const completed = sessions.filter(
+    (session) => session.plan_id === planId && session.status === 'completed',
+  ).length
+  return days[completed % days.length] ?? days[0] ?? null
 }

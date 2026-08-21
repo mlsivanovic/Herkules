@@ -6,6 +6,7 @@ import {
   compactPlanPositions,
   hybridPlanFrom,
   nextPlanPosition,
+  nextTemplateForPlan,
   orphanHybridTemplates,
   sortPlanTemplates,
   unassignedTemplates,
@@ -107,5 +108,23 @@ describe('hybrid plan migration', () => {
         now: NOW,
       }),
     ).toEqual([])
+  })
+})
+
+describe('dynamic plan sequence', () => {
+  const days = ['A', 'B', 'C', 'D'].map((name, index) =>
+    template(`t-${name}`, { name, plan_id: 'p1', plan_position: index }),
+  )
+  const session = (id: string, status: 'completed' | 'skipped', planId: string | null) => ({
+    id, owner_id: 'u1', template_id: null, schedule_item_id: null, name: id,
+    status, planned_date: null, started_at: NOW, ended_at: NOW, notes: null, rpe: null,
+    plan_id: planId, created_at: NOW, updated_at: NOW, session_exercises: [], session_blocks: [],
+  })
+
+  it('advances only for completed plan occurrences', () => {
+    expect(nextTemplateForPlan('p1', days, [])?.name).toBe('A')
+    expect(nextTemplateForPlan('p1', days, [session('skip', 'skipped', 'p1')])?.name).toBe('A')
+    expect(nextTemplateForPlan('p1', days, [session('manual', 'completed', null)])?.name).toBe('A')
+    expect(nextTemplateForPlan('p1', days, [session('done', 'completed', 'p1')])?.name).toBe('B')
   })
 })

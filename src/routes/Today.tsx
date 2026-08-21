@@ -9,7 +9,9 @@ import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { IconPlay, IconPlus } from '../components/Icons'
 import { TendonCheckin } from '../components/TendonCheckin'
 import { WeightCheckin } from '../components/WeightCheckin'
+import { AerobicGoal } from '../components/AerobicGoal'
 import './today.css'
+import { nextTemplateForPlan } from '../lib/programs/plans'
 
 export function Today() {
   const navigate = useNavigate()
@@ -29,9 +31,13 @@ export function Today() {
     }))
     return occurrencesInRange(refs, today, today).map((o) => ({
       scheduleId: o.scheduleId,
-      template: templates.find((t) => t.id === o.templateId),
+      template: o.templateId
+        ? templates.find((t) => t.id === o.templateId)
+        : o.planId
+          ? nextTemplateForPlan(o.planId, templates, sessions) ?? undefined
+          : undefined,
     }))
-  }, [schedules, rules, templates, today])
+  }, [schedules, rules, templates, sessions, today])
 
   const doneToday = sessions.filter(
     (s) => s.status === 'completed' && (s.planned_date ?? s.started_at.slice(0, 10)) === today,
@@ -195,6 +201,7 @@ export function Today() {
       </div>
 
       <div className="today-checkins">
+        <AerobicGoal />
         <WeightCheckin />
         <TendonCheckin />
       </div>

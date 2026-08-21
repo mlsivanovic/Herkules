@@ -14,6 +14,7 @@ import {
 } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
+  AerobicActivityRow,
   ExerciseRow,
   OutboxOp,
   ProfileRow,
@@ -21,10 +22,12 @@ import type {
   ScheduleItemRow,
   SessionDoc,
   SessionExerciseRow,
+  SessionBlockRow,
   SetRow,
   Sex,
   SyncTable,
   TemplateItemRow,
+  TemplateBlockRow,
   TemplateRow,
   BodyWeightRow,
   TendonCheckinRow,
@@ -56,15 +59,21 @@ import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkout
 import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
-import { HYBRID_TEMPLATES, hybridRolePatches, hybridTemplatesFrom } from './programs/hybrid4day'
 import {
-  applyHybridPlanMembership,
+  HYBRID_SOURCE_KEY,
+  HYBRID_SOURCE_VERSION,
+  HYBRID_TEMPLATES,
+  buildHybridV2Upgrade,
+  isHybridV2CanonicalRecipe,
+  hybridTemplatesFrom,
+} from './programs/hybrid4day'
+import {
   compactPlanPositions,
   hybridPlanFrom,
   HYBRID_PLAN_NAME,
   HYBRID_PLAN_NOTES,
+  nextTemplateForPlan,
   nextPlanPosition,
-  orphanHybridTemplates,
   sortPlanTemplates,
 } from './programs/plans'
 import { normalizeBlockRole } from './blockRole'
@@ -72,6 +81,13 @@ import {
   rotationOccurrences,
   type TrainingFrequency,
 } from './programs/rotate'
+import {
+  cycleWeek,
+  materializePlannedSets,
+  progressionSuggestions,
+  snapshotBlock,
+  snapshotExercise,
+} from './prescription'
 
 const SYNC_DEBOUNCE_MS = 2500
 
@@ -111,6 +127,26 @@ export interface TemplateItemInput {
   notes: string | null
   superset_group: string | null
   block_role: TemplateItemRow['block_role']
+  block_id?: string | null
+  block_position?: number
+  target_reps_min?: number | null
+  target_reps_max?: number | null
+  target_duration_min_s?: number | null
+  target_duration_max_s?: number | null
+  target_distance_min_m?: number | null
+  target_distance_max_m?: number | null
+  target_rpe_min?: number | null
+  target_rpe_max?: number | null
+  target_rir_min?: number | null
+  target_rir_max?: number | null
+  side_mode?: TemplateItemRow['side_mode']
+  directions?: number
+  load_increment_kg?: number | null
+  tempo_eccentric?: number | null
+  tempo_stretch_pause?: number | null
+  tempo_concentric?: number | null
+  tempo_contracted_pause?: number | null
+  tempo_intent?: TemplateItemRow['tempo_intent']
 }
 
 export interface StartSessionInput {
@@ -132,12 +168,14 @@ export interface StoreData {
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
   checkins: TendonCheckinRow[]
+  aerobicActivities: AerobicActivityRow[]
 }
 
 export interface StoreActions {
@@ -161,6 +199,7 @@ export interface StoreActions {
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
   installHybridProgram(): Promise<{ created: boolean; planId: string }>
+  ensureHybridV2(): Promise<void>
   ensureHybridBlockRoles(): Promise<void>
   ensureHybridPlan(): Promise<void>
 
@@ -193,6 +232,7 @@ export interface StoreActions {
     patch: { name?: string; notes?: string | null; rpe?: number | null },
   ): Promise<void>
   finishSession(id: string, summary: { notes?: string | null; rpe?: number | null }): Promise<void>
+  applyProgressionSuggestions(id: string): Promise<number>
   discardSession(id: string): Promise<void>
   deleteSession(id: string): Promise<void>
   exportWorkoutsCsv(): Promise<string>
@@ -257,6 +297,15 @@ export interface StoreActions {
   }): Promise<void>
   deleteCheckin(id: string): Promise<void>
 
+  // aerobic goal
+  logAerobicActivity(input: {
+    date: string
+    activityType: AerobicActivityRow['activity_type']
+    durationS: number
+    notes?: string | null
+  }): Promise<void>
+  deleteAerobicActivity(id: string): Promise<void>
+
   // auth-related
   attemptSync(): Promise<boolean>
   forceWipeAndSignOut(): Promise<void>
@@ -292,12 +341,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     exercises: [] as ExerciseRow[],
     plans: [] as TrainingPlanRow[],
     templates: [] as TemplateRow[],
+    templateBlocks: [] as TemplateBlockRow[],
     templateItems: [] as TemplateItemRow[],
     rules: [] as RecurrenceRuleRow[],
     schedules: [] as ScheduleItemRow[],
     sessions: [] as SessionDoc[],
     bodyWeights: [] as BodyWeightRow[],
     checkins: [] as TendonCheckinRow[],
+    aerobicActivities: [] as AerobicActivityRow[],
   })
 
   const syncingRef = useRef(false)
@@ -332,16 +383,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('exercises', snapshot.exercises),
         reconcileStore('plans', snapshot.plans),
         reconcileStore('templates', snapshot.templates),
+        reconcileStore('templateBlocks', snapshot.templateBlocks),
         reconcileStore('templateItems', snapshot.templateItems),
         reconcileStore('rules', snapshot.rules),
         reconcileStore('schedules', snapshot.schedules),
         reconcileStore('sessions', snapshot.sessions),
         reconcileStore('bodyWeights', snapshot.bodyWeights),
         reconcileStore('checkins', snapshot.checkins),
+        reconcileStore('aerobicActivities', snapshot.aerobicActivities),
       ])
       await reloadFromDb()
-      await actionsRef.current?.ensureHybridBlockRoles()
-      await actionsRef.current?.ensureHybridPlan()
+      await actionsRef.current?.ensureHybridV2()
       setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sync failed.'
@@ -371,12 +423,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         exercises: [],
         plans: [],
         templates: [],
+        templateBlocks: [],
         templateItems: [],
         rules: [],
         schedules: [],
         sessions: [],
         bodyWeights: [],
         checkins: [],
+        aerobicActivities: [],
         pending: 0,
         pendingByTable: [],
         lastSyncedAt: null,
@@ -392,8 +446,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (cancelled) return
       await reloadFromDb()
-      await actionsRef.current?.ensureHybridBlockRoles()
-      await actionsRef.current?.ensureHybridPlan()
+      await actionsRef.current?.ensureHybridV2()
       void performSync()
     })()
     return () => {
@@ -457,6 +510,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           equipment: input.equipment,
           instructions: input.instructions,
           video_url: input.video_url,
+          source_title: null,
+          source_provider: null,
+          source_url: input.video_url,
+          source_verified_at: null,
           is_archived: false,
           created_at: nowIso(),
           updated_at: nowIso(),
@@ -480,6 +537,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           owner_id: userIdRef.current ?? '',
           name,
           notes,
+          source_key: null,
+          source_version: 0,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -534,6 +593,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...existing,
           plan_id: planId,
           plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
+          source_slot: null,
           updated_at: stamp,
         }
         writes.push({ store: 'templates', row })
@@ -609,12 +669,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const all = await readAll()
         const existing = all.templates.find((row) => row.id === id)
         const items = all.templateItems.filter((i) => i.template_id === id)
+        const blocks = all.templateBlocks.filter((block) => block.template_id === id)
         const itemIds = new Set(items.map((i) => i.id))
+        const blockIds = new Set(blocks.map((block) => block.id))
         await removeMatchingOps(
           (op) =>
             op.kind === 'upsert' && op.table === 'template_items' && itemIds.has(String(op.row.id)),
         )
         for (const itemId of itemIds) await removeFrom('templateItems', itemId)
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'template_blocks' && blockIds.has(String(op.row.id)),
+        )
+        for (const blockId of blockIds) await removeFrom('templateBlocks', blockId)
         await removeFrom('templates', id)
         const ops: OutboxOp[] = [{ kind: 'delete', table: 'workout_templates', id }]
         if (existing?.plan_id) {
@@ -657,6 +723,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             notes: item.notes,
             superset_group: item.superset_group,
             block_role: normalizeBlockRole(item.block_role),
+            block_id: item.block_id ?? null,
+            block_position: item.block_position ?? item.position,
+            target_reps_min: item.target_reps_min ?? item.target_reps,
+            target_reps_max: item.target_reps_max ?? item.target_reps,
+            target_duration_min_s: item.target_duration_min_s ?? item.target_duration_s,
+            target_duration_max_s: item.target_duration_max_s ?? item.target_duration_s,
+            target_distance_min_m: item.target_distance_min_m ?? item.target_distance_m,
+            target_distance_max_m: item.target_distance_max_m ?? item.target_distance_m,
+            target_rpe_min: item.target_rpe_min ?? null,
+            target_rpe_max: item.target_rpe_max ?? null,
+            target_rir_min: item.target_rir_min ?? null,
+            target_rir_max: item.target_rir_max ?? null,
+            side_mode: item.side_mode ?? 'bilateral',
+            directions: item.directions ?? 1,
+            load_increment_kg: item.load_increment_kg ?? null,
+            tempo_eccentric: item.tempo_eccentric ?? null,
+            tempo_stretch_pause: item.tempo_stretch_pause ?? null,
+            tempo_concentric: item.tempo_concentric ?? null,
+            tempo_contracted_pause: item.tempo_contracted_pause ?? null,
+            tempo_intent: item.tempo_intent ?? 'controlled',
             created_at: previous?.created_at ?? nowIso(),
             updated_at: nowIso(),
           }
@@ -680,135 +766,96 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async installHybridProgram() {
         const all = await readAll()
-        if (hybridTemplatesFrom(all.templates)) {
-          await actionsRef.current?.ensureHybridPlan()
-          const plans = (await readAll()).plans
-          const plan = hybridPlanFrom(plans)
-          if (!plan) throw new Error('Could not attach Hybrid 4-day to a plan.')
-          return { created: false, planId: plan.id }
-        }
-
         const owner = userIdRef.current ?? ''
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
-        const plan: TrainingPlanRow = {
-          id: newId(),
-          owner_id: owner,
-          name: HYBRID_PLAN_NAME,
-          notes: HYBRID_PLAN_NOTES,
-          created_at: stamp,
-          updated_at: stamp,
-        }
+        const installed = hybridTemplatesFrom(all.templates)
+        const commonPlanId = installed
+          ? (() => {
+              const ids = new Set(Object.values(installed).map((row) => row.plan_id).filter(Boolean))
+              return ids.size === 1 ? ([...ids][0] as string) : null
+            })()
+          : null
+        const existingPlan =
+          all.plans.find((row) => row.source_key === HYBRID_SOURCE_KEY) ??
+          (commonPlanId ? all.plans.find((row) => row.id === commonPlanId) : null) ??
+          hybridPlanFrom(all.plans)
+        const upgrade = buildHybridV2Upgrade({
+          ownerId: owner,
+          existingPlan: existingPlan ?? null,
+          installed: installed as Record<'A' | 'B' | 'C' | 'D', TemplateRow> | null,
+          now: stamp,
+          newId,
+          planName: HYBRID_PLAN_NAME,
+          planNotes: HYBRID_PLAN_NOTES,
+        })
+        const { plan } = upgrade
         writes.push({ store: 'plans', row: plan })
         ops.push(upsert('training_plans', plan))
 
-        for (const [index, definition] of HYBRID_TEMPLATES.entries()) {
-          const templateId = newId()
-          const template: TemplateRow = {
-            id: templateId,
-            owner_id: owner,
-            name: definition.name,
-            notes: definition.notes,
-            plan_id: plan.id,
-            plan_position: index,
-            created_at: stamp,
-            updated_at: stamp,
-          }
+        for (const definition of HYBRID_TEMPLATES) {
+          const template = upgrade.templates[definition.slot]
           writes.push({ store: 'templates', row: template })
           ops.push(upsert('workout_templates', template))
-
-          const groups = new Map<string, string>()
-          definition.items.forEach((item, index) => {
-            let group: string | null = null
-            if (item.circuit) {
-              const existing = groups.get(item.circuit)
-              if (existing) {
-                group = existing
-              } else {
-                group = newId()
-                groups.set(item.circuit, group)
-              }
-            }
-            const row: TemplateItemRow = {
-              id: newId(),
-              template_id: templateId,
-              exercise_id: item.exerciseId,
-              position: index,
-              planned_sets: item.plannedSets,
-              target_weight_kg: null,
-              target_reps: item.targetReps ?? null,
-              target_duration_s: item.targetDurationS ?? null,
-            target_distance_m: item.targetDistanceM ?? null,
-            rest_seconds: item.restSeconds ?? null,
-            tempo: null,
-            notes: item.notes ?? null,
-              superset_group: group,
-              block_role: item.blockRole ?? 'gym',
-              created_at: stamp,
-              updated_at: stamp,
-            }
-            writes.push({ store: 'templateItems', row })
-            ops.push(upsert('template_items', row))
-          })
         }
 
+        if (installed) {
+          const templateIds = new Set(Object.values(installed).map((row) => row.id))
+          const oldItems = all.templateItems.filter((row) => templateIds.has(row.template_id))
+          const oldBlocks = all.templateBlocks.filter((row) => templateIds.has(row.template_id))
+          const oldItemIds = new Set(oldItems.map((row) => row.id))
+          const oldBlockIds = new Set(oldBlocks.map((row) => row.id))
+          await removeMatchingOps((op) =>
+            op.kind === 'upsert' &&
+            ((op.table === 'template_items' && oldItemIds.has(String(op.row.id))) ||
+              (op.table === 'template_blocks' && oldBlockIds.has(String(op.row.id)))),
+          )
+          for (const row of oldItems) {
+            await removeFrom('templateItems', row.id)
+            ops.push({ kind: 'delete', table: 'template_items', id: row.id })
+          }
+          for (const row of oldBlocks) {
+            await removeFrom('templateBlocks', row.id)
+            ops.push({ kind: 'delete', table: 'template_blocks', id: row.id })
+          }
+        }
+
+        for (const block of upgrade.blocks) {
+          writes.push({ store: 'templateBlocks', row: block })
+          ops.push(upsert('template_blocks', block))
+        }
+        for (const item of upgrade.items) {
+          writes.push({ store: 'templateItems', row: item })
+          ops.push(upsert('template_items', item))
+        }
         await commit(writes, ops)
-        await setMeta('hybridBlockRolesApplied', true)
-        return { created: true, planId: plan.id }
+        return { created: upgrade.created, planId: plan.id }
+      },
+
+      async ensureHybridV2() {
+        const all = await readAll()
+        const installed = hybridTemplatesFrom(all.templates)
+        if (!installed) return
+        const planId = installed.A.plan_id
+        const plan = planId ? all.plans.find((row) => row.id === planId) : null
+        const canonical =
+          plan?.source_key === HYBRID_SOURCE_KEY &&
+          (plan.source_version ?? 0) >= HYBRID_SOURCE_VERSION &&
+          isHybridV2CanonicalRecipe({
+            templates: installed,
+            blocks: all.templateBlocks,
+            items: all.templateItems,
+          })
+        if (!canonical) await actionsRef.current?.installHybridProgram()
       },
 
       async ensureHybridBlockRoles() {
-        if ((await getMeta<boolean>('hybridBlockRolesApplied')) === true) return
-        const all = await readAll()
-        if (!hybridTemplatesFrom(all.templates)) return
-        const patches = hybridRolePatches(all.templates, all.templateItems)
-        if (patches.length > 0) {
-          const stamp = nowIso()
-          const writes: { store: StoreName; row: object }[] = []
-          const ops: OutboxOp[] = []
-          for (const patch of patches) {
-            const existing = all.templateItems.find((item) => item.id === patch.id)
-            if (!existing) continue
-            const row: TemplateItemRow = {
-              ...existing,
-              block_role: patch.block_role,
-              updated_at: stamp,
-            }
-            writes.push({ store: 'templateItems', row })
-            ops.push(upsert('template_items', row))
-          }
-          if (writes.length > 0) await commit(writes, ops)
-        }
-        await setMeta('hybridBlockRolesApplied', true)
+        await actionsRef.current?.ensureHybridV2()
       },
 
       async ensureHybridPlan() {
-        const all = await readAll()
-        if (!orphanHybridTemplates(all.templates)) return
-        const owner = userIdRef.current ?? ''
-        const stamp = nowIso()
-        const existing = hybridPlanFrom(all.plans)
-        const writes: { store: StoreName; row: object }[] = []
-        const ops: OutboxOp[] = []
-        const plan: TrainingPlanRow = existing ?? {
-          id: newId(),
-          owner_id: owner,
-          name: HYBRID_PLAN_NAME,
-          notes: HYBRID_PLAN_NOTES,
-          created_at: stamp,
-          updated_at: stamp,
-        }
-        if (!existing) {
-          writes.push({ store: 'plans', row: plan })
-          ops.push(upsert('training_plans', plan))
-        }
-        for (const row of applyHybridPlanMembership({ plan, templates: all.templates, now: stamp })) {
-          writes.push({ store: 'templates', row })
-          ops.push(upsert('workout_templates', row))
-        }
-        if (writes.length === 0) return
-        await commit(writes, ops)
+        await actionsRef.current?.ensureHybridV2()
       },
 
       // ------------------------------------------------------------ scheduling
@@ -818,6 +865,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: newId(),
           owner_id: userIdRef.current ?? '',
           template_id: templateId,
+          plan_id: null,
           scheduled_date: date,
           recurrence_rule_id: null,
           created_at: nowIso(),
@@ -845,12 +893,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
         for (const occurrence of occurrences) {
-          const template = days[occurrence.dayIndex]
-          if (!template) continue
           const row: ScheduleItemRow = {
             id: newId(),
             owner_id: owner,
-            template_id: template.id,
+            template_id: null,
+            plan_id: planId,
             scheduled_date: occurrence.date,
             recurrence_rule_id: null,
             created_at: stamp,
@@ -891,7 +938,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           schedule = {
             id: newId(),
             owner_id: userIdRef.current ?? '',
-            template_id: templateId,
+          template_id: templateId,
+          plan_id: null,
             scheduled_date: null,
             recurrence_rule_id: rule.id,
             created_at: nowIso(),
@@ -933,12 +981,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async startSession(input) {
         const all = await readAll()
+        const schedule = input.scheduleItemId
+          ? all.schedules.find((row) => row.id === input.scheduleItemId)
+          : null
+        const occurrencePlanId = schedule?.plan_id ?? null
         const template = input.templateId
           ? all.templates.find((t) => t.id === input.templateId)
-          : undefined
+          : occurrencePlanId
+            ? nextTemplateForPlan(occurrencePlanId, all.templates, all.sessions) ?? undefined
+            : undefined
         const items = template
           ? all.templateItems
               .filter((i) => i.template_id === template.id)
+              .sort((a, b) => a.position - b.position)
+          : []
+        const templateBlocks = template
+          ? all.templateBlocks
+              .filter((block) => block.template_id === template.id)
               .sort((a, b) => a.position - b.position)
           : []
 
@@ -952,24 +1011,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           )
           if (skipped) await actionsRef.current?.deleteSession(skipped.id)
         }
+        const stamp = nowIso()
+        const plan = occurrencePlanId
+          ? all.plans.find((row) => row.id === occurrencePlanId) ?? null
+          : null
+        const currentCycleWeek = plan
+          ? cycleWeek(plan.created_at, input.plannedDate ?? stamp.slice(0, 10))
+          : null
+        const deload = plan?.source_key === HYBRID_SOURCE_KEY && currentCycleWeek === 4
+        const blockIdMap = new Map<string, string>()
+        const sessionBlocks: SessionBlockRow[] = templateBlocks.map((block) => {
+          const id = newId()
+          blockIdMap.set(block.id, id)
+          return snapshotBlock(block, sessionId, id, stamp, deload)
+        })
+        const sessionBlockById = new Map(sessionBlocks.map((block) => [block.id, block]))
         const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = items.map((item) => {
           const exercise = all.exercises.find((e) => e.id === item.exercise_id)
+          const sessionBlockId = item.block_id ? blockIdMap.get(item.block_id) ?? null : null
+          const row = snapshotExercise(item, {
+            sessionId,
+            sessionExerciseId: newId(),
+            sessionBlockId,
+            name: exercise?.name ?? 'Exercise',
+            measurement: exercise?.measurement ?? 'weight_reps',
+            now: stamp,
+            deload,
+          })
           return {
-            id: newId(),
-            session_id: sessionId,
-            exercise_id: item.exercise_id,
-            name_snapshot: exercise?.name ?? 'Exercise',
-            measurement_snapshot: exercise?.measurement ?? 'weight_reps',
-            position: item.position,
-            planned_sets: item.planned_sets,
-            rest_seconds: item.rest_seconds,
-            tempo: item.tempo ?? null,
-            notes: item.notes,
-            superset_group: item.superset_group,
-            block_role: normalizeBlockRole(item.block_role),
-            created_at: nowIso(),
-            updated_at: nowIso(),
-            sets: [],
+            ...row,
+            sets: materializePlannedSets({
+              exercise: row,
+              block: sessionBlockId ? sessionBlockById.get(sessionBlockId) ?? null : null,
+              newId,
+              now: stamp,
+            }),
           }
         })
 
@@ -985,14 +1061,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ended_at: null,
           notes: null,
           rpe: null,
-          created_at: nowIso(),
-          updated_at: nowIso(),
+          plan_id: occurrencePlanId,
+          cycle_week: currentCycleWeek,
+          is_deload: deload,
+          created_at: stamp,
+          updated_at: stamp,
+          session_blocks: sessionBlocks,
           session_exercises: exercises,
         }
 
         const ops: OutboxOp[] = [upsert('workout_sessions', stripNested(doc))]
+        for (const block of sessionBlocks) ops.push(upsert('session_blocks', block))
         for (const se of exercises) {
           ops.push(upsert('session_exercises', stripSessionExercise(se)))
+          for (const set of se.sets) ops.push(upsert('workout_sets', set))
         }
         await commit([{ store: 'sessions', row: doc }], ops)
         return doc
@@ -1017,6 +1099,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updated_at: nowIso(),
         }
         await commit([{ store: 'sessions', row }], [upsert('workout_sessions', stripNested(row))])
+      },
+
+      async applyProgressionSuggestions(id) {
+        const doc = await readOne<SessionDoc>('sessions', id)
+        if (!doc) throw new Error('Session not found.')
+        const suggestions = progressionSuggestions(doc)
+        if (suggestions.length === 0) return 0
+        const all = await readAll()
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        for (const suggestion of suggestions) {
+          const item = all.templateItems.find((row) => row.id === suggestion.templateItemId)
+          if (!item) continue
+          const row: TemplateItemRow = {
+            ...item,
+            target_weight_kg: suggestion.toWeightKg,
+            updated_at: stamp,
+          }
+          writes.push({ store: 'templateItems', row })
+          ops.push(upsert('template_items', row))
+        }
+        if (writes.length > 0) await commit(writes, ops)
+        return writes.length
       },
 
       async discardSession(id) {
@@ -1058,7 +1164,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         const schedule = all.schedules.find((s) => s.id === scheduleId)
         const template = schedule
-          ? all.templates.find((t) => t.id === schedule.template_id)
+          ? schedule.template_id
+            ? all.templates.find((t) => t.id === schedule.template_id)
+            : schedule.plan_id
+              ? nextTemplateForPlan(schedule.plan_id, all.templates, all.sessions) ?? undefined
+              : undefined
           : undefined
         const stamp = nowIso()
         const doc: SessionDoc = {
@@ -1073,8 +1183,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ended_at: stamp,
           notes: null,
           rpe: null,
+          plan_id: schedule?.plan_id ?? null,
+          cycle_week: null,
+          is_deload: false,
           created_at: stamp,
           updated_at: stamp,
+          session_blocks: [],
           session_exercises: [],
         }
         await commit([{ store: 'sessions', row: doc }], [upsert('workout_sessions', stripNested(doc))])
@@ -1099,11 +1213,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           exercises: all.exercises.filter((e) => e.owner_id !== null),
           plans: all.plans,
           templates: all.templates,
+          templateBlocks: all.templateBlocks,
           templateItems: all.templateItems,
           rules: all.rules,
           schedules: all.schedules,
           sessions: all.sessions,
           checkins: all.checkins,
+          aerobicActivities: all.aerobicActivities,
         })
       },
 
@@ -1132,6 +1248,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           writes.push({ store: 'checkins', row: next })
           ops.push(upsert('tendon_checkins', next))
         }
+        for (const row of file.aerobicActivities) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'aerobicActivities', row: next })
+          ops.push(upsert('aerobic_activities', next))
+        }
 
         // System exercises (owner_id null) are skipped — they already exist.
         for (const row of file.exercises) {
@@ -1150,6 +1271,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const next = { ...row, owner_id: owner, updated_at: stamp }
           writes.push({ store: 'templates', row: next })
           ops.push(upsert('workout_templates', next))
+        }
+        for (const row of file.templateBlocks) {
+          const next = { ...row, updated_at: stamp }
+          writes.push({ store: 'templateBlocks', row: next })
+          ops.push(upsert('template_blocks', next))
         }
         for (const row of file.templateItems) {
           const next = { ...row, updated_at: stamp }
@@ -1172,6 +1298,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           writes.push({ store: 'sessions', row })
           ops.push(upsert('workout_sessions', stripNested(row)))
           sessionCount += 1
+          for (const block of doc.session_blocks ?? []) {
+            ops.push(upsert('session_blocks', block))
+          }
           for (const se of doc.session_exercises ?? []) {
             ops.push(upsert('session_exercises', stripSessionExercise(se)))
             for (const set of se.sets ?? []) ops.push(upsert('workout_sets', set))
@@ -1194,7 +1323,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ? all.templates.filter((row) => templateIds.includes(row.id))
             : all.templates
         if (selected.length === 0) throw new Error('No routines to export.')
-        return serializeRoutines(selected, all.templateItems, all.exercises)
+        return serializeRoutines(selected, all.templateItems, all.exercises, all.templateBlocks)
       },
 
       async importRoutines(text) {
@@ -1206,6 +1335,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           catalog: all.exercises,
           existingTemplates: all.templates,
           existingItems: all.templateItems,
+          existingBlocks: all.templateBlocks,
           ownerId: userIdRef.current ?? '',
           now: nowIso(),
           newId,
@@ -1213,11 +1343,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const writes: { store: StoreName; row: object }[] = [
           ...plan.newExercises.map((row) => ({ store: 'exercises' as const, row })),
           ...plan.templates.map((row) => ({ store: 'templates' as const, row })),
+          ...plan.blocks.map((row) => ({ store: 'templateBlocks' as const, row })),
           ...plan.items.map((row) => ({ store: 'templateItems' as const, row })),
         ]
         const ops: OutboxOp[] = [
           ...plan.newExercises.map((row) => upsert('exercises', row)),
           ...plan.templates.map((row) => upsert('workout_templates', row)),
+          ...plan.blocks.map((row) => upsert('template_blocks', row)),
           ...plan.items.map((row) => upsert('template_items', row)),
         ]
         for (const id of plan.itemIdsToDelete) {
@@ -1227,6 +1359,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           )
           await removeFrom('templateItems', id)
           ops.push({ kind: 'delete', table: 'template_items', id })
+        }
+        for (const id of plan.blockIdsToDelete) {
+          await removeMatchingOps(
+            (op) => op.kind === 'upsert' && op.table === 'template_blocks' && String(op.row.id) === id,
+          )
+          await removeFrom('templateBlocks', id)
+          ops.push({ kind: 'delete', table: 'template_blocks', id })
         }
         await commit(writes, ops)
         return {
@@ -1285,7 +1424,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 category:
                   item.measurement === 'weight_reps' ||
                   item.measurement === 'reps' ||
-                  item.measurement === 'weight_duration'
+                  item.measurement === 'weight_duration' ||
+                  item.measurement === 'weight_distance'
                     ? 'strength'
                     : 'cardio',
                 measurement: item.measurement,
@@ -1645,6 +1785,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         scheduleDebouncedSync()
       },
 
+      async logAerobicActivity(input) {
+        const stamp = nowIso()
+        const row: AerobicActivityRow = {
+          id: newId(),
+          owner_id: userIdRef.current ?? '',
+          recorded_on: input.date,
+          activity_type: input.activityType,
+          duration_s: Math.max(60, Math.round(input.durationS)),
+          moderate: true,
+          notes: input.notes ?? null,
+          created_at: stamp,
+          updated_at: stamp,
+        }
+        await commit([{ store: 'aerobicActivities', row }], [upsert('aerobic_activities', row)])
+      },
+
+      async deleteAerobicActivity(id) {
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'aerobic_activities' && String(op.row.id) === id,
+        )
+        await removeFrom('aerobicActivities', id)
+        await appendOps([{ kind: 'delete', table: 'aerobic_activities', id }])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
       // ------------------------------------------------------------ auth-related
 
       async attemptSync() {
@@ -1669,7 +1835,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
 /** The outbox only stores flat rows; nested sets travel as their own ops. */
 function stripNested(doc: SessionDoc): Record<string, unknown> {
-  const { session_exercises: _nested, ...flat } = doc
+  const { session_exercises: _nested, session_blocks: _blocks, ...flat } = doc
   return flat
 }
 

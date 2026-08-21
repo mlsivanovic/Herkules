@@ -20,7 +20,7 @@ export { expect }
 
 export function randomEmail(prefix: string): string {
   const rand = Math.random().toString(36).slice(2, 8)
-  return `herkules-e2e-${prefix}-${Date.now()}-${rand}@example.com`
+  return `herkules-e2e-${prefix}-${Date.now()}-${rand}@gmail.com`
 }
 
 export const TEST_PASSWORD = 'TestPassword123!'

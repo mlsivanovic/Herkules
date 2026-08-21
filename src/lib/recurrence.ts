@@ -22,7 +22,8 @@ export function scheduleOccursOn(ref: ScheduleRef, key: DateKey): boolean {
 export interface PlannedOccurrence {
   key: DateKey
   scheduleId: string
-  templateId: string
+  templateId: string | null
+  planId: string | null
 }
 
 /** All planned occurrences within [from, to], one entry per schedule per date. */
@@ -35,7 +36,12 @@ export function occurrencesInRange(
   for (const key of dateRange(from, to)) {
     for (const ref of refs) {
       if (scheduleOccursOn(ref, key)) {
-        result.push({ key, scheduleId: ref.schedule.id, templateId: ref.schedule.template_id })
+        result.push({
+          key,
+          scheduleId: ref.schedule.id,
+          templateId: ref.schedule.template_id,
+          planId: ref.schedule.plan_id ?? null,
+        })
       }
     }
   }

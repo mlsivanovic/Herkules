@@ -7,17 +7,17 @@ Live: https://mlsivanovic.github.io/Herkules/
 ## Features
 
 - **Auth** — email/password sign-up with email confirmation, password reset, persistent sessions
-- **Today** — today's plan, active workout resume, week snapshot and streak; daily **weight check-in** (today or another date) and optional tendon check-in
-- **Calendar** — single-date and weekly repeating plans (optional end date); days show `planned / in-progress / completed / skipped`; editing a rule affects only future workouts — history is frozen
-- **Routines** — reusable templates with exercise order, planned sets, target values, rest, tempo prescriptions (e.g. `3-0-1`), notes and superset/circuit grouping
-- **Training plans** — named, ordered sets of routines (a split). Assign a routine to a plan from the routine editor; reorder days on the plan; optional rotation scheduler writes dates to the calendar. **Hybrid 4-day** starter installs as a plan (A–D)
+- **Today** — today's plan, active workout resume, week snapshot and streak; daily **weight check-in**, optional tendon check-in and a 150-minute weekly aerobic goal with quick external-activity logging
+- **Calendar** — single-date and weekly repeating schedules (optional end date); plan-owned dates select the next routine from completed plan workouts, while skip and manual starts leave the A–D sequence unchanged; legacy routine-owned dates remain supported
+- **Routines** — reusable block recipes (`warmup / strength / assistance / power / carry / core / conditioning / zone 2 / tendon`) with straight, superset, circuit and interval formats; structured rep/time/distance ranges, RPE/RIR, unilateral semantics and four-phase tempo
+- **Training plans** — named, ordered sets of routines. **Hybrid 4-day V2** installs directly as A–D and upgrades recognized older Hybrid plans idempotently while preserving routine IDs and historical workout snapshots
 
-- **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with five measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`, `weight + hold time` for loaded isometrics)
-- **Active workout** — elapsed timer, previous values per exercise, RPE 1–10, notes, add/remove/reorder/swap exercises, automatic rest timer with sound/vibration cues, plate calculator, one-tap warm-up ramp generator, interval/HIIT timer with screen wake lock; only one active workout at a time
-- **Tendon support** — `gym / cardio / tendon` block roles, tempo prescriptions, isometric hold logging and a daily per-site check-in (morning stiffness and pain 0–10) with trends on the Progress page
+- **Exercises** — system catalog (read-only) plus custom exercises (editable, archivable) across `strength / cardio / mobility` with six measurement types (`weight × reps`, `reps`, `duration`, `distance + duration`, `weight + hold time`, `weight + distance`)
+- **Active workout** — immutable session snapshots with materialized blank planned sets, block/round context, target and previous-value suggestions, RPE/RIR, tempo and side/direction tracking; automatic set- or round-level rest, plate calculator, warm-up ramp generator and recipe-driven interval timer with screen wake lock
+- **Tendon support** — dedicated tendon blocks, structured tempo, loaded-isometric and pronation/supination logging, plus a daily per-site check-in (morning stiffness and pain 0–10) with trends on the Progress page
 - **History** — chronological list grouped by month; every finished session can be reviewed and edited after the fact
 - **Offline-first** — every change is saved to IndexedDB immediately and synced through an idempotent operation queue when connectivity returns (`Pending sync` indicator); workouts can be finished fully offline
-- **Data portability** — workout CSV export/import, **routine JSON** export/import (portable across accounts; re-import updates instead of duplicating), full-account JSON backup/restore, and import of **Strong** / **Hevy** workout CSV exports (units converted, idempotent on re-import)
+- **Data portability** — workout CSV export/import, **routine JSON v2** export/import, **full backup v3** restore, plus backward-compatible routine v1 and backup v1/v2 imports and **Strong** / **Hevy** workout CSV imports
 - **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM); warm-up sets are excluded from statistics
 - **PWA** — installable, offline app shell, "Update available" / "Ready offline" prompts
 - Units: stored canonically in kg / meters / seconds; displayed in metric or imperial per user preference. Mobile-first from 360 px; desktop gets a sidebar.

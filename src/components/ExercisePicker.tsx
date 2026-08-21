@@ -23,6 +23,8 @@ export function MEASUREMENT_LABELS(measurement: ExerciseRow['measurement']): str
       return 'Distance + Duration'
     case 'weight_duration':
       return 'Weight + Hold time'
+    case 'weight_distance':
+      return 'Weight + Distance'
     default:
       return measurement
   }

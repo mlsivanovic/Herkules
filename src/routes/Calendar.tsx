@@ -16,6 +16,7 @@ import { dayStatus, occurrencesInRange, type ScheduleRef } from '../lib/recurren
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
+import { nextTemplateForPlan } from '../lib/programs/plans'
 import './calendar.css'
 
 const WEEKDAY_LABELS_MON = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -174,7 +175,11 @@ export function Calendar() {
             dayKey={selectedDay}
             planned={(plannedByDate.get(selectedDay) ?? []).map((o) => ({
               scheduleId: o.scheduleId,
-              template: templateById.get(o.templateId),
+              template: o.templateId
+                ? templateById.get(o.templateId)
+                : o.planId
+                  ? nextTemplateForPlan(o.planId, templates, sessions) ?? undefined
+                  : undefined,
             }))}
             sessions={selectedSessions}
             onStart={(templateId, scheduleId) => {

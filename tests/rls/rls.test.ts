@@ -27,11 +27,14 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     rule: '',
     checkin: '',
     plan: '',
+    templateBlock: '',
+    sessionBlock: '',
+    aerobicActivity: '',
   }
 
   async function signUp(name: string): Promise<SupabaseClient> {
     const client = createClient(url!, anonKey!)
-    const email = `herkules-rls-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`
+    const email = `herkules-rls-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@gmail.com`
     const { data, error } = await client.auth.signUp({ email, password: 'TestPassword123!' })
     expect(error, `signUp failed: ${error?.message}`).toBeNull()
     if (!data.session) {
@@ -52,6 +55,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     // Best-effort cleanup of data (test users remain in the test project Auth;
     // remove them from the dashboard or with the service key if desired).
     await alice?.from('workout_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await alice?.from('aerobic_activities').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('tendon_checkins').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('schedule_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('recurrence_rules').delete().neq('id', '00000000-0000-0000-0000-000000000000')
@@ -87,9 +91,32 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(tplError).toBeNull()
       aliceIds.template = template.id
 
+      const { data: templateBlock, error: templateBlockError } = await alice
+        .from('template_blocks')
+        .insert({
+          template_id: template.id,
+          position: 0,
+          role: 'strength',
+          format: 'straight',
+          rounds_initial: 1,
+          rounds_max: 1,
+        })
+        .select()
+        .single()
+      expect(templateBlockError).toBeNull()
+      aliceIds.templateBlock = templateBlock.id
+
       const { data: item, error: itemError } = await alice
         .from('template_items')
-        .insert({ template_id: template.id, exercise_id: exercise.id, position: 0 })
+        .insert({
+          template_id: template.id,
+          block_id: templateBlock.id,
+          exercise_id: exercise.id,
+          position: 0,
+          block_position: 0,
+          target_reps_min: 5,
+          target_reps_max: 8,
+        })
         .select()
         .single()
       expect(itemError).toBeNull()
@@ -103,6 +130,22 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(sesError).toBeNull()
       aliceIds.session = session.id
 
+      const { data: sessionBlock, error: sessionBlockError } = await alice
+        .from('session_blocks')
+        .insert({
+          session_id: session.id,
+          template_block_id: templateBlock.id,
+          position: 0,
+          role: 'strength',
+          format: 'straight',
+          rounds_initial: 1,
+          rounds_max: 1,
+        })
+        .select()
+        .single()
+      expect(sessionBlockError).toBeNull()
+      aliceIds.sessionBlock = sessionBlock.id
+
       const { data: se, error: seError } = await alice
         .from('session_exercises')
         .insert({
@@ -110,6 +153,10 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
           exercise_id: exercise.id,
           name_snapshot: 'RLS Probe Exercise',
           measurement_snapshot: 'weight_reps',
+          template_item_id: item.id,
+          session_block_id: sessionBlock.id,
+          target_reps_min: 5,
+          target_reps_max: 8,
         })
         .select()
         .single()
@@ -137,6 +184,18 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         recurrence_rule_id: rule.id,
       })
       expect(scheduleError).toBeNull()
+
+      const { data: activity, error: activityError } = await alice
+        .from('aerobic_activities')
+        .insert({
+          recorded_on: '2026-08-20',
+          activity_type: 'walking',
+          duration_s: 1800,
+        })
+        .select()
+        .single()
+      expect(activityError).toBeNull()
+      aliceIds.aerobicActivity = activity.id
     })
 
     it('creates a tendon check-in', async () => {
@@ -180,7 +239,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
   })
 
   describe('Bob cannot touch Alice data', () => {
-    it('cannot read Alice exercises, templates, items', async () => {
+    it('cannot read Alice exercises, templates, blocks, items', async () => {
       const { data: ex } = await bob.from('exercises').select().eq('id', aliceIds.exercise)
       expect(ex).toHaveLength(0)
 
@@ -192,6 +251,12 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
 
       const { data: items } = await bob.from('template_items').select().eq('id', aliceIds.item)
       expect(items).toHaveLength(0)
+
+      const { data: blocks } = await bob
+        .from('template_blocks')
+        .select()
+        .eq('id', aliceIds.templateBlock)
+      expect(blocks).toHaveLength(0)
     })
 
     it('cannot read Alice sessions, exercises, sets', async () => {
@@ -200,6 +265,12 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
 
       const { data: ses } = await bob.from('session_exercises').select().eq('id', aliceIds.sessionExercise)
       expect(ses).toHaveLength(0)
+
+      const { data: blocks } = await bob
+        .from('session_blocks')
+        .select()
+        .eq('id', aliceIds.sessionBlock)
+      expect(blocks).toHaveLength(0)
 
       const { data: sets } = await bob
         .from('workout_sets')
@@ -252,6 +323,19 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(error).toBeDefined()
     })
 
+    it('cannot read or write Alice aerobic activities', async () => {
+      const { data } = await bob
+        .from('aerobic_activities')
+        .select()
+        .eq('id', aliceIds.aerobicActivity)
+      expect(data).toHaveLength(0)
+      const { error } = await bob
+        .from('aerobic_activities')
+        .update({ duration_s: 3600 })
+        .eq('id', aliceIds.aerobicActivity)
+      expect(error).toBeDefined()
+    })
+
     it('cannot read or edit Alice profile', async () => {
       const { data: profiles } = await bob.from('profiles').select()
       const aliceUserId = (await alice.from('profiles').select().single()).data?.id
@@ -295,13 +379,16 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'profiles',
         'exercises',
         'workout_templates',
+        'template_blocks',
         'template_items',
         'recurrence_rules',
         'schedule_items',
         'workout_sessions',
+        'session_blocks',
         'session_exercises',
         'workout_sets',
         'training_plans',
+        'aerobic_activities',
       ]
       for (const table of tables) {
         const { error } = await anon.from(table).select().limit(1)

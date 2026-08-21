@@ -36,7 +36,47 @@ function newItem(exerciseId: string, position: number): TemplateItemInput {
     notes: null,
     superset_group: null,
     block_role: 'gym',
+    block_id: null,
+    block_position: position,
+    target_reps_min: null,
+    target_reps_max: null,
+    target_duration_min_s: null,
+    target_duration_max_s: null,
+    target_distance_min_m: null,
+    target_distance_max_m: null,
+    target_rpe_min: null,
+    target_rpe_max: null,
+    target_rir_min: null,
+    target_rir_max: null,
+    side_mode: 'bilateral',
+    directions: 1,
+    load_increment_kg: null,
+    tempo_eccentric: null,
+    tempo_stretch_pause: null,
+    tempo_concentric: null,
+    tempo_contracted_pause: null,
+    tempo_intent: 'controlled',
   }
+}
+
+function structuredTempo(
+  item: TemplateItemInput,
+  patch: Partial<TemplateItemInput>,
+): string | null {
+  const next = { ...item, ...patch }
+  const hasPhase = [
+    next.tempo_eccentric,
+    next.tempo_stretch_pause,
+    next.tempo_concentric,
+    next.tempo_contracted_pause,
+  ].some((value) => value != null)
+  if (!hasPhase) return next.tempo ?? null
+  return [
+    next.tempo_eccentric ?? 0,
+    next.tempo_stretch_pause ?? 0,
+    next.tempo_intent === 'explosive' ? 'X' : next.tempo_concentric ?? 0,
+    next.tempo_contracted_pause ?? 0,
+  ].join('-')
 }
 
 const NEW_PLAN = '__new__'
@@ -47,7 +87,7 @@ export function RoutineEditor() {
   const navigate = useNavigate()
   const isNew = id === 'new'
   const store = useStore()
-  const { templates, templateItems, exercises, plans, ready } = store
+  const { templates, templateItems, templateBlocks, exercises, plans, ready } = store
 
   const template = isNew ? null : templates.find((t) => t.id === id) ?? null
   const units = store.profile?.unit_system ?? 'metric'
@@ -314,6 +354,16 @@ export function RoutineEditor() {
                     <span className="exercise-superset__with">with {partners.join(', ')}</span>
                   </div>
                 ) : null}
+                {item.block_id ? (
+                  <div className="exercise-superset">
+                    <span className="badge badge--neutral">
+                      {templateBlocks.find((block) => block.id === item.block_id)?.role.replace('_', ' ') ?? 'block'}
+                    </span>
+                    <span className="exercise-superset__with">
+                      {templateBlocks.find((block) => block.id === item.block_id)?.format}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="row row--wrap" role="group" aria-label={`Role for ${name}`}>
                   {BLOCK_ROLES.map((role) => (
                     <button
@@ -379,15 +429,26 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Target reps</span>
+                        <span>Min reps</span>
                         <input
                           className="input input--cell"
                           type="number"
                           min={0}
-                          value={item.target_reps ?? ''}
+                          value={item.target_reps_min ?? item.target_reps ?? ''}
+                          onChange={(e) => update(index, { target_reps_min: e.target.value === '' ? null : Number(e.target.value) })}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Max reps</span>
+                        <input
+                          className="input input--cell"
+                          type="number"
+                          min={0}
+                          value={item.target_reps_max ?? item.target_reps ?? ''}
                           onChange={(e) =>
                             update(index, {
                               target_reps: e.target.value === '' ? null : Number(e.target.value),
+                              target_reps_max: e.target.value === '' ? null : Number(e.target.value),
                             })
                           }
                         />
@@ -396,20 +457,43 @@ export function RoutineEditor() {
                   ) : null}
 
                   {measurement === 'reps' ? (
+                    <>
                     <label className="field">
-                      <span>Target reps</span>
+                      <span>Min reps</span>
                       <input
                         className="input input--cell"
                         type="number"
                         min={0}
-                        value={item.target_reps ?? ''}
+                        value={item.target_reps_min ?? item.target_reps ?? ''}
                         onChange={(e) =>
                           update(index, {
-                            target_reps: e.target.value === '' ? null : Number(e.target.value),
+                            target_reps_min: e.target.value === '' ? null : Number(e.target.value),
                           })
                         }
                       />
                     </label>
+                    <label className="field">
+                      <span>Max reps</span>
+                      <input className="input input--cell" type="number" min={0} value={item.target_reps_max ?? item.target_reps ?? ''} onChange={(e) => update(index, { target_reps: e.target.value === '' ? null : Number(e.target.value), target_reps_max: e.target.value === '' ? null : Number(e.target.value) })} />
+                    </label>
+                    </>
+                  ) : null}
+
+                  {measurement === 'weight_distance' ? (
+                    <>
+                      <label className="field">
+                        <span>Target {weightUnitLabel(units)}</span>
+                        <input className="input input--cell" type="number" min={0} step="0.5" value={weightForInput(item.target_weight_kg, units)} onChange={(e) => update(index, { target_weight_kg: e.target.value === '' ? null : weightToKg(Number(e.target.value), units) })} />
+                      </label>
+                      <label className="field">
+                        <span>Min {distanceUnitLabel(units)}</span>
+                        <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_min_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_min_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
+                      </label>
+                      <label className="field">
+                        <span>Max {distanceUnitLabel(units)}</span>
+                        <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
+                      </label>
+                    </>
                   ) : null}
 
                   {measurement === 'weight_duration' ? (
@@ -431,56 +515,62 @@ export function RoutineEditor() {
                         />
                       </label>
                       <label className="field">
-                        <span>Target hold (s)</span>
+                        <span>Min hold (s)</span>
                         <input
                           className="input input--cell"
                           type="number"
                           min={0}
-                          value={item.target_duration_s ?? ''}
+                          value={item.target_duration_min_s ?? item.target_duration_s ?? ''}
                           onChange={(e) =>
                             update(index, {
-                              target_duration_s: e.target.value === '' ? null : Number(e.target.value),
+                              target_duration_min_s: e.target.value === '' ? null : Number(e.target.value),
                             })
                           }
                         />
+                      </label>
+                      <label className="field">
+                        <span>Max hold (s)</span>
+                        <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
                       </label>
                     </>
                   ) : null}
 
                   {measurement === 'duration' || measurement === 'distance_duration' ? (
-                    <label className="field">
-                      <span>Target seconds</span>
-                      <input
-                        className="input input--cell"
-                        type="number"
-                        min={0}
-                        value={item.target_duration_s ?? ''}
-                        onChange={(e) =>
-                          update(index, {
-                            target_duration_s: e.target.value === '' ? null : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
+                    <>
+                      <label className="field">
+                        <span>Min seconds</span>
+                        <input className="input input--cell" type="number" min={0} value={item.target_duration_min_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_min_s: e.target.value === '' ? null : Number(e.target.value) })} />
+                      </label>
+                      <label className="field">
+                        <span>Max seconds</span>
+                        <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
+                      </label>
+                    </>
                   ) : null}
 
                   {measurement === 'distance_duration' ? (
+                    <>
                       <label className="field">
-                      <span>Target {distanceUnitLabel(units)}</span>
+                      <span>Min {distanceUnitLabel(units)}</span>
                       <input
                         className="input input--cell"
                         type="number"
                         min={0}
                         step="0.1"
-                        value={distanceForInput(item.target_distance_m, units)}
+                        value={distanceForInput(item.target_distance_min_m ?? item.target_distance_m, units)}
                         onChange={(e) =>
                           update(index, {
-                            target_distance_m:
+                            target_distance_min_m:
                               e.target.value === '' ? null : distanceToM(Number(e.target.value), units),
                           })
                         }
                       />
                     </label>
+                    <label className="field">
+                      <span>Max {distanceUnitLabel(units)}</span>
+                      <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
+                    </label>
+                    </>
                   ) : null}
 
                   <label className="field">
@@ -514,6 +604,69 @@ export function RoutineEditor() {
                         })
                       }
                     />
+                  </label>
+                  {([
+                    ['tempo_eccentric', 'Eccentric (s)'],
+                    ['tempo_stretch_pause', 'Stretch pause (s)'],
+                    ['tempo_concentric', 'Concentric (s)'],
+                    ['tempo_contracted_pause', 'Contracted pause (s)'],
+                  ] as const).map(([field, label]) => (
+                    <label className="field" key={field}>
+                      <span>{label}</span>
+                      <input
+                        className="input input--cell"
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={item[field] ?? ''}
+                        onChange={(e) => {
+                          const patch = { [field]: e.target.value === '' ? null : Number(e.target.value) }
+                          update(index, { ...patch, tempo: structuredTempo(item, patch) })
+                        }}
+                      />
+                    </label>
+                  ))}
+                  <label className="field">
+                    <span>Side mode</span>
+                    <select className="input input--cell" value={item.side_mode ?? 'bilateral'} onChange={(e) => update(index, { side_mode: e.target.value as NonNullable<TemplateItemInput['side_mode']> })}>
+                      <option value="bilateral">Bilateral / total</option>
+                      <option value="per_side">Per side</option>
+                      <option value="per_leg">Per leg</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Directions</span>
+                    <input className="input input--cell" type="number" min={1} max={4} value={item.directions ?? 1} onChange={(e) => update(index, { directions: Math.max(1, Math.min(4, Number(e.target.value) || 1)) })} />
+                  </label>
+                  <label className="field">
+                    <span>Target RPE min</span>
+                    <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_min ?? ''} onChange={(e) => update(index, { target_rpe_min: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </label>
+                  <label className="field">
+                    <span>Target RPE max</span>
+                    <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_max ?? ''} onChange={(e) => update(index, { target_rpe_max: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </label>
+                  <label className="field">
+                    <span>Target RIR min</span>
+                    <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_min ?? ''} onChange={(e) => update(index, { target_rir_min: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </label>
+                  <label className="field">
+                    <span>Target RIR max</span>
+                    <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_max ?? ''} onChange={(e) => update(index, { target_rir_max: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </label>
+                  <label className="field">
+                    <span>Load increment (kg)</span>
+                    <input className="input input--cell" type="number" min={0} step="0.5" value={item.load_increment_kg ?? ''} onChange={(e) => update(index, { load_increment_kg: e.target.value === '' ? null : Number(e.target.value) })} />
+                  </label>
+                  <label className="field">
+                    <span>Tempo intent</span>
+                    <select className="input input--cell" value={item.tempo_intent ?? 'controlled'} onChange={(e) => {
+                      const patch = { tempo_intent: e.target.value as 'controlled' | 'explosive' }
+                      update(index, { ...patch, tempo: structuredTempo(item, patch) })
+                    }}>
+                      <option value="controlled">Controlled</option>
+                      <option value="explosive">Explosive</option>
+                    </select>
                   </label>
                 </div>
 

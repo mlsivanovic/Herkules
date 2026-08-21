@@ -10,6 +10,7 @@ import {
   nextIntervalState,
   startInterval,
   type IntervalState,
+  type IntervalConfig,
 } from '../lib/intervals'
 import { formatDuration } from '../lib/units'
 import './intervalTimer.css'
@@ -30,8 +31,14 @@ const PHASE_LABEL: Record<IntervalState['phase'], string> = {
   done: 'Done!',
 }
 
-export function IntervalTimerModal({ onClose }: { onClose(): void }) {
-  const [config, setConfig] = useState(() => clampConfig({}))
+export function IntervalTimerModal({
+  onClose,
+  initialConfig,
+}: {
+  onClose(): void
+  initialConfig?: Partial<IntervalConfig>
+}) {
+  const [config, setConfig] = useState(() => clampConfig(initialConfig ?? {}))
   const [state, setState] = useState<IntervalState>(IDLE_INTERVAL)
   const [paused, setPaused] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)

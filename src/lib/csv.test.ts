@@ -113,6 +113,47 @@ describe('workout csv', () => {
     expect(exercise?.sets[0]?.duration_s).toBe(45)
   })
 
+  it('round-trips weight + distance and unilateral set semantics without blank planned rows', () => {
+    const base = session().session_exercises[0]!
+    const doc = session({
+      session_exercises: [{
+        ...base,
+        name_snapshot: 'Suitcase Carry',
+        measurement_snapshot: 'weight_distance',
+        sets: [
+          {
+            ...base.sets[0]!,
+            id: 'carry-left',
+            weight_kg: 28,
+            reps: null,
+            distance_m: 37.5,
+            round_index: 1,
+            side: 'left',
+          },
+          {
+            ...base.sets[0]!,
+            id: 'carry-right',
+            weight_kg: null,
+            reps: null,
+            distance_m: null,
+            round_index: 1,
+            side: 'right',
+            completed_at: null,
+          },
+        ],
+      }],
+    })
+    const parsed = parseWorkoutCsv(serializeWorkoutCsv([doc]))
+    const sets = parsed[0]?.exercises[0]?.sets
+    expect(sets).toHaveLength(1)
+    expect(sets?.[0]).toMatchObject({
+      weight_kg: 28,
+      distance_m: 37.5,
+      round_index: 1,
+      side: 'left',
+    })
+  })
+
   it('exports a skipped session as a single row', () => {
     const csv = serializeWorkoutCsv([
       session({

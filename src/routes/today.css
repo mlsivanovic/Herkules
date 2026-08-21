@@ -36,6 +36,10 @@
   border-left: 4px solid var(--c-accent);
 }
 
+.today-start {
+  margin-bottom: 0.35rem;
+}
+
 .today-checkins {
   margin-top: 1.4rem;
   display: flex;

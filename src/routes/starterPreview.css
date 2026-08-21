@@ -1,0 +1,55 @@
+/* Catalog starter plan + routine preview (read-only). */
+
+.starter-preview-page .starter-card__meta {
+  margin-bottom: 0.65rem;
+}
+
+.starter-preview-actions {
+  margin: 0.85rem 0 1.1rem;
+}
+
+.starter-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.starter-day-name {
+  display: block;
+}
+
+.starter-block {
+  margin-bottom: 0.9rem;
+}
+
+.starter-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.starter-block__head p {
+  margin: 0.15rem 0 0;
+  flex-basis: 100%;
+}
+
+.starter-exercise {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.starter-exercise__meta {
+  color: var(--c-muted);
+  font-size: 0.88rem;
+}
+
+.starter-exercise__notes {
+  white-space: pre-line;
+}

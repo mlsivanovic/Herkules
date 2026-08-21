@@ -1,6 +1,6 @@
 // Routines list: training plans, unassigned templates, starter program gallery.
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
 import { IconPlus } from '../components/Icons'
@@ -155,23 +155,36 @@ export function Routines() {
           const days = program.templates.length
           return (
             <section key={program.sourceKey} className="card starter-card">
-              <div className="starter-card__head">
-                <strong>{name}</strong>
-                <span className="badge badge--neutral">{t('routines.starter')}</span>
-              </div>
-              <div className="starter-card__meta">
-                <span className="badge badge--neutral">
-                  {days === 1
-                    ? t('routines.dayOne', { count: days })
-                    : t('routines.dayOther', { count: days })}
-                </span>
-                <span className="badge badge--neutral">
-                  {t('starters.duration', { min: program.durationMin, max: program.durationMax })}
-                </span>
-                <span className="badge badge--neutral">{t(equipmentCopyKey(program.equipment))}</span>
-              </div>
-              <p className="muted starter-card__blurb">{t(`starters.${program.copyKey}.blurb`)}</p>
+              <Link
+                className="starter-card__open"
+                to={`/starters/${program.sourceKey}`}
+                aria-label={t('starters.viewNamed', { name })}
+              >
+                <div className="starter-card__head">
+                  <strong>{name}</strong>
+                  <span className="badge badge--neutral">{t('routines.starter')}</span>
+                </div>
+                <div className="starter-card__meta">
+                  <span className="badge badge--neutral">
+                    {days === 1
+                      ? t('routines.dayOne', { count: days })
+                      : t('routines.dayOther', { count: days })}
+                  </span>
+                  <span className="badge badge--neutral">
+                    {t('starters.duration', { min: program.durationMin, max: program.durationMax })}
+                  </span>
+                  <span className="badge badge--neutral">{t(equipmentCopyKey(program.equipment))}</span>
+                </div>
+                <p className="muted starter-card__blurb">{t(`starters.${program.copyKey}.blurb`)}</p>
+              </Link>
               <div className="row row--wrap">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void navigate(`/starters/${program.sourceKey}`)}
+                >
+                  {t('starters.viewNamed', { name })}
+                </button>
                 {installed && plan ? (
                   <>
                     <button

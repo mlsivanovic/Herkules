@@ -25,4 +25,15 @@ test.describe('training plans', () => {
     await expect(page.getByText('1 day')).toBeVisible()
     await expect(page.getByText('Every routine is in a plan')).toBeVisible()
   })
+
+  test('view a starter plan and open a routine without adding it', async ({ page }) => {
+    await signUpFresh(page, 'starter-preview')
+
+    await page.goto('/#/routines')
+    await page.getByRole('button', { name: 'View Foundations 3-day' }).click()
+    await expect(page.getByRole('heading', { name: 'Foundations 3-day' })).toBeVisible()
+    await page.getByRole('button', { name: /Foundations A/ }).click()
+    await expect(page.getByRole('heading', { name: /Foundations A/ })).toBeVisible()
+    await expect(page.getByText('Goblet Squat')).toBeVisible()
+  })
 })

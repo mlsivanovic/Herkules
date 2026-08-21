@@ -264,6 +264,13 @@ export const en = {
   starters: {
     title: 'Starter programs',
     add: 'Add {name}',
+    viewNamed: 'View {name}',
+    routines: 'Routines',
+    previewHint:
+      'This is the published starter. Adding it copies the routines into your library, where you can edit them.',
+    notFound: 'Starter program not found',
+    notFoundHint: 'It may have been removed from the catalog.',
+    routineNotFound: 'Routine not found',
     duration: '{min}–{max} min',
     equipmentGym: 'Gym',
     equipmentHome: 'Home · dumbbells',
@@ -388,7 +395,13 @@ export const en = {
     savePlan: 'Save plan',
     deletePlan: 'Delete plan',
     deletePlanTitle: 'Delete this plan?',
-    deletePlanBody: 'Routines in it become unassigned. They are not deleted.',
+    deletePlanBody: 'This removes "{name}" from your active plans.',
+    deletePlanRoutinesAskOne:
+      'Also remove its routine from your active routines? If you keep it, it stays as unassigned.',
+    deletePlanRoutinesAskOther:
+      'Also remove its {count} routines from your active routines? If you keep them, they stay as unassigned.',
+    deletePlanYesRoutines: 'Yes, remove the routines',
+    deletePlanKeepRoutines: 'Keep the routines',
     noRoutinesYet: 'No routines yet — add existing ones or create a new day.',
     addRoutine: 'Add routine',
     createDay: 'Create a new day',

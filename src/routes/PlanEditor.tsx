@@ -35,6 +35,7 @@ export function PlanEditor() {
   const [announce, setAnnounce] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [rotationOpen, setRotationOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (plan && loadedFor !== plan.id) {
@@ -91,17 +92,19 @@ export function PlanEditor() {
     }
   }
 
-  async function removePlan() {
+  async function confirmDeletePlan(deleteRoutines: boolean) {
     if (!plan) return
-    if (
-      window.confirm(t('editor.deletePlanConfirm', { name: plan.name }))
-    ) {
-      try {
-        await store.deletePlan(plan.id)
-        void navigate('/routines')
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : t('errors.deletePlan'))
-      }
+    setBusy(true)
+    setError(null)
+    try {
+      await store.deletePlan(plan.id, { deleteRoutines })
+      setDeleteOpen(false)
+      void navigate('/routines')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('errors.deletePlan'))
+      setDeleteOpen(false)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -275,7 +278,7 @@ export function PlanEditor() {
           {t('common.back')}
         </button>
         {plan ? (
-          <button type="button" className="btn btn--ghost" onClick={() => void removePlan()}>
+          <button type="button" className="btn btn--ghost" onClick={() => setDeleteOpen(true)}>
             {t('common.delete')}
           </button>
         ) : null}
@@ -330,6 +333,58 @@ export function PlanEditor() {
 
       {rotationOpen && plan ? (
         <PlanRotationModal planId={plan.id} onClose={() => setRotationOpen(false)} />
+      ) : null}
+
+      {deleteOpen && plan ? (
+        <Modal title={t('editor.deletePlanTitle')} onClose={() => setDeleteOpen(false)}>
+          <p>{t('editor.deletePlanBody', { name: plan.name })}</p>
+          {members.length > 0 ? (
+            <p>
+              {members.length === 1
+                ? t('editor.deletePlanRoutinesAskOne')
+                : t('editor.deletePlanRoutinesAskOther', { count: members.length })}
+            </p>
+          ) : null}
+          <div className="stack">
+            {members.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--danger btn--block"
+                  disabled={busy}
+                  onClick={() => void confirmDeletePlan(true)}
+                >
+                  {t('editor.deletePlanYesRoutines')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--block"
+                  disabled={busy}
+                  onClick={() => void confirmDeletePlan(false)}
+                >
+                  {t('editor.deletePlanKeepRoutines')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn--danger btn--block"
+                disabled={busy}
+                onClick={() => void confirmDeletePlan(false)}
+              >
+                {t('editor.deletePlan')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn--block"
+              disabled={busy}
+              onClick={() => setDeleteOpen(false)}
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   )

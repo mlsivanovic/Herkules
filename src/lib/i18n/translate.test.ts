@@ -19,6 +19,15 @@ describe('t', () => {
     expect(t('starters.street.name', undefined, 'en')).toBe('Street 3-day')
     expect(t('starters.street.name', undefined, 'sr')).toBe('Street 3 dana')
     expect(t('starters.add', { name: 'Street 3-day' }, 'en')).toBe('Add Street 3-day')
+    expect(t('starters.viewNamed', { name: 'Foundations 3-day' }, 'en')).toBe(
+      'View Foundations 3-day',
+    )
+    expect(t('starters.viewNamed', { name: 'Osnove 3 dana' }, 'sr')).toBe('Pogledaj Osnove 3 dana')
+  })
+
+  it('translates plan-delete routine prompt', () => {
+    expect(t('editor.deletePlanYesRoutines', undefined, 'en')).toBe('Yes, remove the routines')
+    expect(t('editor.deletePlanKeepRoutines', undefined, 'sr')).toBe('Zadrži rutine')
   })
 
   it('translates add-notes copy', () => {
@@ -32,6 +41,7 @@ describe('t', () => {
   })
 
   it('interpolates placeholders', () => {
+    expect(t('today.startWorkout', undefined, 'en')).toBe('Start workout')
     expect(t('today.hi', { name: 'Ana' }, 'en')).toBe('Hi, Ana')
     expect(t('today.hi', { name: 'Ana' }, 'sr')).toBe('Zdravo, Ana')
   })

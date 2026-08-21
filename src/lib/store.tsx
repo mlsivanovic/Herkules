@@ -109,6 +109,24 @@ function upsert(table: SyncTable, row: object): OutboxOp {
   return { kind: 'upsert', table, row: row as Record<string, unknown> }
 }
 
+async function dropLocalSchedule(schedule: ScheduleItemRow, ops: OutboxOp[]): Promise<void> {
+  ops.push({ kind: 'delete', table: 'schedule_items', id: schedule.id })
+  if (schedule.recurrence_rule_id) {
+    await removeMatchingOps(
+      (op) =>
+        op.kind === 'upsert' &&
+        op.table === 'recurrence_rules' &&
+        String(op.row.id) === schedule.recurrence_rule_id,
+    )
+    await removeFrom('rules', schedule.recurrence_rule_id)
+    ops.push({ kind: 'delete', table: 'recurrence_rules', id: schedule.recurrence_rule_id })
+  }
+  await removeMatchingOps(
+    (op) => op.kind === 'upsert' && op.table === 'schedule_items' && String(op.row.id) === schedule.id,
+  )
+  await removeFrom('schedules', schedule.id)
+}
+
 export interface ExerciseInput {
   name: string
   category: ExerciseRow['category']
@@ -195,7 +213,7 @@ export interface StoreActions {
   // training plans
   createPlan(name: string, notes: string | null): Promise<TrainingPlanRow>
   updatePlan(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
-  deletePlan(id: string): Promise<void>
+  deletePlan(id: string, options?: { deleteRoutines?: boolean }): Promise<void>
   assignTemplateToPlan(templateId: string, planId: string | null): Promise<void>
   reorderPlanDays(planId: string, orderedTemplateIds: string[]): Promise<void>
 
@@ -562,23 +580,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await commit([{ store: 'plans', row }], [upsert('training_plans', row)])
       },
 
-      async deletePlan(id) {
+      async deletePlan(id, options) {
         const all = await readAll()
         const members = sortPlanTemplates(all.templates, id)
+        const memberIds = new Set(members.map((row) => row.id))
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
-        for (const template of members) {
-          const row: TemplateRow = {
-            ...template,
-            plan_id: null,
-            plan_position: 0,
-            updated_at: stamp,
+
+        if (options?.deleteRoutines) {
+          for (const template of members) {
+            const items = all.templateItems.filter((item) => item.template_id === template.id)
+            const blocks = all.templateBlocks.filter((block) => block.template_id === template.id)
+            const itemIds = new Set(items.map((item) => item.id))
+            const blockIds = new Set(blocks.map((block) => block.id))
+            await removeMatchingOps(
+              (op) =>
+                op.kind === 'upsert' &&
+                ((op.table === 'template_items' && itemIds.has(String(op.row.id))) ||
+                  (op.table === 'template_blocks' && blockIds.has(String(op.row.id))) ||
+                  (op.table === 'workout_templates' && String(op.row.id) === template.id)),
+            )
+            for (const item of items) {
+              await removeFrom('templateItems', item.id)
+              ops.push({ kind: 'delete', table: 'template_items', id: item.id })
+            }
+            for (const block of blocks) {
+              await removeFrom('templateBlocks', block.id)
+              ops.push({ kind: 'delete', table: 'template_blocks', id: block.id })
+            }
+            await removeFrom('templates', template.id)
+            ops.push({ kind: 'delete', table: 'workout_templates', id: template.id })
           }
-          writes.push({ store: 'templates', row })
-          ops.push(upsert('workout_templates', row))
+          for (const schedule of all.schedules) {
+            if (schedule.template_id && memberIds.has(schedule.template_id)) {
+              await dropLocalSchedule(schedule, ops)
+            }
+          }
+        } else {
+          for (const template of members) {
+            const row: TemplateRow = {
+              ...template,
+              plan_id: null,
+              plan_position: 0,
+              updated_at: stamp,
+            }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+          }
         }
+
+        for (const schedule of all.schedules) {
+          if (schedule.plan_id === id) {
+            await dropLocalSchedule(schedule, ops)
+          }
+        }
+
         for (const write of writes) await putDirty(write.store, write.row)
+        await removeMatchingOps(
+          (op) => op.kind === 'upsert' && op.table === 'training_plans' && String(op.row.id) === id,
+        )
         await removeFrom('plans', id)
         ops.push({ kind: 'delete', table: 'training_plans', id })
         await appendOps(ops)

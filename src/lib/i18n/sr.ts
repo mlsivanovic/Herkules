@@ -265,6 +265,13 @@ export const sr: Messages = {
   starters: {
     title: 'Početni programi',
     add: 'Dodaj {name}',
+    viewNamed: 'Pogledaj {name}',
+    routines: 'Rutine',
+    previewHint:
+      'Ovo je objavljeni početni program. Dodavanje kopira rutine u tvoju biblioteku, gde možeš da ih menjaš.',
+    notFound: 'Početni program nije pronađen',
+    notFoundHint: 'Možda je uklonjen iz kataloga.',
+    routineNotFound: 'Rutina nije pronađena',
     duration: '{min}–{max} min',
     equipmentGym: 'Teretana',
     equipmentHome: 'Kuća · bučice',
@@ -389,7 +396,13 @@ export const sr: Messages = {
     savePlan: 'Sačuvaj plan',
     deletePlan: 'Obriši plan',
     deletePlanTitle: 'Obrisati ovaj plan?',
-    deletePlanBody: 'Rutine iz njega postaju van plana. Ne brišu se.',
+    deletePlanBody: 'Ovo uklanja „{name}" iz tvojih aktivnih planova.',
+    deletePlanRoutinesAskOne:
+      'Ukloniti i njegovu rutinu iz aktivnih rutina? Ako je zadržiš, ostaje van plana.',
+    deletePlanRoutinesAskOther:
+      'Ukloniti i njegovih {count} rutina iz aktivnih rutina? Ako ih zadržiš, ostaju van plana.',
+    deletePlanYesRoutines: 'Da, ukloni i rutine',
+    deletePlanKeepRoutines: 'Zadrži rutine',
     noRoutinesYet: 'Još nema rutina — dodaj postojeće ili napravi novi dan.',
     addRoutine: 'Dodaj rutinu',
     createDay: 'Napravi novi dan',

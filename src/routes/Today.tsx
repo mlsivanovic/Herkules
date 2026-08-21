@@ -102,19 +102,19 @@ export function Today() {
             <IconPlay width={22} height={22} />
           </span>
         </button>
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          className="btn btn--primary btn--block today-start"
+          onClick={() => void navigate('/workout')}
+        >
+          <IconPlay width={18} height={18} /> {t('today.startWorkout')}
+        </button>
+      )}
 
       <div className="section-title">{t('today.plannedToday')}</div>
       {plannedToday.length === 0 && doneToday.length === 0 && skippedToday.length === 0 ? (
-        <EmptyState
-          title={t('today.nothingTitle')}
-          hint={t('today.nothingHint')}
-          action={
-            <button type="button" className="btn btn--primary" onClick={() => void navigate('/workout')}>
-              <IconPlay width={18} height={18} /> {t('today.startEmpty')}
-            </button>
-          }
-        />
+        <EmptyState title={t('today.nothingTitle')} hint={t('today.nothingHint')} />
       ) : (
         <div className="stack">
           {plannedToday.map((entry) => {
@@ -193,9 +193,6 @@ export function Today() {
 
       <div className="section-title">{t('today.quickActions')}</div>
       <div className="row row--wrap">
-        <button type="button" className="btn" onClick={() => void navigate('/workout')}>
-          <IconPlay width={18} height={18} /> {t('today.startWorkout')}
-        </button>
         <button type="button" className="btn" onClick={() => void navigate('/routines/new')}>
           <IconPlus width={18} height={18} /> {t('today.newRoutine')}
         </button>

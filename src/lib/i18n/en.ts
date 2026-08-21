@@ -330,6 +330,7 @@ export const en = {
     rir: 'RIR',
     tempo: 'Tempo',
     notesItem: 'Notes',
+    addNotes: 'Add notes',
     saveRoutine: 'Save routine',
     deleteRoutine: 'Delete routine',
     deleteRoutineTitle: 'Delete this routine?',

@@ -19,7 +19,7 @@ import { previousSetsForExercise } from '../lib/metrics'
 import { timerCue } from '../lib/cues'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
-import { EmptyState, Loader, Modal } from '../components/ui'
+import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { PlateCalculatorModal, WarmupModal } from '../components/Calculators'
 import { IntervalTimerModal } from '../components/IntervalTimer'
@@ -749,24 +749,26 @@ function ExerciseCard({
 
       {expanded ? (
         <>
+      {exercise.notes ? (
+        <NotesDisclosure
+          label={t('workout.notes')}
+          preview={exercise.notes}
+          open={notesOpen}
+          onToggle={() => setNotesOpen((open) => !open)}
+          panelId={`workout-notes-${exercise.id}`}
+        >
+          <p>{exercise.notes}</p>
+        </NotesDisclosure>
+      ) : null}
+
       <div className="exercise-meta-row">
-        {exercise.notes ? (
-          <button
-            type="button"
-            className="notes-chip"
-            aria-expanded={notesOpen}
-            onClick={() => setNotesOpen((open) => !open)}
-          >
-            {t('workout.notes')}
-          </button>
-        ) : (
-          <span />
-        )}
         {exercise.tempo ? (
           <span className="badge badge--neutral tempo-badge" title={t('workout.prescribedTempo')}>
             {t('editor.tempo')} {exercise.tempo}
           </span>
-        ) : null}
+        ) : (
+          <span />
+        )}
         <div className="row">
           {exercise.measurement_snapshot === 'weight_reps' ? (
             <>
@@ -808,10 +810,6 @@ function ExerciseCard({
           </button>
         </div>
       </div>
-
-      {notesOpen && exercise.notes ? (
-        <p className="workout-exercise-notes">{exercise.notes}</p>
-      ) : null}
 
       {previous ? (
         <small className="muted">

@@ -71,6 +71,16 @@ export function IconCheck(props: IconProps) {
   )
 }
 
+export function IconNote(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9Z" />
+      <path d="M13 3v6h6" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  )
+}
+
 export function IconPlus(props: IconProps) {
   return (
     <svg {...base(props)}>

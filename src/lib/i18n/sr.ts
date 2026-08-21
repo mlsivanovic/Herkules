@@ -331,6 +331,7 @@ export const sr: Messages = {
     rir: 'RIR',
     tempo: 'Tempo',
     notesItem: 'Beleške',
+    addNotes: 'Dodaj beleške',
     saveRoutine: 'Sačuvaj rutinu',
     deleteRoutine: 'Obriši rutinu',
     deleteRoutineTitle: 'Obrisati ovu rutinu?',

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore, newId, type TemplateItemInput } from '../lib/store'
 import type { ExerciseMeasurement } from '../types/db'
-import { EmptyState, Modal } from '../components/ui'
+import { EmptyState, Modal, NotesDisclosure } from '../components/ui'
 import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { validateRequiredName } from '../lib/validation'
 import { blockRoles, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
@@ -708,19 +708,18 @@ export function RoutineEditor() {
                   </label>
                 </div>
 
-                <button
-                  type="button"
-                  className={`notes-chip${item.notes ? ' notes-chip--filled' : ''}`}
-                  aria-expanded={notesOpen}
-                  onClick={() =>
+                <NotesDisclosure
+                  label={item.notes ? t('editor.notesItem') : t('editor.addNotes')}
+                  preview={item.notes}
+                  open={notesOpen}
+                  filled={Boolean(item.notes)}
+                  onToggle={() =>
                     setOpenNotes((prev) => ({ ...prev, [index]: !prev[index] }))
                   }
+                  panelId={`routine-notes-${item.id ?? index}`}
                 >
-                  {t('editor.notesItem')}
-                </button>
-                {notesOpen ? (
                   <label className="field">
-                    <span>{t('editor.notesItem')}</span>
+                    <span className="visually-hidden">{t('editor.notesItem')}</span>
                     <textarea
                       className="input"
                       rows={2}
@@ -731,7 +730,7 @@ export function RoutineEditor() {
                       }
                     />
                   </label>
-                ) : null}
+                </NotesDisclosure>
 
                 {itemBlock ? (
                   <small className="muted">{t('editor.groupingV2')}</small>

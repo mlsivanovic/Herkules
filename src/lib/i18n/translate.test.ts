@@ -15,6 +15,11 @@ describe('t', () => {
     expect(t('editor.newPlanTitle', undefined, 'sr')).toBe('Novi plan')
   })
 
+  it('translates add-notes copy', () => {
+    expect(t('editor.addNotes', undefined, 'en')).toBe('Add notes')
+    expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')
+  })
+
   it('translates progress chart empty copy', () => {
     expect(t('progress.chartEmpty', undefined, 'en')).toBe('No data yet.')
     expect(t('progress.chartEmpty', undefined, 'sr')).toBe('Još nema podataka.')

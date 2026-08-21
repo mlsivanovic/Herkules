@@ -1,6 +1,7 @@
-// Shared UI primitives: loading/error/empty states, modal, badges.
+// Shared UI primitives: loading/error/empty states, modal, badges, notes disclosure.
 import { useEffect, type ReactNode } from 'react'
 import type { DayWorkoutStatus } from '../lib/recurrence'
+import { IconChevronDown, IconNote } from './Icons'
 import { useT } from '../lib/i18n'
 
 export function Loader({ label }: { label?: string }) {
@@ -97,4 +98,50 @@ export function StatusBadge({ status }: { status: DayWorkoutStatus }) {
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return <h2 className="section-title">{children}</h2>
+}
+
+export function NotesDisclosure({
+  label,
+  preview,
+  open,
+  onToggle,
+  children,
+  filled = true,
+  panelId,
+}: {
+  label: string
+  preview?: string | null
+  open: boolean
+  onToggle(): void
+  children?: ReactNode
+  filled?: boolean
+  panelId?: string
+}) {
+  const previewText = preview?.replace(/\s+/g, ' ').trim() ?? ''
+  const showPreview = !open && previewText !== ''
+
+  return (
+    <div
+      className={`notes-block${open ? ' notes-block--open' : ''}${filled ? ' notes-block--filled' : ' notes-block--empty'}`}
+    >
+      <button
+        type="button"
+        className="notes-toggle"
+        data-no-drag
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={onToggle}
+      >
+        <IconNote className="notes-toggle__icon" width={16} height={16} />
+        <span className="notes-toggle__label">{label}</span>
+        {showPreview ? <span className="notes-toggle__preview">{previewText}</span> : null}
+        <IconChevronDown className="notes-toggle__chevron" width={16} height={16} />
+      </button>
+      {open && children ? (
+        <div className="notes-panel" id={panelId}>
+          {children}
+        </div>
+      ) : null}
+    </div>
+  )
 }

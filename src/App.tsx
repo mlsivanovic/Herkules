@@ -5,6 +5,12 @@ import { StoreProvider } from './lib/store'
 import { AppLayout } from './components/AppLayout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Loader } from './components/ui'
+import { useT } from './lib/i18n'
+
+function CheckingSession() {
+  const { t } = useT()
+  return <Loader label={t('common.checkingSession')} />
+}
 import { Login, ResetPassword, Signup, UpdatePassword } from './routes/Auth'
 import { Today } from './routes/Today'
 import { Calendar } from './routes/Calendar'
@@ -24,7 +30,7 @@ const Settings = lazy(() => import('./routes/Settings').then((m) => ({ default: 
 /** Gate for everything behind a signed-in session. */
 function RequireAuth() {
   const { session, loading } = useAuth()
-  if (loading) return <Loader label="Checking your session…" />
+  if (loading) return <CheckingSession />
   if (!session) return <Navigate to="/login" replace />
   return <Outlet />
 }

@@ -1,5 +1,6 @@
 // Date helpers operating on local dates and 'YYYY-MM-DD' keys.
 // ISO weekday convention: 1 = Monday … 7 = Sunday (matches the DB schema).
+import { bcp47 } from './i18n'
 
 export type DateKey = string
 
@@ -53,34 +54,31 @@ export function startOfWeek(key: DateKey, weekStart: 'monday' | 'sunday'): DateK
   return addDays(key, -offset)
 }
 
-const dayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' })
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-})
-const longFormatter = new Intl.DateTimeFormat('en-US', {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-})
-const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' })
-
 export function formatDayShort(key: DateKey): string {
-  return dayFormatter.format(parseDateKey(key))
+  return new Intl.DateTimeFormat(bcp47(), { weekday: 'short' }).format(parseDateKey(key))
 }
 
 export function formatDateShort(key: DateKey): string {
-  return dateFormatter.format(parseDateKey(key))
+  return new Intl.DateTimeFormat(bcp47(), {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(parseDateKey(key))
 }
 
 export function formatDateLong(key: DateKey): string {
-  return longFormatter.format(parseDateKey(key))
+  return new Intl.DateTimeFormat(bcp47(), {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parseDateKey(key))
 }
 
 export function formatMonthLabel(year: number, month: number): string {
-  return monthFormatter.format(new Date(year, month, 1))
+  return new Intl.DateTimeFormat(bcp47(), { month: 'long', year: 'numeric' }).format(
+    new Date(year, month, 1),
+  )
 }
 
 /** Grid of date keys for a month calendar view; leading/trailing days from

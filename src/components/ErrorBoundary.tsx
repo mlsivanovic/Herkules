@@ -2,6 +2,7 @@
 // lazy chunk fails to load (e.g. a stale build after a deploy while offline).
 // Unsynced data is never at risk — it lives in IndexedDB, not in memory.
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { t } from '../lib/i18n'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -25,15 +26,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.error === null) return this.props.children
 
+    const message = this.state.error.message || t('common.unexpected')
     return (
       <div className="state" role="alert" style={{ margin: '1.5rem' }}>
-        <strong>Something went wrong</strong>
-        <span>
-          {this.state.error.message || 'An unexpected error occurred.'} Your logged workouts are
-          safe on this device — reloading usually fixes this.
-        </span>
+        <strong>{t('common.somethingWrong')}</strong>
+        <span>{t('common.errorSafe', { message })}</span>
         <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>
-          Reload
+          {t('common.reload')}
         </button>
       </div>
     )

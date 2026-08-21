@@ -8,6 +8,7 @@ import { formatDateShort, formatMonthLabel } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { sessionVolume } from '../lib/metrics'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
+import { useT } from '../lib/i18n'
 import './history.css'
 
 function dayKey(session: SessionDoc): string {
@@ -25,6 +26,7 @@ function durationOf(session: SessionDoc): number | null {
 }
 
 export function History() {
+  const { t } = useT()
   const store = useStore()
   const navigate = useNavigate()
   const units = store.profile?.unit_system ?? 'metric'
@@ -56,16 +58,18 @@ export function History() {
   return (
     <div>
       <div className="page-head">
-        <h1>History</h1>
+        <h1>{t('history.title')}</h1>
         <span className="muted">
-          {finished.length} workout{finished.length === 1 ? '' : 's'}
+          {finished.length === 1
+            ? t('history.workoutOne', { count: finished.length })
+            : t('history.workoutOther', { count: finished.length })}
         </span>
       </div>
 
       {finished.length === 0 ? (
         <EmptyState
-          title="No workouts yet"
-          hint="Finished and skipped workouts will show up here."
+          title={t('history.emptyTitle')}
+          hint={t('history.emptyHint')}
         />
       ) : (
         groups.map(([month, sessions]) => (

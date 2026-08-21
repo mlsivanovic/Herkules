@@ -6,6 +6,13 @@ import type { ExerciseCategory, ExerciseMeasurement } from '../types/db'
 import { useStore } from '../lib/store'
 import { EmptyState } from '../components/ui'
 import { validateHttpsUrl, validateRequiredName } from '../lib/validation'
+import {
+  categoryLabel,
+  displayExerciseInstructions,
+  displayExerciseName,
+  displayTags,
+  useT,
+} from '../lib/i18n'
 
 const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'strength', label: 'Strength' },
@@ -23,6 +30,7 @@ const MEASUREMENTS: { value: ExerciseMeasurement; label: string }[] = [
 ]
 
 export function ExerciseEditor() {
+  const { t, locale } = useT()
   const { id } = useParams()
   const navigate = useNavigate()
   const { exercises, createExercise, updateExercise, ready } = useStore()
@@ -43,21 +51,24 @@ export function ExerciseEditor() {
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (exercise && loadedFor !== exercise.id) {
-      setName(exercise.name)
+    const loadKey = exercise ? `${exercise.id}:${locale}` : null
+    if (exercise && loadedFor !== loadKey) {
+      setName(displayExerciseName(exercise))
       setCategory(exercise.category)
       setMeasurement(exercise.measurement)
-      setMuscleGroups(exercise.muscle_groups.join(', '))
-      setEquipment(exercise.equipment.join(', '))
-      setInstructions(exercise.instructions ?? '')
+      setMuscleGroups(
+        exercise.owner_id === null ? displayTags(exercise.muscle_groups) : exercise.muscle_groups.join(', '),
+      )
+      setEquipment(exercise.owner_id === null ? displayTags(exercise.equipment) : exercise.equipment.join(', '))
+      setInstructions(displayExerciseInstructions(exercise) ?? '')
       setVideoUrl(exercise.video_url ?? '')
-      setLoadedFor(exercise.id)
+      setLoadedFor(loadKey)
     }
-  }, [exercise, loadedFor])
+  }, [exercise, loadedFor, locale])
 
   if (!ready) return null
   if (!isNew && !exercise) {
-    return <EmptyState title="Exercise not found" hint="It may have been removed." />
+    return <EmptyState title={t('exercises.notFoundTitle')} hint={t('exercises.notFoundHint')} />
   }
 
   const isSystem = exercise?.owner_id === null
@@ -97,7 +108,7 @@ export function ExerciseEditor() {
       }
       void navigate('/exercises')
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the exercise.')
+      setError(caught instanceof Error ? caught.message : t('errors.saveExercise'))
     } finally {
       setBusy(false)
     }
@@ -109,21 +120,21 @@ export function ExerciseEditor() {
       await updateExercise(exercise.id, { is_archived: !exercise.is_archived })
       void navigate('/exercises')
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not update the exercise.')
+      setError(caught instanceof Error ? caught.message : t('errors.updateExercise'))
     }
   }
 
   return (
     <div>
       <div className="page-head">
-        <h1>{isNew ? 'New exercise' : exercise?.name}</h1>
-        {isSystem ? <span className="badge badge--neutral">System · read-only</span> : null}
+        <h1>{isNew ? t('exercises.newTitle') : exercise ? displayExerciseName(exercise) : ''}</h1>
+        {isSystem ? <span className="badge badge--neutral">{t('exercises.systemReadonly')}</span> : null}
       </div>
 
       <form onSubmit={(e) => void submit(e)} noValidate>
         <fieldset disabled={!editing && !isNew} style={{ border: 0, padding: 0, margin: 0 }}>
           <div className="field">
-            <label htmlFor="exercise-name">Name</label>
+            <label htmlFor="exercise-name">{t('exercises.name')}</label>
             <input
               id="exercise-name"
               className="input"
@@ -134,7 +145,7 @@ export function ExerciseEditor() {
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-category">Category</label>
+            <label htmlFor="exercise-category">{t('exercises.category')}</label>
             <select
               id="exercise-category"
               className="input"
@@ -143,14 +154,14 @@ export function ExerciseEditor() {
             >
               {CATEGORIES.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {categoryLabel(option.value)}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-measurement">Measured by</label>
+            <label htmlFor="exercise-measurement">{t('exercises.measuredBy')}</label>
             <select
               id="exercise-measurement"
               className="input"
@@ -159,14 +170,26 @@ export function ExerciseEditor() {
             >
               {MEASUREMENTS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(
+                    option.value === 'weight_reps'
+                      ? 'measurement.weight_reps'
+                      : option.value === 'reps'
+                        ? 'measurement.repsOnly'
+                        : option.value === 'duration'
+                          ? 'measurement.duration'
+                          : option.value === 'distance_duration'
+                            ? 'measurement.distance_duration'
+                            : option.value === 'weight_duration'
+                              ? 'measurement.weight_durationLong'
+                              : 'measurement.weight_distanceLong',
+                  )}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-muscles">Muscle groups (comma separated)</label>
+            <label htmlFor="exercise-muscles">{t('exercises.muscles')}</label>
             <input
               id="exercise-muscles"
               className="input"
@@ -178,7 +201,7 @@ export function ExerciseEditor() {
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-equipment">Equipment (comma separated)</label>
+            <label htmlFor="exercise-equipment">{t('exercises.equipment')}</label>
             <input
               id="exercise-equipment"
               className="input"
@@ -190,7 +213,7 @@ export function ExerciseEditor() {
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-instructions">Instructions</label>
+            <label htmlFor="exercise-instructions">{t('exercises.instructions')}</label>
             <textarea
               id="exercise-instructions"
               className="input"
@@ -202,7 +225,7 @@ export function ExerciseEditor() {
           </div>
 
           <div className="field">
-            <label htmlFor="exercise-video">Video link (optional, https://)</label>
+            <label htmlFor="exercise-video">{t('exercises.video')}</label>
             <input
               id="exercise-video"
               className="input"
@@ -224,7 +247,7 @@ export function ExerciseEditor() {
         <div className="row row--wrap" style={{ marginTop: '1rem' }}>
           {editing || isNew ? (
             <button type="submit" className="btn btn--primary" disabled={busy}>
-              {busy ? 'Saving…' : 'Save exercise'}
+              {busy ? t('common.saving') : t('exercises.save')}
             </button>
           ) : null}
           {exercise && !isSystem ? (
@@ -233,11 +256,11 @@ export function ExerciseEditor() {
               className="btn"
               onClick={() => void toggleArchive()}
             >
-              {exercise.is_archived ? 'Restore' : 'Archive'}
+              {exercise.is_archived ? t('exercises.restore') : t('exercises.archive')}
             </button>
           ) : null}
           <button type="button" className="btn btn--ghost" onClick={() => void navigate('/exercises')}>
-            Back
+            {t('common.back')}
           </button>
         </div>
       </form>

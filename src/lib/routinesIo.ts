@@ -13,6 +13,7 @@ import type {
 import { BACKUP_FORMAT } from './backup'
 import { normalizeBlockRole } from './blockRole'
 import { matchExercise } from './csv'
+import { t } from './i18n'
 
 export const ROUTINES_FORMAT = 'herkules-routines'
 export const ROUTINES_VERSION = 2
@@ -393,20 +394,28 @@ export function formatRoutineImportMessage(result: {
 }): string {
   const parts: string[] = []
   if (result.created > 0) {
-    parts.push(`${result.created} new routine${result.created === 1 ? '' : 's'}`)
+    parts.push(
+      result.created === 1
+        ? t('importMsg.newRoutineOne', { count: result.created })
+        : t('importMsg.newRoutineOther', { count: result.created }),
+    )
   }
   if (result.updated > 0) {
-    parts.push(`${result.updated} updated`)
+    parts.push(t('importMsg.updated', { count: result.updated }))
   }
   if (result.createdExercises > 0) {
     parts.push(
-      `${result.createdExercises} custom exercise${result.createdExercises === 1 ? '' : 's'}`,
+      result.createdExercises === 1
+        ? t('importMsg.customOne', { count: result.createdExercises })
+        : t('importMsg.customOther', { count: result.createdExercises }),
     )
   }
   if (parts.length === 0) {
-    return `Imported ${result.items} exercise slot${result.items === 1 ? '' : 's'}.`
+    return result.items === 1
+      ? t('importMsg.slotsOne', { count: result.items })
+      : t('importMsg.slotsOther', { count: result.items })
   }
-  return `Imported ${parts.join(', ')}.`
+  return t('importMsg.imported', { parts: parts.join(', ') })
 }
 
 export function downloadTextFile(filename: string, contents: string, mime: string): void {

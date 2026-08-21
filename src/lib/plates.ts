@@ -1,5 +1,6 @@
 // Plate math for barbell loading: greedy largest-plate-first per side.
 import type { UnitSystem } from '../types/db'
+import { t } from './i18n'
 
 export interface PlateBreakdown {
   /** plates to load on EACH side, largest first */
@@ -23,14 +24,14 @@ export interface BarOption {
 export function barOptionsFor(units: UnitSystem): BarOption[] {
   return units === 'metric'
     ? [
-        { label: 'Olympic bar — 20 kg', weight: 20 },
-        { label: 'Women’s bar — 15 kg', weight: 15 },
-        { label: 'Training bar — 10 kg', weight: 10 },
+        { label: t('plates.olympic20'), weight: 20 },
+        { label: t('plates.womens15'), weight: 15 },
+        { label: t('plates.training10'), weight: 10 },
       ]
     : [
-        { label: 'Olympic bar — 45 lb', weight: 45 },
-        { label: '35 lb bar', weight: 35 },
-        { label: '25 lb bar', weight: 25 },
+        { label: t('plates.olympic45'), weight: 45 },
+        { label: t('plates.bar35'), weight: 35 },
+        { label: t('plates.bar25'), weight: 25 },
       ]
 }
 

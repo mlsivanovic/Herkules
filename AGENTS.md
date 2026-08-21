@@ -1,6 +1,6 @@
 # Herkules
 
-Offline-first workout PWA (strength, cardio, mobility). Live at `https://mlsivanovic.github.io/Herkules/`. Product copy, comments, commits and UI strings are **English**.
+Offline-first workout PWA (strength, cardio, mobility). Live at `https://mlsivanovic.github.io/Herkules/`. Comments and commits stay **English**. Visible UI strings go through `src/lib/i18n` (English source of truth, plus Latin Serbian).
 
 Setup, env vars and deploy steps live in `SETUP.md`. Do not duplicate them here.
 
@@ -34,7 +34,7 @@ Commands: `npm run dev` (no SW), `npm run lint`, `npm test`, `npm run build` (`t
 - Mobile-first from 360 px; desktop sidebar at 768 px.
 - Touch targets min 44 px (`--control-h`).
 - Light/dark/system via `src/lib/theme.ts`. Reuse existing classes (`btn`, `card`, `field`, `badge`, `row`, `stack`) before inventing new ones.
-- Visible strings, `aria-label`, and `title` tooltips stay in English.
+- Visible strings, `aria-label`, and `title` tooltips go through `src/lib/i18n` (`en` is the source of truth; `sr` is Latin Serbian). Comments and commits stay English. Canonical stored data (exercise names, notes, CSV/JSON) stays English.
 
 ## Git
 

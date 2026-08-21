@@ -6,16 +6,17 @@ import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
 import { MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { IconPlus } from '../components/Icons'
+import {
+  categoryLabel,
+  displayExerciseName,
+  displayTags,
+  exerciseMatchesQuery,
+  useT,
+} from '../lib/i18n'
 import './exercises.css'
 
-const CATEGORY_FILTERS: { value: ExerciseCategory | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
-  { value: 'cardio', label: 'Cardio' },
-  { value: 'mobility', label: 'Mobility' },
-]
-
 export function Exercises() {
+  const { t } = useT()
   const { exercises, ready } = useStore()
   const navigate = useNavigate()
   const [category, setCategory] = useState<ExerciseCategory | 'all'>('all')
@@ -27,10 +28,12 @@ export function Exercises() {
     return exercises
       .filter((e) => (showArchived ? e.is_archived : !e.is_archived))
       .filter((e) => category === 'all' || e.category === category)
-      .filter((e) => needle === '' || e.name.toLowerCase().includes(needle))
+      .filter((e) => exerciseMatchesQuery(e, needle))
       .sort((a, b) => {
         if ((a.owner_id === null) !== (b.owner_id === null)) return a.owner_id === null ? 1 : -1
-        return a.name.localeCompare(b.name)
+        return displayExerciseName(a).localeCompare(displayExerciseName(b), undefined, {
+          sensitivity: 'base',
+        })
       })
   }, [exercises, category, query, showArchived])
 
@@ -39,30 +42,37 @@ export function Exercises() {
   return (
     <div>
       <div className="page-head">
-        <h1>Exercises</h1>
+        <h1>{t('exercises.title')}</h1>
         <button
           type="button"
           className="btn btn--primary"
           onClick={() => void navigate('/exercises/new')}
         >
-          <IconPlus width={18} height={18} /> New
+          <IconPlus width={18} height={18} /> {t('common.new')}
         </button>
       </div>
 
       <div className="field">
-        <label htmlFor="exercise-filter">Search exercises</label>
+        <label htmlFor="exercise-filter">{t('exercises.search')}</label>
         <input
           id="exercise-filter"
           className="input"
           type="search"
-          placeholder="Search…"
+          placeholder={t('exercises.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      <div className="row row--wrap" role="group" aria-label="Filter by category" style={{ marginBottom: '0.75rem' }}>
-        {CATEGORY_FILTERS.map((filter) => (
+      <div className="row row--wrap" role="group" aria-label={t('exercises.filterCategory')} style={{ marginBottom: '0.75rem' }}>
+        {(
+          [
+            { value: 'all', key: 'category.all' },
+            { value: 'strength', key: 'category.strength' },
+            { value: 'cardio', key: 'category.cardio' },
+            { value: 'mobility', key: 'category.mobility' },
+          ] as const
+        ).map((filter) => (
           <button
             key={filter.value}
             type="button"
@@ -70,7 +80,7 @@ export function Exercises() {
             aria-pressed={category === filter.value}
             onClick={() => setCategory(filter.value)}
           >
-            {filter.label}
+            {t(filter.key)}
           </button>
         ))}
         <button
@@ -79,17 +89,15 @@ export function Exercises() {
           aria-pressed={showArchived}
           onClick={() => setShowArchived((value) => !value)}
         >
-          Archived
+          {t('common.archived')}
         </button>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
-          title={showArchived ? 'No archived exercises' : 'No exercises match'}
+          title={showArchived ? t('exercises.noArchivedTitle') : t('exercises.noMatchTitle')}
           hint={
-            showArchived
-              ? 'Exercises you archive will appear here.'
-              : 'Try a different search or create a custom exercise.'
+            showArchived ? t('exercises.noArchivedHint') : t('exercises.noMatchHint')
           }
         />
       ) : (
@@ -104,9 +112,13 @@ export function Exercises() {
 }
 
 function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
+  const { t } = useT()
   const navigate = useNavigate()
-  const details = [exercise.category, MEASUREMENT_LABELS(exercise.measurement)]
-  if (exercise.muscle_groups.length > 0) details.push(exercise.muscle_groups.join(', '))
+  const details = [
+    categoryLabel(exercise.category),
+    MEASUREMENT_LABELS(exercise.measurement),
+  ]
+  if (exercise.muscle_groups.length > 0) details.push(displayTags(exercise.muscle_groups))
   return (
     <li className="card" style={{ padding: '0.75rem 0.9rem' }}>
       <button
@@ -117,13 +129,15 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
       >
         <span className="row row--between">
           <strong>
-            {exercise.name}{' '}
-            {exercise.is_archived ? <span className="badge badge--neutral">Archived</span> : null}
+            {displayExerciseName(exercise)}{' '}
+            {exercise.is_archived ? (
+              <span className="badge badge--neutral">{t('common.archived')}</span>
+            ) : null}
           </strong>
           {exercise.owner_id === null ? (
-            <span className="badge badge--neutral">System</span>
+            <span className="badge badge--neutral">{t('common.system')}</span>
           ) : (
-            <span className="badge badge--planned">Custom</span>
+            <span className="badge badge--planned">{t('common.custom')}</span>
           )}
         </span>
         <small className="muted">{details.join(' · ')}</small>
@@ -132,12 +146,14 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
         <small className="row row--wrap" style={{ marginTop: '0.35rem' }}>
           {exercise.source_url ? (
             <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
-              {exercise.source_provider ? `${exercise.source_provider} guide` : 'Instructions'} ↗
+              {exercise.source_provider
+                ? t('exercises.providerGuide', { provider: exercise.source_provider })
+                : t('exercises.guide')}
             </a>
           ) : null}
           {exercise.video_url && exercise.video_url !== exercise.source_url ? (
             <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
-              YouTube proper form ↗
+              {t('exercises.youtube')}
             </a>
           ) : null}
         </small>

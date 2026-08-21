@@ -1,21 +1,22 @@
 // Input validation shared by forms and set editors.
+import { t } from './i18n'
 
 export function validateEmail(email: string): string | null {
   const value = email.trim()
-  if (value === '') return 'Email is required.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.'
+  if (value === '') return t('validation.emailRequired')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return t('validation.emailInvalid')
   return null
 }
 
 export function validatePassword(password: string): string | null {
-  if (password.length < 8) return 'Password must be at least 8 characters.'
+  if (password.length < 8) return t('validation.passwordMin')
   return null
 }
 
 export function validateRequiredName(name: string, label: string): string | null {
   const value = name.trim()
-  if (value === '') return `${label} is required.`
-  if (value.length > 120) return `${label} must be at most 120 characters.`
+  if (value === '') return t('validation.required', { label })
+  if (value.length > 120) return t('validation.maxLen', { label })
   return null
 }
 
@@ -31,13 +32,13 @@ export function parseNonNegative(text: string): number | null {
 export function validateHttpsUrl(url: string): string | null {
   const value = url.trim()
   if (value === '') return null
-  if (!/^https:\/\/\S+\.\S+/.test(value)) return 'Enter a valid https:// link.'
+  if (!/^https:\/\/\S+\.\S+/.test(value)) return t('validation.https')
   return null
 }
 
 export function validateRpe(rpe: number | null): string | null {
   if (rpe === null) return null
-  if (!Number.isInteger(rpe) || rpe < 1 || rpe > 10) return 'RPE must be between 1 and 10.'
+  if (!Number.isInteger(rpe) || rpe < 1 || rpe > 10) return t('validation.rpe')
   return null
 }
 

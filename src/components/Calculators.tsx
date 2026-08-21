@@ -6,6 +6,7 @@ import { barOptionsFor, denominationsFor, platesForTarget } from '../lib/plates'
 import { warmupSets } from '../lib/warmup'
 import { formatWeight, weightToKg, weightUnitLabel } from '../lib/units'
 import { parseNonNegative } from '../lib/validation'
+import { useT } from '../lib/i18n'
 
 export function PlateCalculatorModal({
   units,
@@ -17,6 +18,7 @@ export function PlateCalculatorModal({
   initialKg: number | null
   onClose(): void
 }) {
+  const { t } = useT()
   const bars = barOptionsFor(units)
   const [target, setTarget] = useState('')
   const [barWeight, setBarWeight] = useState(bars[0].weight)
@@ -30,9 +32,9 @@ export function PlateCalculatorModal({
   const loadedPerSide = result?.perSide.reduce((sum, p) => sum + p.weight * p.count, 0) ?? 0
 
   return (
-    <Modal title="Plate calculator" onClose={onClose}>
+    <Modal title={t('plates.title')} onClose={onClose}>
       <div className="field">
-        <label htmlFor="plate-target">Target weight ({weightUnitLabel(units)})</label>
+        <label htmlFor="plate-target">{t('plates.target', { unit: weightUnitLabel(units) })}</label>
         <input
           id="plate-target"
           className="input"
@@ -44,11 +46,11 @@ export function PlateCalculatorModal({
           autoFocus
         />
         {initialKg !== null && target === '' ? (
-          <small className="muted">Last time: {formatWeight(initialKg, units)}</small>
+          <small className="muted">{t('plates.lastTime', { value: formatWeight(initialKg, units) })}</small>
         ) : null}
       </div>
       <div className="field">
-        <label htmlFor="plate-bar">Bar</label>
+        <label htmlFor="plate-bar">{t('plates.bar')}</label>
         <select
           id="plate-bar"
           className="input"
@@ -65,16 +67,16 @@ export function PlateCalculatorModal({
 
       {result?.belowBar ? (
         <p className="field-error" role="alert">
-          That is lighter than the empty bar.
+          {t('plates.belowBar')}
         </p>
       ) : null}
 
       {result && !result.belowBar ? (
         <div className="calc-result">
           <p style={{ margin: 0 }}>
-            <strong>Per side:</strong>{' '}
+            <strong>{t('plates.perSide')}</strong>{' '}
             {result.perSide.length === 0 ? (
-              <span className="muted">empty bar</span>
+              <span className="muted">{t('plates.emptyBar')}</span>
             ) : (
               result.perSide.map((p) => `${p.weight} ×${p.count}`).join('  +  ')
             )}
@@ -103,6 +105,7 @@ export function WarmupModal({
   onAdd(sets: { weightKg: number; reps: number }[]): void
   onClose(): void
 }) {
+  const { t } = useT()
   const bars = barOptionsFor(units)
   const [working, setWorking] = useState('')
   const [barWeight, setBarWeight] = useState(bars[0].weight)
@@ -128,7 +131,7 @@ export function WarmupModal({
           autoFocus
         />
         {initialKg !== null && working === '' ? (
-          <small className="muted">Last time: {formatWeight(initialKg, units)}</small>
+          <small className="muted">{t('plates.lastTime', { value: formatWeight(initialKg, units) })}</small>
         ) : null}
       </div>
       <div className="field">

@@ -13,6 +13,7 @@ import {
   type IntervalConfig,
 } from '../lib/intervals'
 import { formatDuration } from '../lib/units'
+import { useT } from '../lib/i18n'
 import './intervalTimer.css'
 
 interface WakeLockSentinelLike {
@@ -23,14 +24,6 @@ type WakeLockNavigator = Navigator & {
   wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinelLike> }
 }
 
-const PHASE_LABEL: Record<IntervalState['phase'], string> = {
-  idle: 'Ready',
-  prepare: 'Get ready',
-  work: 'WORK',
-  rest: 'Rest',
-  done: 'Done!',
-}
-
 export function IntervalTimerModal({
   onClose,
   initialConfig,
@@ -38,6 +31,14 @@ export function IntervalTimerModal({
   onClose(): void
   initialConfig?: Partial<IntervalConfig>
 }) {
+  const { t } = useT()
+  const phaseLabel = {
+    idle: t('interval.ready'),
+    prepare: t('interval.prepare'),
+    work: t('interval.work'),
+    rest: t('interval.rest'),
+    done: t('interval.done'),
+  } as const
   const [config, setConfig] = useState(() => clampConfig(initialConfig ?? {}))
   const [state, setState] = useState<IntervalState>(IDLE_INTERVAL)
   const [paused, setPaused] = useState(false)
@@ -85,20 +86,28 @@ export function IntervalTimerModal({
   }
 
   return (
-    <Modal title="Interval timer" onClose={onClose}>
+    <Modal title={t('interval.title')} onClose={onClose}>
       {running || state.phase === 'done' ? (
         <>
           <div
             className={`interval-display interval-display--${state.phase === 'done' ? 'done' : state.phase}`}
             role="timer"
-            aria-label={`${PHASE_LABEL[state.phase]}, ${formatDuration(state.remaining)} remaining, round ${state.round} of ${config.rounds}`}
+            aria-label={t('interval.remaining', {
+              phase: phaseLabel[state.phase],
+              time: formatDuration(state.remaining),
+              round: state.round,
+              rounds: config.rounds,
+            })}
           >
-            <span className="interval-display__phase">{PHASE_LABEL[state.phase]}</span>
+            <span className="interval-display__phase">{phaseLabel[state.phase]}</span>
             <strong className="interval-display__time mono">
               {state.phase === 'done' ? '🎉' : formatDuration(state.remaining)}
             </strong>
             <span className="muted">
-              Round {Math.min(state.round, config.rounds)} / {config.rounds}
+              {t('interval.roundOf', {
+                round: Math.min(state.round, config.rounds),
+                rounds: config.rounds,
+              })}
             </span>
           </div>
           <div className="row row--wrap">
@@ -108,7 +117,7 @@ export function IntervalTimerModal({
                 className="btn"
                 onClick={() => setPaused((value) => !value)}
               >
-                {paused ? 'Resume' : 'Pause'}
+                {paused ? t('interval.resume') : t('interval.pause')}
               </button>
             ) : null}
             <button
@@ -120,7 +129,7 @@ export function IntervalTimerModal({
                 setState(IDLE_INTERVAL)
               }}
             >
-              Reset
+              {t('interval.reset')}
             </button>
             {state.phase === 'done' ? (
               <button
@@ -132,7 +141,7 @@ export function IntervalTimerModal({
                   void acquireWakeLock()
                 }}
               >
-                Go again
+                {t('interval.again')}
               </button>
             ) : null}
           </div>
@@ -141,7 +150,7 @@ export function IntervalTimerModal({
         <>
           <div className="field-pair">
             <div className="field">
-              <label htmlFor="interval-prepare">Prepare (s)</label>
+              <label htmlFor="interval-prepare">{t('interval.prepareS')}</label>
               <input
                 id="interval-prepare"
                 className="input"
@@ -153,7 +162,7 @@ export function IntervalTimerModal({
               />
             </div>
             <div className="field">
-              <label htmlFor="interval-rounds">Rounds</label>
+              <label htmlFor="interval-rounds">{t('interval.rounds')}</label>
               <input
                 id="interval-rounds"
                 className="input"
@@ -167,7 +176,7 @@ export function IntervalTimerModal({
           </div>
           <div className="field-pair">
             <div className="field">
-              <label htmlFor="interval-work">Work (s)</label>
+              <label htmlFor="interval-work">{t('interval.workS')}</label>
               <input
                 id="interval-work"
                 className="input"
@@ -179,7 +188,7 @@ export function IntervalTimerModal({
               />
             </div>
             <div className="field">
-              <label htmlFor="interval-rest">Rest (s)</label>
+              <label htmlFor="interval-rest">{t('interval.restS')}</label>
               <input
                 id="interval-rest"
                 className="input"
@@ -200,13 +209,18 @@ export function IntervalTimerModal({
               void acquireWakeLock()
             }}
           >
-            Start intervals
+            {t('interval.start')}
           </button>
           <p className="muted" style={{ margin: '0.5rem 0 0' }}>
-            {config.rounds} × {formatDuration(config.work)} work
-            {config.rest > 0 ? ` / ${formatDuration(config.rest)} rest` : ''}
-            {config.prepare > 0 ? `, ${formatDuration(config.prepare)} prepare` : ''}. Log the
-            result manually in the set row.
+            {t('interval.summary', {
+              rounds: config.rounds,
+              work: formatDuration(config.work),
+              rest: config.rest > 0 ? t('interval.restPart', { time: formatDuration(config.rest) }) : '',
+              prepare:
+                config.prepare > 0
+                  ? t('interval.preparePart', { time: formatDuration(config.prepare) })
+                  : '',
+            })}
           </p>
         </>
       )}

@@ -17,12 +17,11 @@ import type { DayWorkoutStatus } from '../lib/recurrence'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
 import { nextTemplateForPlan } from '../lib/programs/plans'
+import { bcp47, useT } from '../lib/i18n'
 import './calendar.css'
 
-const WEEKDAY_LABELS_MON = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const WEEKDAY_LABELS_SUN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 export function Calendar() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { schedules, rules, templates, sessions, profile, ready } = useStore()
   const weekStart = profile?.week_start ?? 'monday'
@@ -35,7 +34,10 @@ export function Calendar() {
   const [schedulerFor, setSchedulerFor] = useState<DateKey | null>(null)
 
   const grid = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart])
-  const weekdayLabels = weekStart === 'monday' ? WEEKDAY_LABELS_MON : WEEKDAY_LABELS_SUN
+  const weekdayLabels =
+    weekStart === 'monday'
+      ? [t('weekdays.mon'), t('weekdays.tue'), t('weekdays.wed'), t('weekdays.thu'), t('weekdays.fri'), t('weekdays.sat'), t('weekdays.sun')]
+      : [t('weekdays.sun'), t('weekdays.mon'), t('weekdays.tue'), t('weekdays.wed'), t('weekdays.thu'), t('weekdays.fri'), t('weekdays.sat')]
 
   const refs: ScheduleRef[] = useMemo(
     () =>
@@ -101,13 +103,13 @@ export function Calendar() {
   return (
     <div>
       <div className="page-head">
-        <h1>Calendar</h1>
+        <h1>{t('calendar.title')}</h1>
         <button
           type="button"
           className="btn btn--primary"
           onClick={() => setSchedulerFor(selectedDay ?? today)}
         >
-          <IconPlus width={18} height={18} /> Schedule
+          <IconPlus width={18} height={18} /> {t('calendar.schedule')}
         </button>
       </div>
 
@@ -115,7 +117,7 @@ export function Calendar() {
         <button
           type="button"
           className="btn btn--icon"
-          aria-label="Previous month"
+          aria-label={t('calendar.prevMonth')}
           onClick={() => shiftMonth(-1)}
         >
           <IconChevronLeft />
@@ -124,14 +126,14 @@ export function Calendar() {
         <button
           type="button"
           className="btn btn--icon"
-          aria-label="Next month"
+          aria-label={t('calendar.nextMonth')}
           onClick={() => shiftMonth(1)}
         >
           <IconChevronRight />
         </button>
       </div>
 
-      <div className="calendar-grid" role="grid" aria-label="Workout calendar">
+      <div className="calendar-grid" role="grid" aria-label={t('calendar.grid')}>
         {weekdayLabels.map((label) => (
           <div key={label} className="calendar-weekday" role="columnheader">
             {label}
@@ -150,7 +152,7 @@ export function Calendar() {
                 key === today ? 'calendar-day--today' : ''
               } ${status ? `calendar-day--${status}` : ''}`}
               aria-label={`${key}${status ? `, ${status.replace('-', ' ')}` : ''}${
-                plannedCount > 0 ? `, ${plannedCount} planned` : ''
+                plannedCount > 0 ? `, ${t('calendar.plannedCount', { count: plannedCount })}` : ''
               }`}
               aria-current={key === today ? 'date' : undefined}
               onClick={() => setSelectedDay(key)}
@@ -163,14 +165,14 @@ export function Calendar() {
       </div>
 
       <div className="calendar-legend" aria-hidden="true">
-        <span><i className="calendar-dot calendar-dot--planned" /> Planned</span>
-        <span><i className="calendar-dot calendar-dot--in-progress" /> In progress</span>
-        <span><i className="calendar-dot calendar-dot--completed" /> Completed</span>
-        <span><i className="calendar-dot calendar-dot--skipped" /> Skipped</span>
+        <span><i className="calendar-dot calendar-dot--planned" /> {t('status.planned')}</span>
+        <span><i className="calendar-dot calendar-dot--in-progress" /> {t('status.inProgress')}</span>
+        <span><i className="calendar-dot calendar-dot--completed" /> {t('status.completed')}</span>
+        <span><i className="calendar-dot calendar-dot--skipped" /> {t('status.skipped')}</span>
       </div>
 
       {selectedDay ? (
-        <Modal title={new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(parseDateKey(selectedDay))} onClose={() => setSelectedDay(null)}>
+        <Modal title={new Intl.DateTimeFormat(bcp47(), { weekday: 'long', month: 'long', day: 'numeric' }).format(parseDateKey(selectedDay))} onClose={() => setSelectedDay(null)}>
           <DayDetail
             dayKey={selectedDay}
             planned={(plannedByDate.get(selectedDay) ?? []).map((o) => ({
@@ -225,6 +227,7 @@ function DayDetail({
   onStart(templateId: string, scheduleId: string): void
   onSchedule(): void
 }) {
+  const { t } = useT()
   const { deleteSchedule, deleteSession, skipOccurrence, unskipOccurrence } = useStore()
   const navigate = useNavigate()
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
@@ -232,18 +235,24 @@ function DayDetail({
   return (
     <div className="stack">
       {planned.length === 0 && sessions.length === 0 ? (
-        <EmptyState title="Nothing planned" hint="Schedule a routine for this day." />
+        <EmptyState title={t('calendar.nothingTitle')} hint={t('calendar.nothingHint')} />
       ) : null}
 
       {planned.map((entry) => {
         const match = sessions.find((s) => s.schedule_item_id === entry.scheduleId)
         const skipped = match?.status === 'skipped'
         const completed = match?.status === 'completed'
-        const label = completed ? 'completed' : skipped ? 'skipped' : dayKey < todayKey() ? 'skipped' : 'planned'
+        const label = completed
+          ? t('status.completed')
+          : skipped
+            ? t('status.skipped')
+            : dayKey < todayKey()
+              ? t('status.skipped')
+              : t('status.planned')
         return (
           <div key={entry.scheduleId} className="card row row--between">
             <span>
-              <strong>{entry.template?.name ?? 'Routine'}</strong>{' '}
+              <strong>{entry.template?.name ?? t('calendar.routine')}</strong>{' '}
               <small className="muted">· {label}</small>
             </span>
             <span className="row">
@@ -253,7 +262,7 @@ function DayDetail({
                   className="btn btn--small btn--primary"
                   onClick={() => entry.template && onStart(entry.template.id, entry.scheduleId)}
                 >
-                  Start
+                  {t('common.start')}
                 </button>
               ) : null}
               {!completed && !skipped && !match ? (
@@ -262,7 +271,7 @@ function DayDetail({
                   className="btn btn--small"
                   onClick={() => void skipOccurrence(entry.scheduleId, dayKey)}
                 >
-                  Skip
+                  {t('common.skip')}
                 </button>
               ) : null}
               {skipped && match ? (
@@ -271,16 +280,16 @@ function DayDetail({
                   className="btn btn--small"
                   onClick={() => void unskipOccurrence(match.id)}
                 >
-                  Undo skip
+                  {t('common.undoSkip')}
                 </button>
               ) : null}
               <button
                 type="button"
                 className="btn btn--small btn--danger"
-                aria-label={`Unschedule ${entry.template?.name ?? 'routine'}`}
+                aria-label={t('calendar.unschedule', { name: entry.template?.name ?? t('calendar.routine') })}
                 onClick={() => void deleteSchedule(entry.scheduleId)}
               >
-                Remove
+                {t('common.remove')}
               </button>
             </span>
           </div>
@@ -311,7 +320,7 @@ function DayDetail({
               <button
                 type="button"
                 className="btn btn--icon btn--small btn--danger"
-                aria-label={`Delete ${session.name}`}
+                aria-label={t('calendar.deleteWorkout', { name: session.name })}
                 onClick={() => setPendingDelete(session.id)}
               >
                 <IconTrash width={16} height={16} />
@@ -322,12 +331,12 @@ function DayDetail({
       })}
 
       <button type="button" className="btn btn--block" onClick={onSchedule}>
-        <IconPlus width={18} height={18} /> Schedule a routine on this day
+        <IconPlus width={18} height={18} /> {t('calendar.scheduleOnDay')}
       </button>
 
       {pendingDelete ? (
-        <Modal title="Delete this workout?" onClose={() => setPendingDelete(null)}>
-          <p>This removes the logged workout from history. The routine itself stays in your library.</p>
+        <Modal title={t('calendar.deleteTitle')} onClose={() => setPendingDelete(null)}>
+          <p>{t('calendar.deleteBody')}</p>
           <div className="stack">
             <button
               type="button"
@@ -337,10 +346,10 @@ function DayDetail({
                 setPendingDelete(null)
               }}
             >
-              Delete workout
+              {t('calendar.deleteConfirm')}
             </button>
             <button type="button" className="btn btn--block" onClick={() => setPendingDelete(null)}>
-              Keep it
+              {t('calendar.keep')}
             </button>
           </div>
         </Modal>
@@ -350,6 +359,7 @@ function DayDetail({
 }
 
 function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }) {
+  const { t } = useT()
   const { templates, scheduleSingleDate, scheduleWeekly } = useStore()
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '')
   const [mode, setMode] = useState<'once' | 'weekly'>('once')
@@ -360,34 +370,34 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
   const [error, setError] = useState<string | null>(null)
 
   const WEEKDAYS = [
-    { value: 1, label: 'Mon' },
-    { value: 2, label: 'Tue' },
-    { value: 3, label: 'Wed' },
-    { value: 4, label: 'Thu' },
-    { value: 5, label: 'Fri' },
-    { value: 6, label: 'Sat' },
-    { value: 7, label: 'Sun' },
+    { value: 1, label: t('weekdays.mon') },
+    { value: 2, label: t('weekdays.tue') },
+    { value: 3, label: t('weekdays.wed') },
+    { value: 4, label: t('weekdays.thu') },
+    { value: 5, label: t('weekdays.fri') },
+    { value: 6, label: t('weekdays.sat') },
+    { value: 7, label: t('weekdays.sun') },
   ]
 
   if (templates.length === 0) {
     return (
-      <Modal title="Schedule workout" onClose={onClose}>
-        <EmptyState title="No routines yet" hint="Create a routine first, then schedule it here." />
+      <Modal title={t('calendar.scheduleTitle')} onClose={onClose}>
+        <EmptyState title={t('calendar.noRoutinesTitle')} hint={t('calendar.noRoutinesHint')} />
       </Modal>
     )
   }
 
   async function submit() {
     if (!templateId) {
-      setError('Choose a routine.')
+      setError(t('calendar.chooseRoutine'))
       return
     }
     if (mode === 'weekly' && weekdays.length === 0) {
-      setError('Pick at least one weekday.')
+      setError(t('rotation.needWeekday'))
       return
     }
     if (endDate !== '' && endDate < startDate) {
-      setError('End date must be after the start date.')
+      setError(t('calendar.endAfterStart'))
       return
     }
     try {
@@ -397,31 +407,31 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
         await scheduleWeekly(templateId, [...weekdays].sort((a, b) => a - b), startDate, endDate === '' ? null : endDate)
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not schedule the workout.')
+      setError(caught instanceof Error ? caught.message : t('errors.schedule'))
       return
     }
     onClose()
   }
 
   return (
-    <Modal title="Schedule workout" onClose={onClose}>
+    <Modal title={t('calendar.scheduleTitle')} onClose={onClose}>
       <div className="field">
-        <label htmlFor="schedule-routine">Routine</label>
+        <label htmlFor="schedule-routine">{t('calendar.routineLabel')}</label>
         <select
           id="schedule-routine"
           className="input"
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
         >
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
+          {templates.map((tpl) => (
+            <option key={tpl.id} value={tpl.id}>
+              {tpl.name}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="row" role="group" aria-label="Repeat mode" style={{ marginBottom: '0.9rem' }}>
+      <div className="row" role="group" aria-label={t('calendar.repeatMode')} style={{ marginBottom: '0.9rem' }}>
         {(['once', 'weekly'] as const).map((value) => (
           <button
             key={value}
@@ -430,19 +440,19 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
             aria-pressed={mode === value}
             onClick={() => setMode(value)}
           >
-            {value === 'once' ? 'Once' : 'Weekly'}
+            {value === 'once' ? t('calendar.once') : t('calendar.weekly')}
           </button>
         ))}
       </div>
 
       {mode === 'once' ? (
         <p className="muted">
-          Schedules <strong>{formatDayShort(dayKey)}, {dayKey}</strong> only.
+          {t('calendar.onceHint', { when: `${formatDayShort(dayKey)}, ${dayKey}` })}
         </p>
       ) : (
         <>
           <fieldset className="field" style={{ border: 0, padding: 0 }}>
-            <legend style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Repeat on</legend>
+            <legend style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{t('calendar.repeatOn')}</legend>
             <div className="row row--wrap">
               {WEEKDAYS.map((day) => (
                 <button
@@ -465,7 +475,7 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
           </fieldset>
 
           <div className="field">
-            <label htmlFor="schedule-start">Start date</label>
+            <label htmlFor="schedule-start">{t('calendar.startDate')}</label>
             <input
               id="schedule-start"
               className="input"
@@ -475,7 +485,7 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
             />
           </div>
           <div className="field">
-            <label htmlFor="schedule-end">End date (optional)</label>
+            <label htmlFor="schedule-end">{t('calendar.endDate')}</label>
             <input
               id="schedule-end"
               className="input"
@@ -486,7 +496,7 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
             />
           </div>
           <p className="muted">
-            Rule edits affect only future workouts — completed history stays untouched.
+            {t('calendar.ruleEdits')}
           </p>
         </>
       )}
@@ -498,7 +508,7 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
       ) : null}
 
       <button type="button" className="btn btn--primary btn--block" onClick={() => void submit()}>
-        Schedule
+        {t('calendar.save')}
       </button>
     </Modal>
   )

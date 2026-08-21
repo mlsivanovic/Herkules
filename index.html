@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <script>
-      // Pre-paint theme: avoid a flash of the wrong theme
+      // Pre-paint theme + locale: avoid a flash of the wrong theme/language
       ;(function () {
         try {
           var izbor = localStorage.getItem('herkules:theme')
@@ -30,6 +30,21 @@
           if (meta) meta.setAttribute('content', izbor === 'dark' ? '#101a2e' : '#f1f5f9')
         } catch (e) {
           document.documentElement.dataset.theme = 'light'
+        }
+        try {
+          var localePref = localStorage.getItem('herkules:locale')
+          var locale = 'en'
+          if (localePref === 'sr' || localePref === 'en') {
+            locale = localePref
+          } else {
+            var nav = (navigator.language || 'en').toLowerCase()
+            if (nav === 'sr' || nav.indexOf('sr-') === 0) locale = 'sr'
+          }
+          document.documentElement.lang = locale === 'sr' ? 'sr-Latn' : 'en'
+          document.documentElement.dataset.locale = locale
+        } catch (e) {
+          document.documentElement.lang = 'en'
+          document.documentElement.dataset.locale = 'en'
         }
       })()
     </script>

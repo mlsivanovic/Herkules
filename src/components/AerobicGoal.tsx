@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { addDays, startOfWeek, todayKey } from '../lib/dates'
 import { aerobicSecondsInWeek } from '../lib/prescription'
+import { useT } from '../lib/i18n'
 
 const TARGET_SECONDS = 150 * 60
 
 export function AerobicGoal() {
+  const { t } = useT()
   const store = useStore()
   const today = todayKey()
   const from = startOfWeek(today, store.profile?.week_start ?? 'monday')
@@ -24,33 +26,33 @@ export function AerobicGoal() {
     <section className="card stack">
       <div className="row row--between">
         <span>
-          <strong>Aerobic goal</strong>
+          <strong>{t('aerobic.title')}</strong>
           <small className="muted" style={{ display: 'block' }}>
-            {Math.round(seconds / 60)} / 150 moderate minutes this week
+            {t('aerobic.minutes', { done: Math.round(seconds / 60) })}
           </small>
         </span>
         <span className="badge badge--neutral">{percent}%</span>
       </div>
-      <progress max={100} value={percent} aria-label={`${percent}% of weekly aerobic goal`} />
+      <progress max={100} value={percent} aria-label={t('aerobic.percentAria', { percent })} />
       {open ? (
         <div className="stack">
           <div className="field-pair">
             <label className="field">
-              <span>Activity</span>
+              <span>{t('aerobic.activity')}</span>
               <select className="input" value={type} onChange={(event) => setType(event.target.value as typeof type)}>
-                <option value="walking">Walking</option>
-                <option value="cycling">Cycling</option>
-                <option value="rowing">Rowing</option>
-                <option value="other">Other</option>
+                <option value="walking">{t('aerobic.walking')}</option>
+                <option value="cycling">{t('aerobic.cycling')}</option>
+                <option value="rowing">{t('aerobic.rowing')}</option>
+                <option value="other">{t('aerobic.other')}</option>
               </select>
             </label>
             <label className="field">
-              <span>Minutes</span>
+              <span>{t('aerobic.minutesLabel')}</span>
               <input className="input" type="number" min={1} max={1440} value={minutes} onChange={(event) => setMinutes(event.target.value)} />
             </label>
           </div>
           <label className="field">
-            <span>Date</span>
+            <span>{t('common.date')}</span>
             <input className="input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </label>
           <div className="row">
@@ -64,14 +66,14 @@ export function AerobicGoal() {
                 setOpen(false)
               }}
             >
-              Save activity
+              {t('aerobic.save')}
             </button>
-            <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
           </div>
         </div>
       ) : (
         <button type="button" className="btn btn--small" onClick={() => setOpen(true)}>
-          Log walking, cycling or other activity
+          {t('aerobic.log')}
         </button>
       )}
     </section>

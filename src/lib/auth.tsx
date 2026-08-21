@@ -7,6 +7,7 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, backendConfigured } from './supabase'
+import { t } from './i18n'
 
 export interface AuthState {
   session: Session | null
@@ -26,7 +27,7 @@ const AuthContext = createContext<AuthState | null>(null)
 function describeError(error: { message: string } | null): string | null {
   if (!error) return null
   if (error.message.includes('Failed to fetch')) {
-    return 'No connection to the server — check your internet and try again.'
+    return t('auth.noConnection')
   }
   return error.message
 }

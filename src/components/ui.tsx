@@ -1,12 +1,14 @@
 // Shared UI primitives: loading/error/empty states, modal, badges.
 import { useEffect, type ReactNode } from 'react'
 import type { DayWorkoutStatus } from '../lib/recurrence'
+import { useT } from '../lib/i18n'
 
-export function Loader({ label = 'Loading…' }: { label?: string }) {
+export function Loader({ label }: { label?: string }) {
+  const { t } = useT()
   return (
     <div className="state" role="status">
       <div className="spinner" />
-      <span>{label}</span>
+      <span>{label ?? t('common.loading')}</span>
     </div>
   )
 }
@@ -30,13 +32,14 @@ export function EmptyState({
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT()
   return (
     <div className="state" role="alert">
-      <strong>Something went wrong</strong>
+      <strong>{t('common.somethingWrong')}</strong>
       <span>{message}</span>
       {onRetry ? (
         <button type="button" className="btn btn--small" onClick={onRetry}>
-          Try again
+          {t('common.tryAgain')}
         </button>
       ) : null}
     </div>
@@ -52,6 +55,7 @@ export function Modal({
   onClose: () => void
   children: ReactNode
 }) {
+  const { t } = useT()
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
@@ -70,8 +74,8 @@ export function Modal({
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="row row--between" style={{ marginBottom: '0.75rem' }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
-          <button type="button" className="btn btn--small" onClick={onClose} aria-label="Close dialog">
-            Close
+          <button type="button" className="btn btn--small" onClick={onClose} aria-label={t('common.closeDialog')}>
+            {t('common.close')}
           </button>
         </div>
         {children}
@@ -80,15 +84,15 @@ export function Modal({
   )
 }
 
-const STATUS_LABELS: Record<DayWorkoutStatus, string> = {
-  planned: 'Planned',
-  'in-progress': 'In progress',
-  completed: 'Completed',
-  skipped: 'Skipped',
-}
-
 export function StatusBadge({ status }: { status: DayWorkoutStatus }) {
-  return <span className={`badge badge--${status}`}>{STATUS_LABELS[status]}</span>
+  const { t } = useT()
+  const labels: Record<DayWorkoutStatus, string> = {
+    planned: t('status.planned'),
+    'in-progress': t('status.inProgress'),
+    completed: t('status.completed'),
+    skipped: t('status.skipped'),
+  }
+  return <span className={`badge badge--${status}`}>{labels[status]}</span>
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {

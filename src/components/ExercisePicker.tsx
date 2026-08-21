@@ -2,36 +2,36 @@
 import { useMemo, useState } from 'react'
 import type { ExerciseCategory, ExerciseRow } from '../types/db'
 import { useStore } from '../lib/store'
+import {
+  categoryLabel,
+  displayExerciseName,
+  exerciseMatchesQuery,
+  t,
+  useT,
+  type MessageKey,
+} from '../lib/i18n'
 import { Modal } from './ui'
 
-const CATEGORY_FILTERS: { value: ExerciseCategory | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
-  { value: 'cardio', label: 'Cardio' },
-  { value: 'mobility', label: 'Mobility' },
-]
-
 export function MEASUREMENT_LABELS(measurement: ExerciseRow['measurement']): string {
-  switch (measurement) {
-    case 'weight_reps':
-      return 'Weight × Reps'
-    case 'reps':
-      return 'Reps'
-    case 'duration':
-      return 'Duration'
-    case 'distance_duration':
-      return 'Distance + Duration'
-    case 'weight_duration':
-      return 'Weight + Hold time'
-    case 'weight_distance':
-      return 'Weight + Distance'
-    default:
-      return measurement
-  }
+  const key: MessageKey =
+    measurement === 'weight_reps'
+      ? 'measurement.weight_reps'
+      : measurement === 'reps'
+        ? 'measurement.reps'
+        : measurement === 'duration'
+          ? 'measurement.duration'
+          : measurement === 'distance_duration'
+            ? 'measurement.distance_duration'
+            : measurement === 'weight_duration'
+              ? 'measurement.weight_duration'
+              : measurement === 'weight_distance'
+                ? 'measurement.weight_distance'
+                : 'measurement.reps'
+  return t(key)
 }
 
 export function ExercisePicker({
-  title = 'Choose exercise',
+  title,
   onSelect,
   onClose,
 }: {
@@ -39,6 +39,7 @@ export function ExercisePicker({
   onSelect(exerciseId: string): void
   onClose(): void
 }) {
+  const { t } = useT()
   const { exercises } = useStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ExerciseCategory | 'all'>('all')
@@ -48,29 +49,42 @@ export function ExercisePicker({
     return exercises
       .filter((e) => !e.is_archived)
       .filter((e) => category === 'all' || e.category === category)
-      .filter((e) => needle === '' || e.name.toLowerCase().includes(needle))
+      .filter((e) => exerciseMatchesQuery(e, needle))
       .sort((a, b) => {
-        // custom exercises first, then alphabetical
         if ((a.owner_id === null) !== (b.owner_id === null)) return a.owner_id === null ? 1 : -1
-        return a.name.localeCompare(b.name)
+        return displayExerciseName(a).localeCompare(displayExerciseName(b), undefined, {
+          sensitivity: 'base',
+        })
       })
   }, [exercises, query, category])
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title ?? t('exercises.choose')} onClose={onClose}>
       <div className="field">
-        <label htmlFor="exercise-search">Search</label>
+        <label htmlFor="exercise-search">{t('common.search')}</label>
         <input
           id="exercise-search"
           className="input"
           type="search"
-          placeholder="e.g. squat, run…"
+          placeholder={t('exercises.pickerPlaceholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      <div className="row row--wrap" style={{ marginBottom: '0.75rem' }} role="group" aria-label="Filter by category">
-        {CATEGORY_FILTERS.map((filter) => (
+      <div
+        className="row row--wrap"
+        style={{ marginBottom: '0.75rem' }}
+        role="group"
+        aria-label={t('exercises.filterCategory')}
+      >
+        {(
+          [
+            { value: 'all', key: 'category.all' },
+            { value: 'strength', key: 'category.strength' },
+            { value: 'cardio', key: 'category.cardio' },
+            { value: 'mobility', key: 'category.mobility' },
+          ] as const
+        ).map((filter) => (
           <button
             key={filter.value}
             type="button"
@@ -78,12 +92,12 @@ export function ExercisePicker({
             aria-pressed={category === filter.value}
             onClick={() => setCategory(filter.value)}
           >
-            {filter.label}
+            {t(filter.key)}
           </button>
         ))}
       </div>
       {results.length === 0 ? (
-        <p className="muted">No exercises match. You can create a custom one in the Exercises tab.</p>
+        <p className="muted">{t('exercises.pickerEmpty')}</p>
       ) : (
         <ul className="picker-list">
           {results.map((exercise) => (
@@ -97,11 +111,11 @@ export function ExercisePicker({
                 }}
               >
                 <span className="picker-name">
-                  {exercise.name}
-                  {exercise.owner_id === null ? <small> · system</small> : null}
+                  {displayExerciseName(exercise)}
+                  {exercise.owner_id === null ? <small>{t('exercises.systemDot')}</small> : null}
                 </span>
                 <span className="muted">
-                  {exercise.category} · {MEASUREMENT_LABELS(exercise.measurement)}
+                  {categoryLabel(exercise.category)} · {MEASUREMENT_LABELS(exercise.measurement)}
                 </span>
               </button>
             </li>

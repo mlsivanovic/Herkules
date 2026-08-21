@@ -25,6 +25,7 @@ import {
 import { parseNonNegative } from '../lib/validation'
 import { setSoundEnabled, setVibrationEnabled, soundEnabled, vibrationEnabled } from '../lib/cues'
 import { useTheme, type ThemePreference } from '../lib/theme'
+import { bcp47, useLocale, useT, type LocalePreference } from '../lib/i18n'
 import type { Sex } from '../types/db'
 import { LineChart } from '../components/Chart'
 import { IconChevronDown } from '../components/Icons'
@@ -34,12 +35,6 @@ import './settings.css'
 const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'account'] as const
 type SettingsPane = (typeof SETTINGS_PANES)[number]
 const SETTINGS_OPEN_KEY = 'herkules:settings-open'
-
-const THEME_LABEL: Record<ThemePreference, string> = {
-  light: 'Light',
-  dark: 'Dark',
-  system: 'System',
-}
 
 function readOpenPane(): SettingsPane | null {
   try {
@@ -111,11 +106,13 @@ function SettingsSection({
 }
 
 export function Settings() {
+  const { t } = useT()
   const navigate = useNavigate()
   const store = useStore()
   const { session } = useAuth()
   const profile = store.profile
   const { preference, setPreference } = useTheme()
+  const { preference: localePreference, setPreference: setLocalePreference } = useLocale()
   const [cueSound, setCueSound] = useState(() => soundEnabled())
   const [cueVibration, setCueVibration] = useState(() => vibrationEnabled())
   const [openPane, setOpenPane] = useState<SettingsPane | null>(readOpenPane)
@@ -191,7 +188,7 @@ export function Settings() {
       savedTimer.current = window.setTimeout(() => setSaved(false), 2000)
     } catch (caught) {
       setSaved(false)
-      setSaveError(caught instanceof Error ? caught.message : 'Could not save the profile.')
+      setSaveError(caught instanceof Error ? caught.message : t('errors.saveProfile'))
     }
   }
 
@@ -213,9 +210,7 @@ export function Settings() {
       return
     }
     setLogoutBusy(false)
-    setLogoutError(
-      'Some changes could not be synced. Go online and try again, or discard local changes.',
-    )
+    setLogoutError(t('settings.logoutSyncFail'))
   }
 
   function requestLogout() {
@@ -227,40 +222,44 @@ export function Settings() {
   }
 
   const age =
-    profile?.birth_date != null ? `${ageYears(profile.birth_date, todayKey())} years` : null
+    profile?.birth_date != null
+      ? t('settings.years', { n: ageYears(profile.birth_date, todayKey()) })
+      : null
   const heightSummary =
     profile?.height_cm != null
       ? `${heightForInput(profile.height_cm, units)} ${heightUnitLabel(units)}`
       : null
   const restSeconds = profile?.default_rest_seconds ?? 90
   const syncSummary = store.syncing
-    ? 'Syncing…'
+    ? t('sync.syncingEllipsis')
     : store.pending > 0
-      ? `${store.pending} change${store.pending === 1 ? '' : 's'} waiting`
-      : 'All changes saved'
+      ? store.pending === 1
+        ? t('sync.waitingOne', { count: store.pending })
+        : t('sync.waitingOther', { count: store.pending })
+      : t('sync.saved')
 
   return (
     <div>
       <div className="page-head">
-        <h1>Settings</h1>
+        <h1>{t('settings.title')}</h1>
       </div>
 
       <SettingsSection
         id="profile"
-        title="Profile"
+        title={t('settings.profile')}
         summary={
           joinSummary([
             displayName.trim() || null,
             age,
             heightSummary,
             session?.user.email,
-          ]) || 'Name, sex, height'
+          ]) || t('settings.profileSummary')
         }
         open={openPane === 'profile'}
         onToggle={() => togglePane('profile')}
       >
         <div className="field">
-          <label htmlFor="settings-name">Display name</label>
+          <label htmlFor="settings-name">{t('settings.displayName')}</label>
           <input
             id="settings-name"
             className="input"
@@ -271,7 +270,7 @@ export function Settings() {
         </div>
         <div className="settings-fields">
           <div className="field">
-            <label htmlFor="settings-sex">Sex</label>
+            <label htmlFor="settings-sex">{t('settings.sex')}</label>
             <select
               id="settings-sex"
               className="input"
@@ -283,14 +282,14 @@ export function Settings() {
                 })
               }}
             >
-              <option value="">Prefer not to say</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
+              <option value="">{t('settings.preferNot')}</option>
+              <option value="male">{t('settings.male')}</option>
+              <option value="female">{t('settings.female')}</option>
+              <option value="other">{t('settings.other')}</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="settings-birth">Date of birth</label>
+            <label htmlFor="settings-birth">{t('settings.birth')}</label>
             <input
               id="settings-birth"
               className="input"
@@ -304,12 +303,16 @@ export function Settings() {
               }
             />
             {profile?.birth_date ? (
-              <small className="muted">{ageYears(profile.birth_date, todayKey())} years old</small>
+              <small className="muted">
+                {t('settings.yearsOld', { n: ageYears(profile.birth_date, todayKey()) })}
+              </small>
             ) : null}
           </div>
         </div>
         <div className="field">
-          <label htmlFor="settings-height">Height ({heightUnitLabel(profile?.unit_system ?? 'metric')})</label>
+          <label htmlFor="settings-height">
+            {t('settings.height', { unit: heightUnitLabel(profile?.unit_system ?? 'metric') })}
+          </label>
           <input
             id="settings-height"
             className="input"
@@ -328,8 +331,8 @@ export function Settings() {
             }}
           />
         </div>
-        <small className="muted">Signed in as {session?.user.email}</small>
-        {saved ? <small className="badge badge--completed">Saved</small> : null}
+        <small className="muted">{t('settings.signedInAs', { email: session?.user.email ?? '' })}</small>
+        {saved ? <small className="badge badge--completed">{t('common.saved')}</small> : null}
         {saveError ? (
           <p className="field-error" role="alert">
             {saveError}
@@ -339,34 +342,48 @@ export function Settings() {
 
       <SettingsSection
         id="preferences"
-        title="Preferences"
+        title={t('settings.preferences')}
         summary={joinSummary([
-          THEME_LABEL[preference],
-          units === 'imperial' ? 'Imperial' : 'Metric',
-          (profile?.week_start ?? 'monday') === 'sunday' ? 'Sunday' : 'Monday',
-          `${restSeconds}s rest`,
-          cueSound ? null : 'Sound off',
-          cueVibration ? null : 'Vibration off',
+          t(localePreference === 'sr' ? 'language.sr' : localePreference === 'en' ? 'language.en' : 'language.system'),
+          t(preference === 'light' ? 'theme.light' : preference === 'dark' ? 'theme.dark' : 'theme.system'),
+          units === 'imperial' ? t('units.imperial') : t('units.metric'),
+          (profile?.week_start ?? 'monday') === 'sunday' ? t('weekdays.sunday') : t('weekdays.monday'),
+          t('settings.restSummary', { n: restSeconds }),
+          cueSound ? null : t('settings.soundOff'),
+          cueVibration ? null : t('settings.vibrationOff'),
         ])}
         open={openPane === 'preferences'}
         onToggle={() => togglePane('preferences')}
       >
         <div className="settings-fields">
           <div className="field">
-            <label htmlFor="settings-theme">Theme</label>
+            <label htmlFor="settings-language">{t('language.label')}</label>
+            <select
+              id="settings-language"
+              className="input"
+              value={localePreference}
+              onChange={(e) => setLocalePreference(e.target.value as LocalePreference)}
+            >
+              <option value="system">{t('language.system')}</option>
+              <option value="en">{t('language.en')}</option>
+              <option value="sr">{t('language.sr')}</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-theme">{t('settings.theme')}</label>
             <select
               id="settings-theme"
               className="input"
               value={preference}
               onChange={(e) => setPreference(e.target.value as ThemePreference)}
             >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">System</option>
+              <option value="light">{t('theme.light')}</option>
+              <option value="dark">{t('theme.dark')}</option>
+              <option value="system">{t('theme.system')}</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="settings-units">Units</label>
+            <label htmlFor="settings-units">{t('settings.units')}</label>
             <select
               id="settings-units"
               className="input"
@@ -375,12 +392,12 @@ export function Settings() {
                 void store.updateProfile({ unit_system: e.target.value as 'metric' | 'imperial' })
               }
             >
-              <option value="metric">Metric (kg, km)</option>
-              <option value="imperial">Imperial (lb, mi)</option>
+              <option value="metric">{t('units.metricFull')}</option>
+              <option value="imperial">{t('units.imperialFull')}</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="settings-week">Week starts on</label>
+            <label htmlFor="settings-week">{t('settings.weekStarts')}</label>
             <select
               id="settings-week"
               className="input"
@@ -389,12 +406,12 @@ export function Settings() {
                 void store.updateProfile({ week_start: e.target.value as 'monday' | 'sunday' })
               }
             >
-              <option value="monday">Monday</option>
-              <option value="sunday">Sunday</option>
+              <option value="monday">{t('weekdays.monday')}</option>
+              <option value="sunday">{t('weekdays.sunday')}</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="settings-rest">Default rest timer (seconds)</label>
+            <label htmlFor="settings-rest">{t('settings.defaultRest')}</label>
             <input
               id="settings-rest"
               className="input"
@@ -410,7 +427,7 @@ export function Settings() {
             />
           </div>
           <div className="field">
-            <label htmlFor="settings-cue-sound">Rest timer sound</label>
+            <label htmlFor="settings-cue-sound">{t('settings.restSound')}</label>
             <select
               id="settings-cue-sound"
               className="input"
@@ -421,12 +438,12 @@ export function Settings() {
                 setSoundEnabled(enabled)
               }}
             >
-              <option value="on">On (double beep)</option>
-              <option value="off">Off</option>
+              <option value="on">{t('settings.onBeep')}</option>
+              <option value="off">{t('settings.off')}</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="settings-cue-vibration">Rest timer vibration</label>
+            <label htmlFor="settings-cue-vibration">{t('settings.restVibration')}</label>
             <select
               id="settings-cue-vibration"
               className="input"
@@ -437,8 +454,8 @@ export function Settings() {
                 setVibrationEnabled(enabled)
               }}
             >
-              <option value="on">On (where supported)</option>
-              <option value="off">Off</option>
+              <option value="on">{t('settings.onVibrate')}</option>
+              <option value="off">{t('settings.off')}</option>
             </select>
           </div>
         </div>
@@ -446,33 +463,33 @@ export function Settings() {
 
       <SettingsSection
         id="weight"
-        title="Body weight"
+        title={t('settings.bodyWeight')}
         summary={
           latestWeight
             ? joinSummary([
                 formatWeight(latestWeight.weight_kg, units),
                 latestWeight.recorded_on,
-                bmi !== null ? `BMI ${bmi}` : null,
+                bmi !== null ? t('settings.bmi', { n: bmi }) : null,
               ])
-            : 'Log a weigh-in'
+            : t('settings.logWeighIn')
         }
         open={openPane === 'weight'}
         onToggle={() => togglePane('weight')}
       >
         {latestWeight ? (
           <p style={{ margin: 0 }}>
-            Latest: <strong>{formatWeight(latestWeight.weight_kg, units)}</strong>
+            {t('settings.latest')} <strong>{formatWeight(latestWeight.weight_kg, units)}</strong>
             <small className="muted"> · {latestWeight.recorded_on}</small>
-            {bmi !== null ? <small className="muted"> · BMI {bmi}</small> : null}
+            {bmi !== null ? <small className="muted"> · {t('settings.bmi', { n: bmi })}</small> : null}
           </p>
         ) : (
           <p className="muted" style={{ margin: 0 }}>
-            Log your first weigh-in. Entries are stored in kg and shown in your unit system.
+            {t('settings.firstWeighIn')}
           </p>
         )}
         <div className="settings-fields">
           <div className="field">
-            <label htmlFor="settings-weight-date">Date</label>
+            <label htmlFor="settings-weight-date">{t('common.date')}</label>
             <input
               id="settings-weight-date"
               className="input"
@@ -488,7 +505,9 @@ export function Settings() {
             />
           </div>
           <div className="field">
-            <label htmlFor="settings-weight">Weight ({weightUnitLabel(units)})</label>
+            <label htmlFor="settings-weight">
+              {t('checkin.weight', { unit: weightUnitLabel(units) })}
+            </label>
             <input
               id="settings-weight"
               className="input"
@@ -514,7 +533,7 @@ export function Settings() {
               .finally(() => setWeightBusy(false))
           }}
         >
-          {weightBusy ? 'Saving…' : 'Save weigh-in'}
+          {weightBusy ? t('common.saving') : t('checkin.saveWeighIn')}
         </button>
         {weights.length > 1 ? (
           <LineChart
@@ -523,7 +542,7 @@ export function Settings() {
               value: row.weight_kg,
             }))}
             formatValue={(value) => formatWeight(value, units)}
-            ariaLabel="Body weight over time"
+            ariaLabel={t('progress.bodyWeightAria')}
           />
         ) : null}
         {weights.length > 0 ? (
@@ -536,17 +555,17 @@ export function Settings() {
                 <button
                   type="button"
                   className="btn btn--small btn--danger"
-                  aria-label={`Delete weigh-in from ${row.recorded_on}`}
+                  aria-label={t('checkin.deleteWeighIn', { date: row.recorded_on })}
                   onClick={() => void store.deleteWeight(row.id)}
                 >
-                  Delete
+                  {t('common.delete')}
                 </button>
               </li>
             ))}
             {weights.length > 3 ? (
               <li className="settings-older">
                 <details>
-                  <summary>Older weigh-ins ({Math.min(weights.length - 3, 5)})</summary>
+                  <summary>{t('settings.older', { n: Math.min(weights.length - 3, 5) })}</summary>
                   <ul className="stack" style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
                     {weights.slice(3, 8).map((row) => (
                       <li key={row.id} className="row row--between">
@@ -556,10 +575,10 @@ export function Settings() {
                         <button
                           type="button"
                           className="btn btn--small btn--danger"
-                          aria-label={`Delete weigh-in from ${row.recorded_on}`}
+                          aria-label={t('checkin.deleteWeighIn', { date: row.recorded_on })}
                           onClick={() => void store.deleteWeight(row.id)}
                         >
-                          Delete
+                          {t('common.delete')}
                         </button>
                       </li>
                     ))}
@@ -573,27 +592,28 @@ export function Settings() {
 
       <SettingsSection
         id="sync"
-        title="Sync"
-        summary={joinSummary([store.online ? 'Online' : 'Offline', syncSummary])}
+        title={t('settings.sync')}
+        summary={joinSummary([store.online ? t('sync.online') : t('sync.offline'), syncSummary])}
         open={openPane === 'sync'}
         onToggle={() => togglePane('sync')}
       >
         <div className="row row--between">
-          <span>{store.online ? 'Online' : 'Offline'}</span>
+          <span>{store.online ? t('sync.online') : t('sync.offline')}</span>
           <span className="muted">{syncSummary}</span>
         </div>
         {store.lastSyncedAt ? (
           <small className="muted">
-            Last successful sync{' '}
-            {new Date(store.lastSyncedAt).toLocaleString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              day: 'numeric',
-              month: 'short',
+            {t('sync.lastSync', {
+              when: new Date(store.lastSyncedAt).toLocaleString(bcp47(), {
+                hour: 'numeric',
+                minute: '2-digit',
+                day: 'numeric',
+                month: 'short',
+              }),
             })}
           </small>
         ) : (
-          <small className="muted">No successful sync on this device yet.</small>
+          <small className="muted">{t('sync.never')}</small>
         )}
         {store.pendingByTable.length > 0 ? (
           <ul className="muted" style={{ margin: 0, paddingLeft: '1.1rem' }}>
@@ -618,21 +638,21 @@ export function Settings() {
             void store.syncNow().finally(() => setSyncBusy(false))
           }}
         >
-          {syncBusy ? 'Retrying…' : 'Retry sync'}
+          {syncBusy ? t('sync.retrying') : t('sync.retry')}
         </button>
       </SettingsSection>
 
       <SettingsSection
         id="data"
-        title="Data"
-        summary="Workouts, routines and backup"
+        title={t('settings.data')}
+        summary={t('settings.dataSummary')}
         open={openPane === 'data'}
         onToggle={() => togglePane('data')}
       >
         <div className="settings-group">
-          <h3 className="settings-group__title">Workouts</h3>
+          <h3 className="settings-group__title">{t('settings.workouts')}</h3>
           <p className="muted" style={{ margin: 0 }}>
-            CSV of completed and skipped workouts. Units are stored as kg, meters and seconds.
+            {t('settings.csvHint')}
           </p>
           <button
             type="button"
@@ -649,7 +669,7 @@ export function Settings() {
               })
             }}
           >
-            Export workouts CSV
+            {t('settings.exportCsv')}
           </button>
           <input
             ref={fileRef}
@@ -668,15 +688,18 @@ export function Settings() {
                 .then((text) => store.importWorkoutsCsv(text))
                 .then((result) => {
                   setImportMessage(
-                    `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
-                      result.createdExercises > 0
-                        ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
-                        : ''
-                    }).`,
+                    t('settings.importedWorkouts', {
+                      sessions: result.sessions,
+                      sets: result.sets,
+                      extra:
+                        result.createdExercises > 0
+                          ? t('settings.importedExtra', { count: result.createdExercises })
+                          : '',
+                    }),
                   )
                 })
                 .catch((error: unknown) => {
-                  setImportError(error instanceof Error ? error.message : 'Could not import that file.')
+                  setImportError(error instanceof Error ? error.message : t('errors.importFile'))
                 })
                 .finally(() => setImportBusy(false))
             }}
@@ -687,7 +710,7 @@ export function Settings() {
             disabled={importBusy}
             onClick={() => fileRef.current?.click()}
           >
-            {importBusy ? 'Importing…' : 'Import workouts CSV'}
+            {importBusy ? t('settings.importing') : t('settings.importCsv')}
           </button>
           {importMessage ? <small className="badge badge--completed">{importMessage}</small> : null}
           {importError ? (
@@ -719,22 +742,20 @@ export function Settings() {
                   })
                 })
                 .catch((error: unknown) => {
-                  setImportError(error instanceof Error ? error.message : 'Could not read that file.')
+                  setImportError(error instanceof Error ? error.message : t('errors.readFile'))
                 })
             }}
           />
           <button type="button" className="btn" onClick={() => externalFileRef.current?.click()}>
-            Import from Strong / Hevy…
+            {t('settings.importStrong')}
           </button>
-          <small className="muted">
-            Strong and Hevy CSV exports. Re-importing the same file updates instead of duplicating.
-          </small>
+          <small className="muted">{t('settings.importStrongHint')}</small>
         </div>
 
         <div className="settings-group">
-          <h3 className="settings-group__title">Routines</h3>
+          <h3 className="settings-group__title">{t('settings.routines')}</h3>
           <p className="muted" style={{ margin: 0 }}>
-            JSON templates with exercise names, so they work on another account.
+            {t('settings.routinesHint')}
           </p>
           <button
             type="button"
@@ -749,18 +770,20 @@ export function Settings() {
                 .then((json) => {
                   downloadTextFile(routinesExportFilename(), json, 'application/json')
                   setRoutinesMessage(
-                    `Exported ${store.templates.length} routine${store.templates.length === 1 ? '' : 's'}.`,
+                    store.templates.length === 1
+                      ? t('routines.exportedOne', { count: store.templates.length })
+                      : t('routines.exportedOther', { count: store.templates.length }),
                   )
                 })
                 .catch((error: unknown) => {
                   setRoutinesError(
-                    error instanceof Error ? error.message : 'Could not export routines.',
+                    error instanceof Error ? error.message : t('errors.exportRoutines'),
                   )
                 })
                 .finally(() => setRoutinesBusy(false))
             }}
           >
-            {routinesBusy ? 'Preparing…' : 'Export routines (JSON)'}
+            {routinesBusy ? t('settings.preparing') : t('settings.exportRoutines')}
           </button>
           <input
             ref={routinesFileRef}
@@ -782,7 +805,7 @@ export function Settings() {
                 })
                 .catch((error: unknown) => {
                   setRoutinesError(
-                    error instanceof Error ? error.message : 'Could not import that file.',
+                    error instanceof Error ? error.message : t('errors.importFile'),
                   )
                 })
                 .finally(() => setRoutinesBusy(false))
@@ -794,7 +817,7 @@ export function Settings() {
             disabled={routinesBusy}
             onClick={() => routinesFileRef.current?.click()}
           >
-            {routinesBusy ? 'Importing…' : 'Import routines…'}
+            {routinesBusy ? t('settings.importing') : t('settings.importRoutines')}
           </button>
           {routinesMessage ? (
             <small className="badge badge--completed">{routinesMessage}</small>
@@ -807,9 +830,9 @@ export function Settings() {
         </div>
 
         <div className="settings-group">
-          <h3 className="settings-group__title">Backup</h3>
+          <h3 className="settings-group__title">{t('settings.backup')}</h3>
           <p className="muted" style={{ margin: 0 }}>
-            Full JSON snapshot. Restore merges into this account — nothing is deleted.
+            {t('settings.backupHint')}
           </p>
           <button
             type="button"
@@ -831,12 +854,12 @@ export function Settings() {
                   URL.revokeObjectURL(url)
                 })
                 .catch((error: unknown) => {
-                  setBackupError(error instanceof Error ? error.message : 'Could not create the backup.')
+                  setBackupError(error instanceof Error ? error.message : t('errors.createBackup'))
                 })
                 .finally(() => setBackupBusy(false))
             }}
           >
-            {backupBusy ? 'Preparing…' : 'Export full backup (JSON)'}
+            {backupBusy ? t('settings.preparing') : t('settings.exportBackup')}
           </button>
           <input
             ref={backupFileRef}
@@ -855,11 +878,16 @@ export function Settings() {
                 .then((text) => store.restoreBackup(text))
                 .then((result) => {
                   setBackupMessage(
-                    `Restored ${result.sessions} workout${result.sessions === 1 ? '' : 's'}, ${result.templates} routine${result.templates === 1 ? '' : 's'}, ${result.exercises} custom exercise${result.exercises === 1 ? '' : 's'} and ${result.checkins} check-in${result.checkins === 1 ? '' : 's'}.`,
+                    t('settings.restored', {
+                      sessions: result.sessions,
+                      templates: result.templates,
+                      exercises: result.exercises,
+                      checkins: result.checkins,
+                    }),
                   )
                 })
                 .catch((error: unknown) => {
-                  setBackupError(error instanceof Error ? error.message : 'Could not restore that file.')
+                  setBackupError(error instanceof Error ? error.message : t('errors.restoreFile'))
                 })
                 .finally(() => setBackupBusy(false))
             }}
@@ -870,7 +898,7 @@ export function Settings() {
             disabled={backupBusy}
             onClick={() => backupFileRef.current?.click()}
           >
-            {backupBusy ? 'Restoring…' : 'Restore from backup…'}
+            {backupBusy ? t('settings.restoring') : t('settings.restoreBackup')}
           </button>
           {backupMessage ? <small className="badge badge--completed">{backupMessage}</small> : null}
           {backupError ? (
@@ -883,8 +911,8 @@ export function Settings() {
 
       <SettingsSection
         id="account"
-        title="Account"
-        summary={session?.user.email ?? 'Password and sign out'}
+        title={t('settings.account')}
+        summary={session?.user.email ?? t('settings.accountSummary')}
         open={openPane === 'account'}
         onToggle={() => togglePane('account')}
       >
@@ -893,7 +921,7 @@ export function Settings() {
           className="btn"
           onClick={() => void navigate('/update-password')}
         >
-          Change password
+          {t('auth.changePassword')}
         </button>
         <button
           type="button"
@@ -901,7 +929,7 @@ export function Settings() {
           onClick={requestLogout}
           disabled={logoutBusy}
         >
-          {logoutBusy ? 'Signing out…' : 'Sign out'}
+          {logoutBusy ? t('auth.signingOut') : t('auth.signOut')}
         </button>
         {logoutError ? (
           <p className="field-error" role="alert">
@@ -911,35 +939,31 @@ export function Settings() {
       </SettingsSection>
 
       <p className="muted" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-        Herkules v1.1 · offline-first workout log
+        {t('brand.tagline')}
       </p>
 
       {logoutConfirm ? (
-        <Modal title="Discard unsynced changes?" onClose={() => setLogoutConfirm(false)}>
-          <p>
-            You are offline with <strong>{store.pending}</strong> unsynced change(s). Signing out
-            now will permanently discard them.
-          </p>
+        <Modal title={t('settings.discardTitle')} onClose={() => setLogoutConfirm(false)}>
+          <p>{t('settings.discardBody', { count: store.pending })}</p>
           <div className="stack">
             <button type="button" className="btn btn--danger btn--block" onClick={() => void handleLogout()}>
-              Discard and sign out
+              {t('settings.discardSignOut')}
             </button>
             <button type="button" className="btn btn--block" onClick={() => setLogoutConfirm(false)}>
-              Stay signed in
+              {t('settings.stay')}
             </button>
           </div>
         </Modal>
       ) : null}
 
       {externalPreview ? (
-        <Modal title="Import Strong / Hevy workouts?" onClose={() => setExternalPreview(null)}>
+        <Modal title={t('settings.importStrongTitle')} onClose={() => setExternalPreview(null)}>
           <p>
-            Found <strong>{externalPreview.sessions}</strong> workout
-            {externalPreview.sessions === 1 ? '' : 's'} with{' '}
-            <strong>{externalPreview.sets}</strong> sets and{' '}
-            <strong>{externalPreview.exercises}</strong> distinct exercise
-            {externalPreview.exercises === 1 ? '' : 's'}. Exercises that are not in your library
-            will be created as custom.
+            {t('settings.importStrongBody', {
+              sessions: externalPreview.sessions,
+              sets: externalPreview.sets,
+              exercises: externalPreview.exercises,
+            })}
           </p>
           <div className="stack">
             <button
@@ -953,23 +977,26 @@ export function Settings() {
                   .importExternalCsv(text)
                   .then((result) => {
                     setImportMessage(
-                      `Imported ${result.sessions} workout${result.sessions === 1 ? '' : 's'} (${result.sets} sets${
-                        result.createdExercises > 0
-                          ? `, ${result.createdExercises} new custom exercise${result.createdExercises === 1 ? '' : 's'}`
-                          : ''
-                      }).`,
+                      t('settings.importedWorkouts', {
+                        sessions: result.sessions,
+                        sets: result.sets,
+                        extra:
+                          result.createdExercises > 0
+                            ? t('settings.importedExtra', { count: result.createdExercises })
+                            : '',
+                      }),
                     )
                   })
                   .catch((error: unknown) => {
-                    setImportError(error instanceof Error ? error.message : 'Could not import that file.')
+                    setImportError(error instanceof Error ? error.message : t('errors.importFile'))
                   })
                   .finally(() => setImportBusy(false))
               }}
             >
-              Import workouts
+              {t('settings.importWorkouts')}
             </button>
             <button type="button" className="btn btn--block" onClick={() => setExternalPreview(null)}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </Modal>

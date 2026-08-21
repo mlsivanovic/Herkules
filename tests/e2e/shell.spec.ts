@@ -22,6 +22,18 @@ test.describe('app shell', () => {
     await expect(focused).toHaveAttribute('type', 'submit')
   })
 
+  test('language switch to Serbian updates chrome and html lang', async ({ page }) => {
+    await signUpFresh(page, 'locale')
+    await page.getByRole('button', { name: 'Open settings' }).click()
+    await expandSettingsSection(page, 'preferences')
+    await page.getByLabel('Language').selectOption('sr')
+    await expect(page.locator('html')).toHaveAttribute('lang', 'sr-Latn')
+    await expect(page.getByRole('link', { name: 'Danas' }).first()).toBeVisible()
+    await page.getByLabel('Jezik').selectOption('en')
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+    await expect(page.getByRole('link', { name: 'Today' }).first()).toBeVisible()
+  })
+
   test('dark theme persists across reloads', async ({ page }) => {
     await signUpFresh(page, 'theme')
     await page.getByRole('button', { name: 'Open settings' }).click()

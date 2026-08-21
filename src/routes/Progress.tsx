@@ -18,11 +18,13 @@ import { formatWeight, formatDistance, formatDuration } from '../lib/units'
 import { BarChart, LineChart } from '../components/Chart'
 import { EmptyState, Loader } from '../components/ui'
 import { IconTrophy } from '../components/Icons'
+import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, useT } from '../lib/i18n'
 import './progress.css'
 
 const WEEKS_SHOWN = 12
 
 export function Progress() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { sessions, exercises, schedules, rules, profile, ready, bodyWeights, checkins } = useStore()
   const [exerciseId, setExerciseId] = useState<string>('')
@@ -59,7 +61,7 @@ export function Progress() {
     )
     return exercises
       .filter((e) => used.has(e.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => displayExerciseName(a).localeCompare(displayExerciseName(b)))
   }, [exercises, sessions])
 
   const selected = trackedExercises.find((e) => e.id === exerciseId) ?? trackedExercises[0]
@@ -70,10 +72,10 @@ export function Progress() {
   if (sessions.length === 0) {
     return (
       <div>
-        <h1>Progress</h1>
+        <h1>{t('progress.title')}</h1>
         <EmptyState
-          title="No workouts logged yet"
-          hint="Finish your first workout and the charts will light up."
+          title={t('progress.emptyTitle')}
+          hint={t('progress.emptyHint')}
         />
       </div>
     )
@@ -82,38 +84,38 @@ export function Progress() {
   return (
     <div>
       <div className="page-head">
-        <h1>Progress</h1>
+        <h1>{t('progress.title')}</h1>
         <button
           type="button"
           className="btn btn--small"
           onClick={() => void navigate('/history')}
         >
-          All workouts
+          {t('progress.allWorkouts')}
         </button>
       </div>
 
       <div className="stat-grid">
         <div className="card stat-card">
           <strong>{stats.totals.workouts}</strong>
-          <span>Workouts</span>
+          <span>{t('progress.workouts')}</span>
         </div>
         <div className="card stat-card">
           <strong>{stats.plan.percent}%</strong>
-          <span>Plan followed (4w)</span>
+          <span>{t('progress.planFollowed')}</span>
         </div>
         <div className="card stat-card">
           <strong>{formatDuration(stats.totals.avgMinutes * 60)}</strong>
-          <span>Avg duration</span>
+          <span>{t('progress.avgDuration')}</span>
         </div>
         <div className="card stat-card">
           <strong>{formatWeight(stats.totals.volume, units)}</strong>
-          <span>Total volume</span>
+          <span>{t('progress.totalVolume')}</span>
         </div>
       </div>
 
       {bodyWeights.length > 0 ? (
         <>
-          <div className="section-title">Body weight</div>
+          <div className="section-title">{t('progress.bodyWeight')}</div>
           <div className="card">
             <LineChart
               points={[...bodyWeights]
@@ -123,39 +125,39 @@ export function Progress() {
                   value: row.weight_kg,
                 }))}
               formatValue={(value) => formatWeight(value, units)}
-              ariaLabel="Body weight over time"
+              ariaLabel={t('progress.bodyWeightAria')}
             />
           </div>
         </>
       ) : null}
 
-      <div className="section-title">Weekly volume</div>
+      <div className="section-title">{t('progress.weeklyVolume')}</div>
       <div className="card">
         <LineChart
           points={stats.volumeByWeek.map((week) => ({
             label: week.weekStart.slice(5),
             value: Math.round(week.volume),
           }))}
-          formatValue={(value) => `${formatWeight(value, units)} volume`}
-          ariaLabel="Weekly training volume over the last 12 weeks"
+          formatValue={(value) => t('progress.volumeFmt', { value: formatWeight(value, units) })}
+          ariaLabel={t('progress.weeklyVolumeAria')}
         />
       </div>
 
-      <div className="section-title">Sets per muscle group (30 days)</div>
+      <div className="section-title">{t('progress.muscleSets')}</div>
       <div className="card">
         <BarChart
           bars={stats.muscleSets.slice(0, 10).map((entry) => ({
-            label: entry.group,
+            label: displayTag(entry.group),
             value: entry.sets,
           }))}
-          formatValue={(value) => `${value} sets`}
-          ariaLabel="Completed sets per muscle group over the last 30 days"
+          formatValue={(value) => t('progress.setsFmt', { value })}
+          ariaLabel={t('progress.muscleSetsAria')}
         />
       </div>
 
-      <div className="section-title">Per-exercise trend</div>
+      <div className="section-title">{t('progress.trend')}</div>
       <div className="field">
-        <label htmlFor="progress-exercise">Exercise</label>
+        <label htmlFor="progress-exercise">{t('progress.exercise')}</label>
         <select
           id="progress-exercise"
           className="input"
@@ -164,7 +166,7 @@ export function Progress() {
         >
           {trackedExercises.map((exercise) => (
             <option key={exercise.id} value={exercise.id}>
-              {exercise.name}
+              {displayExerciseName(exercise)}
             </option>
           ))}
         </select>
@@ -177,19 +179,21 @@ export function Progress() {
                 label: row.date.slice(5),
                 value: Math.round(row.bestE1RM ?? 0),
               }))}
-              formatValue={(value) => `${formatWeight(value, units)} estimated 1RM`}
-              ariaLabel={`Estimated 1RM trend for ${selected.name}`}
+              formatValue={(value) => t('progress.e1rm', { value: formatWeight(value, units) })}
+              ariaLabel={t('progress.e1rmAria', { name: displayExerciseName(selected) })}
             />
           ) : selectedProgress[0] ? (
             <p className="muted">
-              {selectedProgress.length} session(s) with {selected.name}. Latest:{' '}
-              {selected.measurement === 'distance_duration'
-                ? formatDistance(selectedProgress[0]?.topSet?.distance_m ?? 0, units)
-                : formatDuration(selectedProgress[0]?.topSet?.duration_s ?? 0)}
-              .
+              {t('progress.sessionsWith', {
+                count: selectedProgress.length,
+                name: displayExerciseName(selected),
+                latest: selected.measurement === 'distance_duration'
+                  ? formatDistance(selectedProgress[0]?.topSet?.distance_m ?? 0, units)
+                  : formatDuration(selectedProgress[0]?.topSet?.duration_s ?? 0),
+              })}
             </p>
           ) : (
-            <p className="muted">No completed sets yet.</p>
+            <p className="muted">{t('progress.noSets')}</p>
           )}
           <ul className="history-list">
             {selectedProgress.slice(0, 5).map((row) => (
@@ -202,15 +206,16 @@ export function Progress() {
                   {row.date}
                 </button>
                 <small className="muted">
-                  {row.completedSets} sets
+                  {t('progress.setsBest', { count: row.completedSets })}
                   {row.topSet
-                    ? ` · best ${
-                        selected.measurement === 'weight_reps'
-                          ? formatWeight(row.topSet.weight_kg ?? 0, units)
-                          : selected.measurement === 'distance_duration'
-                            ? formatDistance(row.topSet.distance_m ?? 0, units)
-                            : formatDuration(row.topSet.duration_s ?? 0)
-                      }`
+                    ? t('progress.best', {
+                        value:
+                          selected.measurement === 'weight_reps'
+                            ? formatWeight(row.topSet.weight_kg ?? 0, units)
+                            : selected.measurement === 'distance_duration'
+                              ? formatDistance(row.topSet.distance_m ?? 0, units)
+                              : formatDuration(row.topSet.duration_s ?? 0),
+                      })
                     : ''}
                 </small>
               </li>
@@ -218,20 +223,20 @@ export function Progress() {
           </ul>
         </div>
       ) : (
-        <p className="muted">Exercises will appear here once you log them.</p>
+        <p className="muted">{t('progress.willAppear')}</p>
       )}
 
       <div className="section-title">
-        <IconTrophy width={16} height={16} /> Personal records
+        <IconTrophy width={16} height={16} /> {t('progress.prs')}
       </div>
       {stats.records.length === 0 ? (
-        <p className="muted">Complete a few sets and your PRs will show up here.</p>
+        <p className="muted">{t('progress.prEmpty')}</p>
       ) : (
         <ul className="history-list">
           {stats.records.map((record) => (
             <li key={`${record.exerciseName}-${record.kind}`} className="card">
               <div className="row row--between">
-                <strong>{record.exerciseName}</strong>
+                <strong>{displaySnapshotName(record.exerciseName, null)}</strong>
                 <span className="badge badge--planned">{prLabel(record.kind)}</span>
               </div>
               <span className="mono">{formatPrValue(record, units)}</span>
@@ -243,7 +248,7 @@ export function Progress() {
 
       {checkins.length > 0 ? (
         <>
-          <div className="section-title">Tendon</div>
+          <div className="section-title">{t('progress.tendon')}</div>
           <TendonTrend checkins={checkins} site={tendonSite} onSelectSite={setTendonSite} />
         </>
       ) : null}
@@ -260,6 +265,7 @@ function TendonTrend({
   site: string
   onSelectSite(site: string): void
 }) {
+  const { t } = useT()
   const sites = useMemo(
     () => [...new Set(checkins.map((row) => row.site))].sort((a, b) => a.localeCompare(b)),
     [checkins],
@@ -277,11 +283,11 @@ function TendonTrend({
   return (
     <div className="card stack">
       <label className="field">
-        <span>Body site</span>
+        <span>{t('progress.bodySite')}</span>
         <select className="input" value={selected} onChange={(e) => onSelectSite(e.target.value)}>
           {sites.map((name) => (
             <option key={name} value={name}>
-              {name}
+              {displayTendonSite(name)}
             </option>
           ))}
         </select>

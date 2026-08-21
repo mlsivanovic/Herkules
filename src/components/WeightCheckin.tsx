@@ -11,10 +11,12 @@ import {
   weightToKg,
   weightUnitLabel,
 } from '../lib/units'
+import { useT } from '../lib/i18n'
 import { IconTrash } from './Icons'
 import './tendonCheckin.css'
 
 export function WeightCheckin() {
+  const { t } = useT()
   const store = useStore()
   const units = store.profile?.unit_system ?? 'metric'
   const today = todayKey()
@@ -55,7 +57,7 @@ export function WeightCheckin() {
   async function save() {
     const parsed = parseNonNegative(weightInput)
     if (parsed === null || parsed === 0) {
-      setError(`Enter a weight in ${weightUnitLabel(units)}.`)
+      setError(t('checkin.enterWeight', { unit: weightUnitLabel(units) }))
       return
     }
     setBusy(true)
@@ -68,7 +70,7 @@ export function WeightCheckin() {
       )
       setSavedAt(Date.now())
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the weigh-in.')
+      setError(caught instanceof Error ? caught.message : t('errors.saveWeighIn'))
     } finally {
       setBusy(false)
     }
@@ -77,8 +79,8 @@ export function WeightCheckin() {
   const headerHint = todayEntry
     ? formatWeight(todayEntry.weight_kg, units)
     : latest
-      ? `Last ${formatWeight(latest.weight_kg, units)}`
-      : 'Optional'
+      ? t('checkin.last', { value: formatWeight(latest.weight_kg, units) })
+      : t('common.optional')
 
   return (
     <div className={`card stack checkin-card${open ? '' : ' checkin-card--collapsed'}`}>
@@ -88,7 +90,7 @@ export function WeightCheckin() {
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <strong>Weight check-in</strong>
+        <strong>{t('checkin.weightTitle')}</strong>
         <span className="row">
           <small className="muted">{headerHint}</small>
           <span className="checkin-card__chevron" aria-hidden>
@@ -99,12 +101,12 @@ export function WeightCheckin() {
       {open ? (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Log body weight for today or another date. One entry per day — saving again updates it.
+            {t('checkin.weightHint')}
           </p>
 
           <div className="checkin-card__grid">
             <label className="field" htmlFor="weight-checkin-date">
-              <span>Date</span>
+              <span>{t('common.date')}</span>
               <input
                 id="weight-checkin-date"
                 className="input"
@@ -115,7 +117,7 @@ export function WeightCheckin() {
               />
             </label>
             <label className="field" htmlFor="weight-checkin-weight">
-              <span>Weight ({weightUnitLabel(units)})</span>
+              <span>{t('checkin.weight', { unit: weightUnitLabel(units) })}</span>
               <input
                 id="weight-checkin-weight"
                 className="input"
@@ -129,11 +131,11 @@ export function WeightCheckin() {
             </label>
           </div>
           <label className="field">
-            <span>Notes (optional)</span>
+            <span>{t('common.notes')}</span>
             <input
               className="input"
               type="text"
-              placeholder="e.g. morning, fasted"
+              placeholder={t('checkin.notesPh')}
               maxLength={200}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -142,11 +144,11 @@ export function WeightCheckin() {
 
           <div className="row row--between">
             <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void save()}>
-              {busy ? 'Saving…' : existing ? 'Update weigh-in' : 'Save weigh-in'}
+              {busy ? t('common.saving') : existing ? t('checkin.updateWeighIn') : t('checkin.saveWeighIn')}
             </button>
             {savedAt > 0 ? (
               <small className="badge badge--completed" key={savedAt}>
-                Saved
+                {t('common.saved')}
               </small>
             ) : null}
           </div>
@@ -170,7 +172,7 @@ export function WeightCheckin() {
                   <button
                     type="button"
                     className="btn btn--small btn--danger"
-                    aria-label={`Delete weigh-in from ${row.recorded_on}`}
+                    aria-label={t('checkin.deleteWeighIn', { date: row.recorded_on })}
                     onClick={() => void store.deleteWeight(row.id)}
                   >
                     <IconTrash width={14} height={14} />

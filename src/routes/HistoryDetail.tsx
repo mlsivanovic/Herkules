@@ -11,6 +11,7 @@ import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import { IconTrash } from '../components/Icons'
+import { displaySnapshotName } from '../lib/i18n'
 import './history.css'
 
 export function HistoryDetail() {
@@ -125,7 +126,7 @@ export function HistoryDetail() {
           <section key={se.id} className={`card ${blockRoleClass(se.block_role)}`}>
             <div className="row row--between">
               <span className="row">
-                <strong>{se.name_snapshot}</strong>
+                <strong>{displaySnapshotName(se.name_snapshot, se.exercise_id)}</strong>
                 {se.tempo ? (
                   <span className="badge badge--neutral" title="Prescribed tempo">
                     Tempo {se.tempo}

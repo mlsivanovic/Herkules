@@ -7,7 +7,8 @@ import type { ExerciseMeasurement } from '../types/db'
 import { EmptyState, Modal } from '../components/ui'
 import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
 import { validateRequiredName } from '../lib/validation'
-import { BLOCK_ROLES, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
+import { blockRoles, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
+import { displayExerciseName } from '../lib/i18n'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import {
@@ -296,7 +297,7 @@ export function RoutineEditor() {
           {items.map((item, index) => {
             const exercise = exerciseById.get(item.exercise_id)
             const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
-            const name = exercise?.name ?? 'Unknown exercise'
+            const name = exercise ? displayExerciseName(exercise) : 'Unknown exercise'
             const itemBlock = item.block_id
               ? templateBlocks.find((block) => block.id === item.block_id) ?? null
               : null
@@ -391,7 +392,7 @@ export function RoutineEditor() {
                   </div>
                 ) : null}
                 <div className="row row--wrap" role="group" aria-label={`Role for ${name}`}>
-                  {BLOCK_ROLES.map((role) => (
+                  {blockRoles().map((role) => (
                     <button
                       key={role.value}
                       type="button"

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { todayKey } from '../lib/dates'
+import { displayTendonSite, tendonSiteValue, useT } from '../lib/i18n'
 import { IconTrash } from './Icons'
 import './tendonCheckin.css'
 
@@ -24,6 +25,7 @@ const SITE_SUGGESTIONS = [
 const SCALE = Array.from({ length: 11 }, (_, i) => i)
 
 export function TendonCheckin() {
+  const { t } = useT()
   const store = useStore()
   const [date, setDate] = useState(todayKey())
   const [site, setSite] = useState('')
@@ -49,9 +51,9 @@ export function TendonCheckin() {
   )
 
   async function save() {
-    const trimmed = site.trim()
+    const trimmed = tendonSiteValue(site.trim())
     if (trimmed === '') {
-      setError('Pick a body site first (e.g. Knee L).')
+      setError(t('checkin.pickSite'))
       return
     }
     setBusy(true)
@@ -68,7 +70,7 @@ export function TendonCheckin() {
       setNotes('')
       setSavedAt(Date.now())
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save the check-in.')
+      setError(caught instanceof Error ? caught.message : t('errors.saveCheckin'))
     } finally {
       setBusy(false)
     }
@@ -82,12 +84,12 @@ export function TendonCheckin() {
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <strong>Tendon check-in</strong>
+        <strong>{t('checkin.tendonTitle')}</strong>
         <span className="row">
           {existingForDate.length > 0 ? (
-            <small className="muted">{existingForDate.length} today</small>
+            <small className="muted">{t('checkin.todayCount', { count: existingForDate.length })}</small>
           ) : (
-            <small className="muted">Optional</small>
+            <small className="muted">{t('common.optional')}</small>
           )}
           <span className="checkin-card__chevron" aria-hidden>
             {open ? '▴' : '▾'}
@@ -97,13 +99,12 @@ export function TendonCheckin() {
       {open ? (
         <>
           <p className="muted" style={{ margin: 0 }}>
-            Morning stiffness and pain per site, 0 (none) – 10 (worst). Helps you see load tolerance
-            trends next to your training.
+            {t('checkin.tendonHint')}
           </p>
 
           <div className="checkin-card__grid">
             <label className="field">
-              <span>Date</span>
+              <span>{t('common.date')}</span>
               <input
                 className="input"
                 type="date"
@@ -113,24 +114,24 @@ export function TendonCheckin() {
               />
             </label>
             <label className="field">
-              <span>Site</span>
+              <span>{t('checkin.site')}</span>
               <input
                 className="input"
                 type="text"
                 list="tendon-sites"
-                placeholder="e.g. Knee L"
+                placeholder={t('checkin.sitePh')}
                 maxLength={60}
                 value={site}
                 onChange={(e) => setSite(e.target.value)}
               />
               <datalist id="tendon-sites">
                 {SITE_SUGGESTIONS.map((s) => (
-                  <option key={s} value={s} />
+                  <option key={s} value={displayTendonSite(s)} />
                 ))}
               </datalist>
             </label>
             <label className="field">
-              <span>Stiffness</span>
+              <span>{t('checkin.stiffness')}</span>
               <select className="input" value={stiffness} onChange={(e) => setStiffness(e.target.value)}>
                 {SCALE.map((value) => (
                   <option key={value} value={value}>
@@ -140,7 +141,7 @@ export function TendonCheckin() {
               </select>
             </label>
             <label className="field">
-              <span>Pain</span>
+              <span>{t('checkin.pain')}</span>
               <select className="input" value={pain} onChange={(e) => setPain(e.target.value)}>
                 {SCALE.map((value) => (
                   <option key={value} value={value}>
@@ -151,11 +152,11 @@ export function TendonCheckin() {
             </label>
           </div>
           <label className="field">
-            <span>Notes (optional)</span>
+            <span>{t('common.notes')}</span>
             <input
               className="input"
               type="text"
-              placeholder="e.g. stiff after yesterday's squats"
+              placeholder={t('checkin.tendonNotesPh')}
               maxLength={200}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -164,11 +165,11 @@ export function TendonCheckin() {
 
           <div className="row row--between">
             <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void save()}>
-              {busy ? 'Saving…' : 'Save check-in'}
+              {busy ? t('common.saving') : t('checkin.saveCheckin')}
             </button>
             {savedAt > 0 ? (
               <small className="badge badge--completed" key={savedAt}>
-                Saved
+                {t('common.saved')}
               </small>
             ) : null}
           </div>
@@ -183,7 +184,7 @@ export function TendonCheckin() {
               {recent.map((row) => (
                 <li key={row.id} className="row row--between">
                   <span>
-                    <strong>{row.site}</strong>{' '}
+                    <strong>{displayTendonSite(row.site)}</strong>{' '}
                     <small className="muted">
                       {row.recorded_on} · S {row.stiffness} / P {row.pain}
                       {row.notes ? ` · ${row.notes}` : ''}
@@ -192,7 +193,10 @@ export function TendonCheckin() {
                   <button
                     type="button"
                     className="btn btn--small btn--danger"
-                    aria-label={`Delete check-in for ${row.site} on ${row.recorded_on}`}
+                    aria-label={t('checkin.deleteCheckin', {
+                      site: displayTendonSite(row.site),
+                      date: row.recorded_on,
+                    })}
                     onClick={() => void store.deleteCheckin(row.id)}
                   >
                     <IconTrash width={14} height={14} />

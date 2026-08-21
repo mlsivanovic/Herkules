@@ -12,9 +12,11 @@ import {
 } from '../lib/routinesIo'
 import { isHybridProgramInstalled } from '../lib/programs/hybrid4day'
 import { hybridPlanFrom, sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import { useT } from '../lib/i18n'
 import './routines.css'
 
 export function Routines() {
+  const { t } = useT()
   const {
     plans,
     templates,
@@ -45,7 +47,7 @@ export function Routines() {
       if (result.created) setPlannerPlanId(result.planId)
       else void navigate(`/plans/${result.planId}`)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not add the program.')
+      setError(caught instanceof Error ? caught.message : t('errors.addProgram'))
     } finally {
       setBusy(false)
     }
@@ -56,7 +58,7 @@ export function Routines() {
   return (
     <div>
       <div className="page-head">
-        <h1>Routines</h1>
+        <h1>{t('routines.title')}</h1>
         <div className="row row--wrap">
           <input
             ref={fileRef}
@@ -77,7 +79,7 @@ export function Routines() {
                   setIoMessage(formatRoutineImportMessage(result))
                 })
                 .catch((caught: unknown) => {
-                  setIoError(caught instanceof Error ? caught.message : 'Could not import that file.')
+                  setIoError(caught instanceof Error ? caught.message : t('errors.importFile'))
                 })
                 .finally(() => setIoBusy(false))
             }}
@@ -88,7 +90,7 @@ export function Routines() {
             disabled={ioBusy}
             onClick={() => fileRef.current?.click()}
           >
-            {ioBusy ? 'Importing…' : 'Import'}
+            {ioBusy ? t('routines.importing') : t('routines.import')}
           </button>
           <button
             type="button"
@@ -101,25 +103,29 @@ export function Routines() {
               void exportRoutines()
                 .then((json) => {
                   downloadTextFile(routinesExportFilename(), json, 'application/json')
-                  setIoMessage(`Exported ${templates.length} routine${templates.length === 1 ? '' : 's'}.`)
+                  setIoMessage(
+                    templates.length === 1
+                      ? t('routines.exportedOne', { count: templates.length })
+                      : t('routines.exportedOther', { count: templates.length }),
+                  )
                 })
                 .catch((caught: unknown) => {
-                  setIoError(caught instanceof Error ? caught.message : 'Could not export routines.')
+                  setIoError(caught instanceof Error ? caught.message : t('errors.exportRoutines'))
                 })
                 .finally(() => setIoBusy(false))
             }}
           >
-            Export
+            {t('routines.export')}
           </button>
           <button type="button" className="btn" onClick={() => void navigate('/plans/new')}>
-            New plan
+            {t('routines.newPlan')}
           </button>
           <button
             type="button"
             className="btn btn--primary"
             onClick={() => void navigate('/routines/new')}
           >
-            <IconPlus width={18} height={18} /> New routine
+            <IconPlus width={18} height={18} /> {t('routines.newRoutine')}
           </button>
         </div>
       </div>
@@ -136,12 +142,11 @@ export function Routines() {
 
       <section className="card starter-card">
         <div className="starter-card__head">
-          <strong>Hybrid 4-day</strong>
-          <span className="badge badge--neutral">Starter</span>
+          <strong>{t('routines.hybridName')}</strong>
+          <span className="badge badge--neutral">{t('routines.starter')}</span>
         </div>
         <p className="muted starter-card__blurb">
-          Health, strength, function, and tendon work. Four days (A–D): back squat, trap bar, dips, TRX.
-          ~65–80 min, mostly RPE 7–8. Adds a training plan with four editable routines.
+          {t('routines.hybridBlurb')}
         </p>
         <div className="row row--wrap">
           {installed && hybridPlan ? (
@@ -151,18 +156,18 @@ export function Routines() {
                 className="btn btn--primary"
                 onClick={() => void navigate(`/plans/${hybridPlan.id}`)}
               >
-                Open plan
+                {t('routines.openPlan')}
               </button>
               <button type="button" className="btn" onClick={() => setPlannerPlanId(hybridPlan.id)}>
-                Plan rotation
+                {t('routines.planRotation')}
               </button>
             </>
           ) : (
             <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void addProgram()}>
-              {busy ? 'Adding…' : 'Add Hybrid 4-day'}
+              {busy ? t('routines.adding') : t('routines.addHybrid')}
             </button>
           )}
-          {installed && hybridPlan ? <span className="muted">Already in your library</span> : null}
+          {installed && hybridPlan ? <span className="muted">{t('routines.alreadyIn')}</span> : null}
         </div>
         {error ? (
           <p className="field-error" role="alert">
@@ -171,14 +176,14 @@ export function Routines() {
         ) : null}
       </section>
 
-      <div className="section-title">Training plans</div>
+      <div className="section-title">{t('routines.trainingPlans')}</div>
       {plans.length === 0 ? (
         <EmptyState
-          title="No plans yet"
-          hint="A plan is an ordered set of routines — a split like PPL or Hybrid 4-day."
+          title={t('routines.noPlansTitle')}
+          hint={t('routines.noPlansHint')}
           action={
             <button type="button" className="btn btn--primary" onClick={() => void navigate('/plans/new')}>
-              Create a plan
+              {t('routines.createPlan')}
             </button>
           }
         />
@@ -196,7 +201,9 @@ export function Routines() {
                   <span className="row row--between">
                     <strong>{plan.name}</strong>
                     <span className="badge badge--neutral">
-                      {days.length} day{days.length === 1 ? '' : 's'}
+                      {days.length === 1
+                        ? t('routines.dayOne', { count: days.length })
+                        : t('routines.dayOther', { count: days.length })}
                     </span>
                   </span>
                   {days.length > 0 ? (
@@ -213,11 +220,11 @@ export function Routines() {
         </ul>
       )}
 
-      <div className="section-title">Unassigned routines</div>
+      <div className="section-title">{t('routines.unassigned')}</div>
       {loose.length === 0 ? (
         <EmptyState
-          title={templates.length === 0 ? 'No routines yet' : 'Every routine is in a plan'}
-          hint="A routine is a reusable list of exercises you can schedule or start directly."
+          title={templates.length === 0 ? t('routines.noRoutinesTitle') : t('routines.allInPlan')}
+          hint={t('routines.routineHint')}
           action={
             templates.length === 0 ? (
               <button
@@ -225,7 +232,7 @@ export function Routines() {
                 className="btn btn--primary"
                 onClick={() => void navigate('/routines/new')}
               >
-                Create your first routine
+                {t('routines.createFirst')}
               </button>
             ) : undefined
           }
@@ -243,7 +250,9 @@ export function Routines() {
                 >
                   <span className="row row--between">
                     <strong>{template.name}</strong>
-                    <span className="badge badge--neutral">{items.length} exercises</span>
+                    <span className="badge badge--neutral">
+                      {t('routines.exerciseCount', { count: items.length })}
+                    </span>
                   </span>
                   {template.notes ? (
                     <small className="muted">{previewNotes(template.notes)}</small>

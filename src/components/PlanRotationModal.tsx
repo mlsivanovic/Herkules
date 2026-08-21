@@ -10,6 +10,7 @@ import {
 } from '../lib/programs/rotate'
 import { sortPlanTemplates } from '../lib/programs/plans'
 import { Modal } from './ui'
+import { useT } from '../lib/i18n'
 
 const WEEKDAYS = [
   { value: 1, label: 'Mon' },
@@ -35,6 +36,7 @@ export function PlanRotationModal({
   planId: string
   onClose: () => void
 }) {
+  const { t } = useT()
   const { templates, schedulePlanRotation } = useStore()
   const days = sortPlanTemplates(templates, planId)
   const defaultFreq = (asTrainingFrequency(Math.min(Math.max(days.length, 2), 4)) ?? 3) as TrainingFrequency
@@ -64,11 +66,11 @@ export function PlanRotationModal({
 
   async function confirm() {
     if (days.length === 0) {
-      setError('Add at least one routine to the plan first.')
+      setError(t('rotation.needRoutine'))
       return
     }
     if (weekdays.length === 0) {
-      setError('Pick at least one weekday.')
+      setError(t('rotation.needWeekday'))
       return
     }
     setBusy(true)
@@ -76,25 +78,25 @@ export function PlanRotationModal({
     try {
       const count = await schedulePlanRotation(planId, { frequency, weekdays, startDate, weeks })
       if (count === 0) {
-        setError('Nothing to schedule with those dates.')
+        setError(t('rotation.nothing'))
         return
       }
       onClose()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not plan the rotation.')
+      setError(caught instanceof Error ? caught.message : t('errors.planRotation'))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Modal title="Plan rotation" onClose={onClose}>
+    <Modal title={t('rotation.title')} onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>
         Adds training dates. On each date, the app resolves the next routine after the last
         completed plan workout. Skipping a date does not advance the sequence.
       </p>
 
-      <div className="row" role="group" aria-label="Days per week" style={{ marginBottom: '0.9rem' }}>
+      <div className="row" role="group" aria-label={t('rotation.daysPerWeek')} style={{ marginBottom: '0.9rem' }}>
         {frequencyOptions(days.length).map((value) => (
           <button
             key={value}
@@ -109,7 +111,7 @@ export function PlanRotationModal({
       </div>
 
       <fieldset className="field" style={{ border: 0, padding: 0 }}>
-        <legend style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Train on</legend>
+        <legend style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{t('rotation.trainOn')}</legend>
         <div className="row row--wrap">
           {WEEKDAYS.map((day) => (
             <button
@@ -125,7 +127,21 @@ export function PlanRotationModal({
                 )
               }
             >
-              {day.label}
+              {t(
+                day.value === 1
+                  ? 'weekdays.mon'
+                  : day.value === 2
+                    ? 'weekdays.tue'
+                    : day.value === 3
+                      ? 'weekdays.wed'
+                      : day.value === 4
+                        ? 'weekdays.thu'
+                        : day.value === 5
+                          ? 'weekdays.fri'
+                          : day.value === 6
+                            ? 'weekdays.sat'
+                            : 'weekdays.sun',
+              )}
             </button>
           ))}
         </div>
@@ -133,7 +149,7 @@ export function PlanRotationModal({
 
       <div className="routine-grid" style={{ marginBottom: '0.9rem' }}>
         <label className="field">
-          <span>Start</span>
+          <span>{t('calendar.startDate')}</span>
           <input
             className="input"
             type="date"
@@ -178,10 +194,10 @@ export function PlanRotationModal({
 
       <div className="row row--wrap" style={{ marginTop: '0.9rem' }}>
         <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void confirm()}>
-          {busy ? 'Scheduling…' : 'Add to calendar'}
+          {busy ? t('rotation.scheduling') : t('rotation.addToCalendar')}
         </button>
         <button type="button" className="btn" onClick={onClose}>
-          Not now
+          {t('common.cancel')}
         </button>
       </div>
     </Modal>

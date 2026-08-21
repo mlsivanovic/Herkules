@@ -13,6 +13,7 @@ import {
   weightUnitLabel,
 } from '../lib/units'
 import { parseDurationInput, parseNonNegative } from '../lib/validation'
+import { useT } from '../lib/i18n'
 import { IconCheck, IconClose, IconPlus, IconTrash } from './Icons'
 import './setEditor.css'
 
@@ -101,6 +102,7 @@ export function SetEditor({
     onChange(next)
   }
 
+  const { t } = useT()
   const completed = set.completed_at !== null
   const warmup = set.is_warmup === true
   const identity = [
@@ -111,12 +113,12 @@ export function SetEditor({
 
   return (
     <div className={`set-row ${completed ? 'set-row--done' : ''}${warmup ? ' set-row--warmup' : ''}`}>
-      <span className="set-index" aria-label={`Set ${index + 1}${warmup ? ' (warm-up)' : ''}`}>
+      <span className="set-index" aria-label={warmup ? t('set.setWarmup', { n: index + 1 }) : t('set.setN', { n: index + 1 })}>
         {identity}
         {warmup ? <span className="set-warmup-badge" title="Warm-up set">W</span> : null}
       </span>
 
-      <div className="set-inputs" role="group" aria-label={`Set ${index + 1} values`}>
+      <div className="set-inputs" role="group" aria-label={t('set.values', { n: index + 1 })}>
         {measurement === 'weight_reps' ? (
           <>
             <label className="set-field">
@@ -137,7 +139,7 @@ export function SetEditor({
                 className="input input--cell"
                 type="text"
                 inputMode="numeric"
-                placeholder={suggestion?.reps || 'reps'}
+                placeholder={suggestion?.reps || t('set.reps')}
                 value={draft.reps}
                 disabled={readonly}
                 onChange={(e) => apply({ reps: e.target.value })}
@@ -232,7 +234,7 @@ export function SetEditor({
           <button
             type="button"
             className={`btn btn--icon btn--small ${completed ? 'btn--accent' : ''}`}
-            aria-label={completed ? `Mark set ${index + 1} as not done` : `Complete set ${index + 1}`}
+            aria-label={completed ? t('set.incomplete', { n: index + 1 }) : t('set.complete', { n: index + 1 })}
             onClick={() =>
               onComplete({
                 ...set,
@@ -246,7 +248,7 @@ export function SetEditor({
           <button
             type="button"
             className="btn btn--icon btn--small btn--danger"
-            aria-label={`Delete set ${index + 1}`}
+            aria-label={t('set.delete', { n: index + 1 })}
             onClick={onDelete}
           >
             <IconTrash width={16} height={16} />
@@ -257,10 +259,11 @@ export function SetEditor({
   )
 }
 
-export function AddSetButton({ onAdd, label = 'Add set' }: { onAdd(): void; label?: string }) {
+export function AddSetButton({ onAdd, label }: { onAdd(): void; label?: string }) {
+  const { t } = useT()
   return (
     <button type="button" className="btn btn--small" onClick={onAdd}>
-      <IconPlus width={16} height={16} /> {label}
+      <IconPlus width={16} height={16} /> {label ?? t('set.add')}
     </button>
   )
 }

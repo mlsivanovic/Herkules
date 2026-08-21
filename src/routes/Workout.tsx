@@ -33,6 +33,7 @@ import {
   IconTimer,
   IconTrash,
 } from '../components/Icons'
+import { displaySnapshotName, useT } from '../lib/i18n'
 import './workout.css'
 
 interface StartState {
@@ -42,6 +43,7 @@ interface StartState {
 }
 
 export function Workout() {
+  const { t } = useT()
   const store = useStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -108,7 +110,7 @@ export function Workout() {
         })
         navigate('/workout', { replace: true })
       } catch (caught) {
-        setStartError(caught instanceof Error ? caught.message : 'Could not start the workout.')
+        setStartError(caught instanceof Error ? caught.message : t('errors.startWorkout'))
       } finally {
         setBusy(false)
       }
@@ -118,7 +120,7 @@ export function Workout() {
   }, [])
 
   if (!store.ready) return <Loader />
-  if (busy) return <Loader label="Preparing workout…" />
+  if (busy) return <Loader label={t('workout.preparing')} />
 
   if (!active) {
     return <StartScreen onStarted={() => navigate('/workout', { replace: true })} error={startError} />
@@ -128,21 +130,21 @@ export function Workout() {
     <div className="workout-page">
       <header className="workout-header">
         <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
-          ← Back
+          {t('workout.back')}
         </button>
         <div className="workout-title">
           <strong>{active.name}</strong>
           <span className="muted mono">
             <Elapsed startedAt={active.started_at} /> ·{' '}
-            {countCompletedSets(active)} sets done
+            {t('workout.setsDone', { count: countCompletedSets(active) })}
           </span>
         </div>
         <span className="row">
           <button
             type="button"
             className="btn btn--icon btn--small"
-            aria-label="Interval timer"
-            title="Interval timer"
+            aria-label={t('workout.intervalTimer')}
+            title={t('workout.intervalTimer')}
             onClick={() => setIntervalsOpen(true)}
           >
             <IconTimer width={18} height={18} />
@@ -152,25 +154,25 @@ export function Workout() {
             className="btn btn--small"
             onClick={() => setDiscardOpen(true)}
           >
-            Discard
+            {t('workout.discard')}
           </button>
           <button
             type="button"
             className="btn btn--small btn--accent"
             onClick={() => setFinishOpen(true)}
           >
-            Finish
+            {t('workout.finish')}
           </button>
         </span>
       </header>
 
       {active.session_exercises.length === 0 ? (
         <EmptyState
-          title="No exercises yet"
-          hint="Add the first exercise to start logging."
+          title={t('workout.noExercisesTitle')}
+          hint={t('workout.noExercisesHint')}
           action={
             <button type="button" className="btn btn--primary" onClick={() => setPickerMode('add')}>
-              <IconPlus width={18} height={18} /> Add exercise
+              <IconPlus width={18} height={18} /> {t('workout.addExercise')}
             </button>
           }
         />
@@ -263,7 +265,7 @@ export function Workout() {
 
       {pickerMode === 'add' ? (
         <ExercisePicker
-          title="Add exercise"
+          title={t('workout.addExercise')}
           onClose={() => setPickerMode(null)}
           onSelect={(exerciseId) => void store.addSessionExercise(active.id, exerciseId)}
         />
@@ -280,10 +282,8 @@ export function Workout() {
       ) : null}
 
       {discardOpen ? (
-        <Modal title="Discard this workout?" onClose={() => setDiscardOpen(false)}>
-          <p>
-            Logged sets for <strong>{active.name}</strong> will be deleted. This cannot be undone.
-          </p>
+        <Modal title={t('workout.discardTitle')} onClose={() => setDiscardOpen(false)}>
+          <p>{t('workout.discardBody', { name: active.name })}</p>
           <div className="stack">
             <button
               type="button"
@@ -293,10 +293,10 @@ export function Workout() {
                 void store.discardSession(active.id).then(() => navigate('/'))
               }}
             >
-              Discard workout
+              {t('workout.discardConfirm')}
             </button>
             <button type="button" className="btn btn--block" onClick={() => setDiscardOpen(false)}>
-              Keep training
+              {t('workout.keepTraining')}
             </button>
           </div>
         </Modal>
@@ -319,7 +319,7 @@ export function Workout() {
               void navigate(`/history/${active.id}`)
             } catch (caught) {
               setFinishError(
-                caught instanceof Error ? caught.message : 'Could not finish the workout.',
+                caught instanceof Error ? caught.message : t('errors.finishWorkout'),
               )
             } finally {
               setFinishBusy(false)
@@ -379,6 +379,7 @@ export function Workout() {
 }
 
 function StartScreen({ onStarted, error }: { onStarted(): void; error: string | null }) {
+  const { t } = useT()
   const store = useStore()
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -396,7 +397,7 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
       })
       .catch((caught: unknown) => {
         setBusy(false)
-        setStartError(caught instanceof Error ? caught.message : 'Could not start the workout.')
+        setStartError(caught instanceof Error ? caught.message : t('errors.startWorkout'))
       })
   }
 
@@ -404,10 +405,10 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
     <div className="workout-page">
       <header className="workout-header">
         <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
-          ← Back
+          {t('workout.back')}
         </button>
         <div className="workout-title">
-          <strong>Start a workout</strong>
+          <strong>{t('workout.startTitle')}</strong>
         </div>
         <span aria-hidden="true" />
       </header>
@@ -424,12 +425,12 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
           disabled={busy}
           onClick={() => start({})}
         >
-          <IconPlay width={18} height={18} /> Empty workout
+          <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
         </button>
 
         {store.templates.length > 0 ? (
           <>
-            <div className="section-title">Start from a routine</div>
+            <div className="section-title">{t('workout.fromRoutine')}</div>
             {store.templates.map((template) => (
               <button
                 key={template.id}
@@ -441,15 +442,16 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
                 <span className="row row--between">
                   <strong>{template.name}</strong>
                   <span className="badge badge--neutral">
-                    {store.templateItems.filter((i) => i.template_id === template.id).length}{' '}
-                    exercises
+                    {t('routines.exerciseCount', {
+                      count: store.templateItems.filter((i) => i.template_id === template.id).length,
+                    })}
                   </span>
                 </span>
               </button>
             ))}
           </>
         ) : (
-          <p className="muted">No routines yet — start empty or create one under Routines.</p>
+          <p className="muted">{t('workout.noRoutines')}</p>
         )}
       </div>
     </div>
@@ -554,8 +556,10 @@ function ExerciseCard({
   onSwap(): void
   onRestStart(seconds: number): void
 }) {
+  const { t } = useT()
   const store = useStore()
   const units = store.profile?.unit_system ?? 'metric'
+  const shownName = displaySnapshotName(exercise.name_snapshot, exercise.exercise_id)
   const [notesOpen, setNotesOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState<'plates' | 'warmup' | null>(null)
   const catalogExercise = exercise.exercise_id
@@ -647,7 +651,7 @@ function ExerciseCard({
           <button
             type="button"
             className="exercise-grip"
-            aria-label={`Reorder ${exercise.name_snapshot}`}
+            aria-label={t('editor.reorder', { name: shownName })}
             {...gripProps}
             onKeyDown={(event) => {
               if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
@@ -667,7 +671,7 @@ function ExerciseCard({
             aria-expanded={expanded}
             onClick={onToggleExpand}
           >
-            <strong className="exercise-head__title">{exercise.name_snapshot}</strong>
+            <strong className="exercise-head__title">{shownName}</strong>
           </button>
         </div>
         {catalogVideo ? (
@@ -676,8 +680,8 @@ function ExerciseCard({
             target="_blank"
             rel="noreferrer noopener"
             className="form-link-icon"
-            aria-label={`Watch form video for ${exercise.name_snapshot}`}
-            title={`Watch form video for ${exercise.name_snapshot}`}
+            aria-label={t('editor.watchForm', { name: shownName })}
+            title={t('editor.watchForm', { name: shownName })}
             onClick={(event) => event.stopPropagation()}
           >
             <span aria-hidden="true">▶️</span>
@@ -710,8 +714,8 @@ function ExerciseCard({
             target="_blank"
             rel="noreferrer noopener"
             className="form-link-icon"
-            aria-label={`Open guide for ${exercise.name_snapshot}`}
-            title={`Open guide for ${exercise.name_snapshot}`}
+            aria-label={t('editor.openGuide', { name: shownName })}
+            title={t('editor.openGuide', { name: shownName })}
             onClick={(event) => event.stopPropagation()}
           >
             <span aria-hidden="true">📖</span>
@@ -764,7 +768,7 @@ function ExerciseCard({
             type="button"
             className="btn btn--icon btn--small"
             data-no-drag
-            aria-label={`Swap ${exercise.name_snapshot} for another exercise`}
+            aria-label={t('workout.swapNamed', { name: shownName })}
             onClick={onSwap}
           >
             <IconSwap width={16} height={16} />
@@ -773,7 +777,7 @@ function ExerciseCard({
             type="button"
             className="btn btn--icon btn--small btn--danger"
             data-no-drag
-            aria-label={`Remove ${exercise.name_snapshot} from workout`}
+            aria-label={t('workout.removeFromWorkout', { name: shownName })}
             onClick={() => void store.removeSessionExercise(session.id, exercise.id)}
           >
             <IconTrash width={16} height={16} />
@@ -877,6 +881,7 @@ function FinishModal({
   onClose(): void
   onFinish(summary: { notes: string | null; rpe: number | null }): Promise<void>
 }) {
+  const { t } = useT()
   const [notes, setNotes] = useState(session.notes ?? '')
   const [rpe, setRpe] = useState<string>(session.rpe === null ? '' : String(session.rpe))
   const completed = countCompletedSets(session)
@@ -894,9 +899,9 @@ function FinishModal({
   }
 
   return (
-    <Modal title="Finish workout" onClose={onClose}>
+    <Modal title={t('workout.finishTitle')} onClose={onClose}>
       <div className="field">
-        <label htmlFor="finish-notes">Workout notes</label>
+        <label htmlFor="finish-notes">{t('workout.finishNotes')}</label>
         <textarea
           id="finish-notes"
           className="input"
@@ -907,9 +912,9 @@ function FinishModal({
         />
       </div>
       <div className="field">
-        <label htmlFor="finish-rpe">Session RPE (1–10)</label>
+        <label htmlFor="finish-rpe">{t('workout.sessionRpe')}</label>
         <select id="finish-rpe" className="input" value={rpe} onChange={(e) => setRpe(e.target.value)}>
-          <option value="">Not set</option>
+          <option value="">{t('common.notSet')}</option>
           {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
             <option key={value} value={value}>
               {value}
@@ -924,7 +929,7 @@ function FinishModal({
         <label className="card row" style={{ alignItems: 'flex-start' }}>
           <input type="checkbox" checked={acceptProgression} onChange={(event) => setAcceptProgression(event.target.checked)} />
           <span>
-            <strong>Apply double progression</strong>
+            <strong>{t('workout.applyDouble')}</strong>
             <small className="muted" style={{ display: 'block' }}>
               {suggestions.map((row) => `${row.exerciseName}: ${row.fromWeightKg} → ${row.toWeightKg} kg`).join(' · ')}
             </small>
@@ -942,7 +947,7 @@ function FinishModal({
         disabled={busy}
         onClick={() => void submit()}
       >
-        {busy ? 'Finishing…' : 'Finish workout'}
+        {busy ? t('workout.finishing') : t('workout.finishConfirm')}
       </button>
     </Modal>
   )

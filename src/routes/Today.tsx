@@ -12,8 +12,10 @@ import { WeightCheckin } from '../components/WeightCheckin'
 import { AerobicGoal } from '../components/AerobicGoal'
 import './today.css'
 import { nextTemplateForPlan } from '../lib/programs/plans'
+import { bcp47, useT } from '../lib/i18n'
 
 export function Today() {
+  const { t } = useT()
   const navigate = useNavigate()
   const { sessions, schedules, rules, templates, profile, ready, skipOccurrence, unskipOccurrence } =
     useStore()
@@ -64,17 +66,17 @@ export function Today() {
     <div className="today-page">
       <div className="page-head">
         <div>
-          <h1>{firstName ? `Hi, ${firstName}` : 'Today'}</h1>
+          <h1>{firstName ? t('today.hi', { name: firstName }) : t('today.title')}</h1>
           <small className="muted">{formatDateLong(today)}</small>
         </div>
         <div className="today-stats">
           <div className="today-stat">
             <strong>{week.count}</strong>
-            <span>this week</span>
+            <span>{t('today.thisWeek')}</span>
           </div>
           <div className="today-stat">
             <strong>{week.streak}</strong>
-            <span>day streak</span>
+            <span>{t('today.dayStreak')}</span>
           </div>
         </div>
       </div>
@@ -89,7 +91,12 @@ export function Today() {
             <span>
               <StatusBadge status="in-progress" /> <strong>{active.name}</strong>
               <small className="muted" style={{ display: 'block' }}>
-                Started {new Date(active.started_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} — tap to continue
+                {t('today.startedContinue', {
+                  time: new Date(active.started_at).toLocaleTimeString(bcp47(), {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  }),
+                })}
               </small>
             </span>
             <IconPlay width={22} height={22} />
@@ -97,14 +104,14 @@ export function Today() {
         </button>
       ) : null}
 
-      <div className="section-title">Planned today</div>
+      <div className="section-title">{t('today.plannedToday')}</div>
       {plannedToday.length === 0 && doneToday.length === 0 && skippedToday.length === 0 ? (
         <EmptyState
-          title="Nothing planned today"
-          hint="Take a rest day, or start something anyway."
+          title={t('today.nothingTitle')}
+          hint={t('today.nothingHint')}
           action={
             <button type="button" className="btn btn--primary" onClick={() => void navigate('/workout')}>
-              <IconPlay width={18} height={18} /> Start empty workout
+              <IconPlay width={18} height={18} /> {t('today.startEmpty')}
             </button>
           }
         />
@@ -116,7 +123,7 @@ export function Today() {
             return (
               <div key={entry.scheduleId} className="card row row--between">
                 <span>
-                  <strong>{entry.template?.name ?? 'Workout'}</strong>{' '}
+                  <strong>{entry.template?.name ?? t('today.workout')}</strong>{' '}
                   {alreadyDone ? (
                     <StatusBadge status="completed" />
                   ) : skipped ? (
@@ -140,7 +147,7 @@ export function Today() {
                         })
                       }
                     >
-                      Start
+                      {t('common.start')}
                     </button>
                     {skipped ? (
                       <button
@@ -148,7 +155,7 @@ export function Today() {
                         className="btn btn--small"
                         onClick={() => void unskipOccurrence(skipped.id)}
                       >
-                        Undo skip
+                        {t('common.undoSkip')}
                       </button>
                     ) : (
                       <button
@@ -156,7 +163,7 @@ export function Today() {
                         className="btn btn--small"
                         onClick={() => void skipOccurrence(entry.scheduleId, today)}
                       >
-                        Skip
+                        {t('common.skip')}
                       </button>
                     )}
                   </span>
@@ -177,26 +184,26 @@ export function Today() {
                   <span>
                     <strong>{s.name}</strong> <StatusBadge status="completed" />
                   </span>
-                  <small className="muted">Review →</small>
+                  <small className="muted">{t('today.review')}</small>
                 </span>
               </button>
             ))}
         </div>
       )}
 
-      <div className="section-title">Quick actions</div>
+      <div className="section-title">{t('today.quickActions')}</div>
       <div className="row row--wrap">
         <button type="button" className="btn" onClick={() => void navigate('/workout')}>
-          <IconPlay width={18} height={18} /> Start workout
+          <IconPlay width={18} height={18} /> {t('today.startWorkout')}
         </button>
         <button type="button" className="btn" onClick={() => void navigate('/routines/new')}>
-          <IconPlus width={18} height={18} /> New routine
+          <IconPlus width={18} height={18} /> {t('today.newRoutine')}
         </button>
         <button type="button" className="btn" onClick={() => void navigate('/calendar')}>
-          Plan in calendar
+          {t('today.planCalendar')}
         </button>
         <button type="button" className="btn" onClick={() => void navigate('/history')}>
-          Workout history
+          {t('today.history')}
         </button>
       </div>
 

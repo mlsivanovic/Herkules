@@ -7,6 +7,7 @@ import { backendConfigured } from '../lib/supabase'
 import { validateEmail, validatePassword } from '../lib/validation'
 import { useTheme } from '../lib/theme'
 import { BrandLogo } from '../components/BrandLogo'
+import { useT } from '../lib/i18n'
 import './auth.css'
 
 function AuthCard({ children }: { children: React.ReactNode }) {
@@ -22,15 +23,13 @@ function AuthCard({ children }: { children: React.ReactNode }) {
 }
 
 function BackendWarning() {
+  const { t } = useT()
   if (backendConfigured) return null
-  return (
-    <p className="auth-notice">
-      Supabase is not configured on this device. See SETUP.md to add your project URL and anon key.
-    </p>
-  )
+  return <p className="auth-notice">{t('auth.backendMissing')}</p>
 }
 
 export function Login() {
+  const { t } = useT()
   const { signIn, session } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -57,11 +56,11 @@ export function Login() {
 
   return (
     <AuthCard>
-      <h1>Sign in</h1>
+      <h1>{t('auth.signIn')}</h1>
       <BackendWarning />
       <form onSubmit={(e) => void submit(e)} noValidate>
         <div className="field">
-          <label htmlFor="login-email">Email</label>
+          <label htmlFor="login-email">{t('auth.email')}</label>
           <input
             id="login-email"
             className="input"
@@ -72,7 +71,7 @@ export function Login() {
           />
         </div>
         <div className="field">
-          <label htmlFor="login-password">Password</label>
+          <label htmlFor="login-password">{t('auth.password')}</label>
           <input
             id="login-password"
             className="input"
@@ -88,18 +87,19 @@ export function Login() {
           </p>
         ) : null}
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('auth.signingIn') : t('auth.signIn')}
         </button>
       </form>
       <div className="auth-links" style={{ marginTop: '1rem' }}>
-        <Link to="/signup">Create an account</Link>
-        <Link to="/reset-password">Forgot password?</Link>
+        <Link to="/signup">{t('auth.createLink')}</Link>
+        <Link to="/reset-password">{t('auth.forgot')}</Link>
       </div>
     </AuthCard>
   )
 }
 
 export function Signup() {
+  const { t } = useT()
   const { signUp, session } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -134,13 +134,10 @@ export function Signup() {
   if (needsConfirmation) {
     return (
       <AuthCard>
-        <h1>Check your email</h1>
-        <p>
-          We sent a confirmation link to <strong>{email}</strong>. Open it to activate your account,
-          then sign in.
-        </p>
+        <h1>{t('auth.checkEmail')}</h1>
+        <p>{t('auth.sentConfirm', { email })}</p>
         <Link to="/login" className="btn btn--primary btn--block">
-          Back to sign in
+          {t('auth.backToSignIn')}
         </Link>
       </AuthCard>
     )
@@ -148,11 +145,11 @@ export function Signup() {
 
   return (
     <AuthCard>
-      <h1>Create account</h1>
+      <h1>{t('auth.createAccount')}</h1>
       <BackendWarning />
       <form onSubmit={(e) => void submit(e)} noValidate>
         <div className="field">
-          <label htmlFor="signup-email">Email</label>
+          <label htmlFor="signup-email">{t('auth.email')}</label>
           <input
             id="signup-email"
             className="input"
@@ -163,7 +160,7 @@ export function Signup() {
           />
         </div>
         <div className="field">
-          <label htmlFor="signup-password">Password (min 8 characters)</label>
+          <label htmlFor="signup-password">{t('auth.passwordMin')}</label>
           <input
             id="signup-password"
             className="input"
@@ -179,12 +176,12 @@ export function Signup() {
           </p>
         ) : null}
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
-          {busy ? 'Creating…' : 'Create account'}
+          {busy ? t('auth.creating') : t('auth.createAccount')}
         </button>
       </form>
       <div className="auth-links" style={{ marginTop: '1rem' }}>
         <span>
-          Already have an account? <Link to="/login">Sign in</Link>
+          {t('auth.alreadyHave')} <Link to="/login">{t('auth.signIn')}</Link>
         </span>
       </div>
     </AuthCard>
@@ -192,6 +189,7 @@ export function Signup() {
 }
 
 export function ResetPassword() {
+  const { t } = useT()
   const { requestPasswordReset } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -218,15 +216,12 @@ export function ResetPassword() {
 
   return (
     <AuthCard>
-      <h1>Reset password</h1>
+      <h1>{t('auth.reset')}</h1>
       {sent ? (
         <>
-          <p>
-            If an account exists for <strong>{email}</strong>, a reset link is on its way. Open it
-            and choose a new password.
-          </p>
+          <p>{t('auth.sentReset', { email })}</p>
           <Link to="/login" className="btn btn--primary btn--block">
-            Back to sign in
+            {t('auth.backToSignIn')}
           </Link>
         </>
       ) : (
@@ -234,7 +229,7 @@ export function ResetPassword() {
           <BackendWarning />
           <form onSubmit={(e) => void submit(e)} noValidate>
             <div className="field">
-              <label htmlFor="reset-email">Email</label>
+              <label htmlFor="reset-email">{t('auth.email')}</label>
               <input
                 id="reset-email"
                 className="input"
@@ -250,11 +245,11 @@ export function ResetPassword() {
               </p>
             ) : null}
             <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
-              {busy ? 'Sending…' : 'Send reset link'}
+              {busy ? t('auth.sending') : t('auth.sendReset')}
             </button>
           </form>
           <div className="auth-links" style={{ marginTop: '1rem' }}>
-            <Link to="/login">Back to sign in</Link>
+            <Link to="/login">{t('auth.backToSignIn')}</Link>
           </div>
         </>
       )}
@@ -263,6 +258,7 @@ export function ResetPassword() {
 }
 
 export function UpdatePassword() {
+  const { t } = useT()
   const { updatePassword, session, passwordRecovery, clearPasswordRecovery } = useAuth()
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
@@ -294,10 +290,10 @@ export function UpdatePassword() {
 
   return (
     <AuthCard>
-      <h1>{passwordRecovery ? 'Choose a new password' : 'Change password'}</h1>
+      <h1>{passwordRecovery ? t('auth.chooseNew') : t('auth.changePassword')}</h1>
       <form onSubmit={(e) => void submit(e)} noValidate>
         <div className="field">
-          <label htmlFor="new-password">New password (min 8 characters)</label>
+          <label htmlFor="new-password">{t('auth.newPasswordMin')}</label>
           <input
             id="new-password"
             className="input"
@@ -313,7 +309,7 @@ export function UpdatePassword() {
           </p>
         ) : null}
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
-          {busy ? 'Saving…' : 'Save password'}
+          {busy ? t('common.saving') : t('auth.savePassword')}
         </button>
       </form>
     </AuthCard>

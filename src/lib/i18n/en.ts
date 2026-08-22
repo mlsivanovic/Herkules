@@ -562,6 +562,7 @@ export const en = {
     prescribedTempo: 'Prescribed tempo',
     withPartners: 'with {names}',
     distanceInTime: '{distance} in {duration}',
+    collapseToReorder: 'Collapse {name} to reorder',
   },
   set: {
     setN: 'Set {n}',

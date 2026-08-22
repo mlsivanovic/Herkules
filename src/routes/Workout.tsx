@@ -17,7 +17,7 @@ import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { distanceForInput, formatDuration, formatWeight, formatDistance, weightForInput } from '../lib/units'
 import { previousSetsForExercise } from '../lib/metrics'
 import { timerCue } from '../lib/cues'
-import { moveIndex, supersetPartners } from '../lib/reorder'
+import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
@@ -67,6 +67,10 @@ export function Workout() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const activeId = active?.id
   const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
+  const orderedExercises = useMemo(
+    () => (active ? sortByPosition(active.session_exercises) : []),
+    [active],
+  )
 
   useEffect(() => {
     if (activeId) setCollapsedIds(readCollapsed(activeId))
@@ -77,7 +81,7 @@ export function Workout() {
       const session = store.sessions.find((s) => s.status === 'in_progress')
       if (!session) return
       const ids = moveIndex(
-        session.session_exercises.map((se) => se.id),
+        sortByPosition(session.session_exercises).map((se) => se.id),
         from,
         to,
       )
@@ -87,7 +91,7 @@ export function Workout() {
   )
 
   const reorder = usePointerReorder({
-    itemCount: active?.session_exercises.length ?? 0,
+    itemCount: orderedExercises.length,
     onMove: moveExercise,
     announce: setAnnounce,
   })
@@ -187,10 +191,11 @@ export function Workout() {
                 {block.notes ? <small className="muted">{block.notes}</small> : null}
               </div>
             ))}
-          {active.session_exercises.map((se, index) => {
+          {orderedExercises.map((se, index) => {
             const block = active.session_blocks?.find((row) => row.id === se.session_block_id) ?? null
-            const previous = index > 0 ? active.session_exercises[index - 1] : null
+            const previous = index > 0 ? orderedExercises[index - 1] : null
             const showBlock = block && previous?.session_block_id !== block.id
+            const collapsed = collapsedIds.has(se.id)
             return (
             <Fragment key={se.id}>
               {showBlock ? (
@@ -237,7 +242,8 @@ export function Workout() {
                 reorder.active.over === index &&
                 reorder.active.from !== index
               }
-              expanded={!collapsedIds.has(se.id)}
+              expanded={!collapsed}
+              reorderable={collapsed}
               onToggleExpand={() => {
                 if (!active) return
                 setCollapsedIds((prev) => {
@@ -554,6 +560,7 @@ function ExerciseCard({
   dragging,
   dropTarget,
   expanded,
+  reorderable,
   onToggleExpand,
   onSwap,
   onRestStart,
@@ -568,6 +575,7 @@ function ExerciseCard({
   dragging: boolean
   dropTarget: boolean
   expanded: boolean
+  reorderable: boolean
   onToggleExpand(): void
   onSwap(): void
   onRestStart(seconds: number): void
@@ -663,28 +671,31 @@ function ExerciseCard({
       className={`card workout-exercise exercise-card-item ${blockRoleClass(role)}${logged ? ' workout-exercise--logged' : ''}${expanded ? ' workout-exercise--expanded' : ' workout-exercise--collapsed'}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
     >
       <div className="exercise-head">
-        <div className="exercise-head__drag" {...handleProps}>
-          <button
-            type="button"
-            className="exercise-grip"
-            aria-label={t('editor.reorder', { name: shownName })}
-            {...gripProps}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
-                event.preventDefault()
-                onMoveBy(-1)
-              } else if (event.key === 'ArrowDown' || (event.altKey && event.key === 'ArrowDown')) {
-                event.preventDefault()
-                onMoveBy(1)
-              }
-            }}
-          >
-            <IconGrip width={16} height={16} />
-          </button>
+        <div className="exercise-head__drag" {...(reorderable ? handleProps : {})}>
+          {reorderable ? (
+            <button
+              type="button"
+              className="exercise-grip"
+              aria-label={t('editor.reorder', { name: shownName })}
+              {...gripProps}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
+                  event.preventDefault()
+                  onMoveBy(-1)
+                } else if (event.key === 'ArrowDown' || (event.altKey && event.key === 'ArrowDown')) {
+                  event.preventDefault()
+                  onMoveBy(1)
+                }
+              }}
+            >
+              <IconGrip width={16} height={16} />
+            </button>
+          ) : null}
           <button
             type="button"
             className="exercise-head__toggle"
             aria-expanded={expanded}
+            title={expanded ? t('workout.collapseToReorder', { name: shownName }) : undefined}
             onClick={onToggleExpand}
           >
             <strong className="exercise-head__title">{shownName}</strong>

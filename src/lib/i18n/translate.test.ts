@@ -32,6 +32,15 @@ describe('t', () => {
     expect(t('editor.deletePlanKeepRoutines', undefined, 'sr')).toBe('Zadrži rutine')
   })
 
+  it('translates collapse-to-reorder copy', () => {
+    expect(t('workout.collapseToReorder', { name: 'Squat' }, 'en')).toBe(
+      'Collapse Squat to reorder',
+    )
+    expect(t('workout.collapseToReorder', { name: 'Čučanj' }, 'sr')).toBe(
+      'Skupi Čučanj da promeniš redosled',
+    )
+  })
+
   it('translates add-notes copy', () => {
     expect(t('editor.addNotes', undefined, 'en')).toBe('Add notes')
     expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')

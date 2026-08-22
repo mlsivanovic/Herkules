@@ -77,6 +77,11 @@
   background: color-mix(in srgb, var(--c-success-soft) 70%, var(--c-card));
 }
 
+.workout-exercise--expanded .exercise-head__drag {
+  cursor: default;
+  touch-action: auto;
+}
+
 .exercise-head__toggle {
   flex: 1;
   min-width: 0;

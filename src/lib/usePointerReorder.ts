@@ -5,6 +5,7 @@
 // Title (hold): long-press so the list can still scroll from the title.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { t } from './i18n'
+import { indexAtClientY } from './reorder'
 
 const MOUSE_HOLD_MS = 180
 const TOUCH_HOLD_MS = 380
@@ -46,7 +47,10 @@ export function usePointerReorder(options: {
 
   const setItemRef = useCallback((index: number) => {
     return (el: HTMLElement | null) => {
-      itemRefs.current[index] = el
+      // Ignore the null callback React fires when the ref identity changes
+      // on reorder — clearing by index would wipe a sibling that already
+      // claimed that slot and make later drops snap to the ends.
+      if (el) itemRefs.current[index] = el
     }
   }, [])
 
@@ -78,20 +82,12 @@ export function usePointerReorder(options: {
   }, [])
 
   const indexFromY = useCallback((clientY: number) => {
-    let best = 0
-    let bestDist = Number.POSITIVE_INFINITY
-    for (let i = 0; i < itemRefs.current.length; i += 1) {
-      const el = itemRefs.current[i]
-      if (!el) continue
+    const rects = itemRefs.current.map((el) => {
+      if (!el) return null
       const rect = el.getBoundingClientRect()
-      const mid = rect.top + rect.height / 2
-      const dist = Math.abs(clientY - mid)
-      if (dist < bestDist) {
-        bestDist = dist
-        best = i
-      }
-    }
-    return best
+      return { top: rect.top, bottom: rect.bottom }
+    })
+    return indexAtClientY(rects, clientY)
   }, [])
 
   const tickAutoScroll = useCallback(() => {

@@ -563,6 +563,7 @@ export const sr: Messages = {
     prescribedTempo: 'Propisani tempo',
     withPartners: 'sa {names}',
     distanceInTime: '{distance} za {duration}',
+    collapseToReorder: 'Skupi {name} da promeniš redosled',
   },
   set: {
     setN: 'Serija {n}',

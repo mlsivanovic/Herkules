@@ -21,6 +21,7 @@ import type {
 } from '../types/db'
 import { listOps, removeOps } from './db'
 import { planFlush } from './outbox'
+import { sortByPosition } from './reorder'
 
 export class SyncError extends Error {}
 
@@ -107,11 +108,13 @@ interface NestedSession
 function normalizeSession(row: NestedSession): SessionDoc {
   return {
     ...row,
-    session_blocks: (row.session_blocks ?? []).sort((a, b) => a.position - b.position),
-    session_exercises: (row.session_exercises ?? []).map((se) => ({
-      ...se,
-      sets: (se.workout_sets ?? []).sort((a, b) => a.position - b.position),
-    })),
+    session_blocks: sortByPosition(row.session_blocks ?? []),
+    session_exercises: sortByPosition(
+      (row.session_exercises ?? []).map((se) => ({
+        ...se,
+        sets: sortByPosition(se.workout_sets ?? []),
+      })),
+    ),
   }
 }
 

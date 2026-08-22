@@ -4,6 +4,7 @@
 // at the read boundary (readOne/readAll).
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { collapseOps, uniqueOpCount } from './outbox'
+import { sortByPosition } from './reorder'
 import type {
   AerobicActivityRow,
   BodyWeightRow,
@@ -234,8 +235,8 @@ function normalizeSession(row: SessionDoc): SessionDoc {
     plan_id: row.plan_id ?? null,
     cycle_week: row.cycle_week ?? null,
     is_deload: row.is_deload ?? false,
-    session_blocks: row.session_blocks ?? [],
-    session_exercises: (row.session_exercises ?? []).map((exercise) => ({
+    session_blocks: sortByPosition(row.session_blocks ?? []),
+    session_exercises: sortByPosition((row.session_exercises ?? []).map((exercise) => ({
       ...exercise,
       template_item_id: exercise.template_item_id ?? null,
       session_block_id: exercise.session_block_id ?? null,
@@ -262,13 +263,13 @@ function normalizeSession(row: SessionDoc): SessionDoc {
       tempo_concentric: exercise.tempo_concentric ?? null,
       tempo_contracted_pause: exercise.tempo_contracted_pause ?? null,
       tempo_intent: exercise.tempo_intent ?? 'controlled',
-      sets: (exercise.sets ?? []).map((set) => ({
+      sets: sortByPosition((exercise.sets ?? []).map((set) => ({
         ...set,
         round_index: set.round_index ?? null,
         side: set.side ?? null,
         direction: set.direction ?? null,
-      })),
-    })),
+      }))),
+    }))),
   }
 }
 

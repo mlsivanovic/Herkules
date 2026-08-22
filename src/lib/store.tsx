@@ -1779,7 +1779,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!doc) throw new Error(t('errors.sessionNotFound'))
         const oldPositions = new Map(doc.session_exercises.map((se) => [se.id, se.position]))
         const byId = new Map(doc.session_exercises.map((se) => [se.id, se]))
-        const reordered = orderedIds
+        const remaining = doc.session_exercises.filter((se) => !orderedIds.includes(se.id))
+        const reordered = [...orderedIds, ...remaining.map((se) => se.id)]
           .map((id) => byId.get(id))
           .filter((se): se is SessionExerciseRow & { sets: SetRow[] } => Boolean(se))
           .map((se, index) =>

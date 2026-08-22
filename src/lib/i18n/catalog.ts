@@ -662,6 +662,41 @@ export const SR_EXERCISES: Record<string, ExerciseCopy> = {
     instructions:
       'Podlaktica oslonjena, lakat miran. Okreći dlan gore-dole kroz kontrolisan opseg. Beleži ponavljanja ili vreme.',
   },
+  '11111111-1111-4111-8111-111111111232': {
+    name: 'Veslanje na spravi',
+    instructions:
+      'Sedi uspravno, sa osloncem za grudi ako ga sprava ima. Povuci laktove ka kukovima, kratko zadrži, pa se kontrolisano vrati.',
+  },
+  '11111111-1111-4111-8111-111111111233': {
+    name: 'Bočno podizanje sajlom',
+    instructions:
+      'Podigni ruku u ravni lopatice uz blago savijen lakat. Stani oko visine ramena i spusti polako bez podizanja ramena.',
+  },
+  '11111111-1111-4111-8111-111111111234': {
+    name: 'Strogi potisak',
+    instructions:
+      'Stani uspravno, učvrsti trup i potisni šipku iznad glave bez pomoći nogu. Rebra ostaju dole; spusti kontrolisano.',
+  },
+  '11111111-1111-4111-8111-111111111235': {
+    name: 'Skok na kutiju',
+    instructions:
+      'Skoči na stabilnu kutiju iz uravnoteženog stava i sleti tiho, sa kolenima u pravcu stopala. Silazi korakom, ne skači dole.',
+  },
+  '11111111-1111-4111-8111-111111111236': {
+    name: 'Obrnuti let na spravi',
+    instructions:
+      'Grudi ostaju oslonjene, ruke blago savijene. Otvaraj ruke iz zadnjih ramena i lopatica, bez zamaha.',
+  },
+  '11111111-1111-4111-8111-111111111237': {
+    name: 'Jednoručna ekstenzija tricepsa sajlom',
+    instructions:
+      'Lakat ostaje miran uz telo. Ispruži ruku glatko, pa se polako vrati bez uvrtanja ramena napred.',
+  },
+  '11111111-1111-4111-8111-111111111238': {
+    name: 'Burpee sa korakom preko kutije',
+    instructions:
+      'Uradi kontrolisan burpee, ustani i pređi korakom preko niske stabilne kutije. Ovo je kondicioni pokret, ne skok na kutiju.',
+  },
 }
 
 const MUSCLE: Record<string, string> = {

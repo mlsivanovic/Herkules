@@ -9,7 +9,7 @@ const env = loadEnv('test', process.cwd(), '')
 const EXTERNAL_ROTATION = '11111111-1111-4111-8111-111111111217'
 const KETTLEBELL_SWING = '11111111-1111-4111-8111-111111111155'
 
-test.describe('Hybrid V1 → V2 direct migration', () => {
+test.describe('Hybrid V1 → V3 direct migration', () => {
   test('preserves plan/template/history ids and is idempotent', async ({ page }) => {
     const email = await signUpFresh(page, 'hybrid-v2')
     const client = createClient(env.E2E_SUPABASE_URL, env.E2E_SUPABASE_ANON_KEY)
@@ -100,13 +100,13 @@ test.describe('Hybrid V1 → V2 direct migration', () => {
 
     const first = await readRecipe(client, planId, templateIds)
     expect(first.plan?.id).toBe(planId)
-    expect(first.plan?.source_version).toBe(5)
+    expect(first.plan?.source_version).toBe(6)
     expect(first.templates.map((row) => row.id)).toEqual([
       templateIds.A, templateIds.B, templateIds.C, templateIds.D,
     ])
-    expect(first.blocks).toHaveLength(25)
-    expect(first.items).toHaveLength(43)
-    expect(first.items.filter((row) => row.template_id === templateIds.C)).toHaveLength(10)
+    expect(first.blocks).toHaveLength(33)
+    expect(first.items).toHaveLength(59)
+    expect(first.items.filter((row) => row.template_id === templateIds.C)).toHaveLength(18)
     expect(first.items.some((row) =>
       row.template_id === templateIds.C && row.exercise_id === KETTLEBELL_SWING,
     )).toBe(true)

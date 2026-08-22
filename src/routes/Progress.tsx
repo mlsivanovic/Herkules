@@ -18,6 +18,7 @@ import { formatWeight, formatDistance, formatDuration } from '../lib/units'
 import { BarChart, LineChart } from '../components/Chart'
 import { EmptyState, Loader } from '../components/ui'
 import { IconTrophy } from '../components/Icons'
+import { BodyComposition } from '../components/BodyComposition'
 import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, t as translate, useT } from '../lib/i18n'
 import './progress.css'
 
@@ -69,10 +70,18 @@ export function Progress() {
 
   if (!ready) return <Loader />
 
+  const composition = (
+    <>
+      <div className="section-title">{t('body.title')}</div>
+      <BodyComposition />
+    </>
+  )
+
   if (sessions.length === 0) {
     return (
       <div>
         <h1>{t('progress.title')}</h1>
+        {composition}
         <EmptyState
           title={t('progress.emptyTitle')}
           hint={t('progress.emptyHint')}
@@ -93,6 +102,8 @@ export function Progress() {
           {t('progress.allWorkouts')}
         </button>
       </div>
+
+      {composition}
 
       <div className="stat-grid">
         <div className="card stat-card">

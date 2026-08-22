@@ -126,6 +126,12 @@ export function heightUnitLabel(units: UnitSystem): string {
   return units === 'imperial' ? 'in' : 'cm'
 }
 
+/** Circumference in the user's system, e.g. "85 cm" / "33.5 in". */
+export function formatGirth(cm: number, units: UnitSystem): string {
+  if (units === 'imperial') return `${trimDecimals(cmToIn(cm), 1)} in`
+  return `${trimDecimals(cm, 1)} cm`
+}
+
 export function ageYears(birthDate: string, today: string): number {
   const born = birthDate.slice(0, 10)
   const [by, bm, bd] = born.split('-').map(Number)

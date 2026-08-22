@@ -2,6 +2,7 @@
 // Restore is an idempotent upsert keyed by row ids — it never deletes rows
 // that are absent from the file.
 import type {
+  BodyMeasureRow,
   BodyWeightRow,
   AerobicActivityRow,
   ExerciseRow,
@@ -18,7 +19,7 @@ import type {
 import { t } from './i18n'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 3
+export const BACKUP_VERSION = 4
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT
@@ -26,6 +27,7 @@ export interface BackupFile {
   exported_at: string
   profile: ProfileRow | null
   bodyWeights: BodyWeightRow[]
+  bodyMeasures: BodyMeasureRow[]
   /** user-owned exercises only — the system catalog is seeded server-side */
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
@@ -41,8 +43,8 @@ export interface BackupFile {
 
 type BackupInput = Omit<
   BackupFile,
-  'format' | 'version' | 'exported_at' | 'templateBlocks' | 'aerobicActivities'
-> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities'>>
+  'format' | 'version' | 'exported_at' | 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures'
+> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures'>>
 
 export function serializeBackup(input: BackupInput): string {
   const file: BackupFile = {
@@ -52,6 +54,7 @@ export function serializeBackup(input: BackupInput): string {
     ...input,
     templateBlocks: input.templateBlocks ?? [],
     aerobicActivities: input.aerobicActivities ?? [],
+    bodyMeasures: input.bodyMeasures ?? [],
   }
   return JSON.stringify(file, null, 2)
 }
@@ -107,14 +110,23 @@ export function parseBackup(text: string): BackupFile {
     : file.version < 3
       ? []
       : null
+  const bodyMeasures = Array.isArray(file.bodyMeasures)
+    ? file.bodyMeasures
+    : file.version < 4
+      ? []
+      : null
   if (templateBlocks === null || aerobicActivities === null) {
     throw new Error(t('errors.backupMissingHybrid'))
+  }
+  if (bodyMeasures === null) {
+    throw new Error(t('errors.backupMissing', { key: 'bodyMeasures' }))
   }
   return {
     ...(file as BackupFile),
     plans,
     templateBlocks,
     aerobicActivities,
+    bodyMeasures,
     templates: (file.templates as TemplateRow[]).map(normalizeTemplate),
   }
 }

@@ -4,6 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   AerobicActivityRow,
+  BodyMeasureRow,
   BodyWeightRow,
   ExerciseRow,
   ProfileRow,
@@ -93,6 +94,7 @@ export interface ServerSnapshot {
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
 }
@@ -130,6 +132,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     schedulesRes,
     sessionsRes,
     weightsRes,
+    measuresRes,
     checkinsRes,
     aerobicRes,
   ] = await Promise.all([
@@ -146,6 +149,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
       .select('*, session_blocks(*), session_exercises(*, workout_sets(*))')
       .order('started_at', { ascending: false }),
     client.from('body_weight_entries').select('*').order('recorded_on', { ascending: false }),
+    client.from('body_measure_entries').select('*').order('recorded_on', { ascending: false }),
     client
       .from('tendon_checkins')
       .select('*')
@@ -165,6 +169,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     schedulesRes.error ??
     sessionsRes.error ??
     weightsRes.error ??
+    measuresRes.error ??
     checkinsRes.error ??
     aerobicRes.error
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
@@ -180,6 +185,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     schedules: schedulesRes.data as ScheduleItemRow[],
     sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
     bodyWeights: (weightsRes.data as BodyWeightRow[]) ?? [],
+    bodyMeasures: (measuresRes.data as BodyMeasureRow[]) ?? [],
     checkins: (checkinsRes.data as TendonCheckinRow[]) ?? [],
     aerobicActivities: (aerobicRes.data as AerobicActivityRow[]) ?? [],
   }

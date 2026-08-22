@@ -19,6 +19,7 @@ const UPSERT_ORDER: SyncTable[] = [
   'session_exercises',
   'workout_sets',
   'body_weight_entries',
+  'body_measure_entries',
   'tendon_checkins',
   'aerobic_activities',
 ]

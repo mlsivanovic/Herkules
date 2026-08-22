@@ -18,7 +18,7 @@ describe('backup', () => {
     })
     const restored = parseBackup(json)
     expect(restored.format).toBe(BACKUP_FORMAT)
-    expect(restored.version).toBe(3)
+    expect(restored.version).toBe(4)
     expect(restored.sessions).toHaveLength(1)
     expect(restored.sessions[0]?.name).toBe('Push')
     expect(restored.plans).toEqual([])
@@ -44,7 +44,7 @@ describe('backup', () => {
       plans: [],
       sessions: [],
       checkins: [],
-    }).replace('"version": 3', '"version": 99')
+    }).replace('"version": 4', '"version": 99')
     expect(() => parseBackup(json)).toThrow(/newer version/)
   })
 
@@ -88,11 +88,31 @@ describe('backup', () => {
       sessions: [],
       checkins: [],
     })
-      .replace('"version": 3', '"version": 1')
+      .replace('"version": 4', '"version": 1')
       .replace(/\n {2}"plans": \[\],\n/u, '\n')
     const restored = parseBackup(json)
     expect(restored.plans).toEqual([])
     expect(restored.templates[0]?.plan_id).toBeNull()
     expect(restored.templates[0]?.plan_position).toBe(0)
+    expect(restored.bodyMeasures).toEqual([])
+  })
+
+  it('accepts a v3 backup that has no bodyMeasures list', () => {
+    const json = serializeBackup({
+      profile: null,
+      bodyWeights: [],
+      exercises: [],
+      plans: [],
+      templates: [],
+      templateItems: [],
+      rules: [],
+      schedules: [],
+      sessions: [],
+      checkins: [],
+    })
+      .replace('"version": 4', '"version": 3')
+      .replace(/,\n {2}"bodyMeasures": \[\]/u, '')
+    const restored = parseBackup(json)
+    expect(restored.bodyMeasures).toEqual([])
   })
 })

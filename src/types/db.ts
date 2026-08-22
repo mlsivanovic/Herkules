@@ -51,6 +51,22 @@ export interface BodyWeightRow {
   updated_at: string
 }
 
+/** Daily tape measurements (canonical cm). Computed BF% is derived, not stored. */
+export interface BodyMeasureRow {
+  id: string
+  owner_id: string
+  recorded_on: string
+  neck_cm: number | null
+  waist_cm: number | null
+  hip_cm: number | null
+  arm_cm: number | null
+  thigh_cm: number | null
+  calf_cm: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 /** Daily tendon check-in per body site: morning stiffness / pain, 0–10. */
 export interface TendonCheckinRow {
   id: string
@@ -329,6 +345,7 @@ export type SyncTable =
   | 'session_exercises'
   | 'workout_sets'
   | 'body_weight_entries'
+  | 'body_measure_entries'
   | 'tendon_checkins'
   | 'aerobic_activities'
 

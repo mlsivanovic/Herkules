@@ -29,6 +29,7 @@ import type {
   TemplateItemRow,
   TemplateBlockRow,
   TemplateRow,
+  BodyMeasureRow,
   BodyWeightRow,
   TendonCheckinRow,
   TrainingPlanRow,
@@ -198,6 +199,7 @@ export interface StoreData {
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
 }
@@ -312,6 +314,17 @@ export interface StoreActions {
   ): Promise<void>
   logWeight(date: string, weightKg: number, notes?: string | null): Promise<void>
   deleteWeight(id: string): Promise<void>
+  logBodyMeasures(input: {
+    date: string
+    neckCm: number | null
+    waistCm: number | null
+    hipCm: number | null
+    armCm: number | null
+    thighCm: number | null
+    calfCm: number | null
+    notes?: string | null
+  }): Promise<void>
+  deleteBodyMeasures(id: string): Promise<void>
 
   // tendon check-ins
   logCheckin(input: {
@@ -373,6 +386,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     schedules: [] as ScheduleItemRow[],
     sessions: [] as SessionDoc[],
     bodyWeights: [] as BodyWeightRow[],
+    bodyMeasures: [] as BodyMeasureRow[],
     checkins: [] as TendonCheckinRow[],
     aerobicActivities: [] as AerobicActivityRow[],
   })
@@ -416,6 +430,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('schedules', snapshot.schedules),
         reconcileStore('sessions', snapshot.sessions),
         reconcileStore('bodyWeights', snapshot.bodyWeights),
+        reconcileStore('bodyMeasures', snapshot.bodyMeasures),
         reconcileStore('checkins', snapshot.checkins),
         reconcileStore('aerobicActivities', snapshot.aerobicActivities),
       ])
@@ -456,6 +471,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         schedules: [],
         sessions: [],
         bodyWeights: [],
+        bodyMeasures: [],
         checkins: [],
         aerobicActivities: [],
         pending: 0,
@@ -1385,6 +1401,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return serializeBackup({
           profile,
           bodyWeights: all.bodyWeights,
+          bodyMeasures: all.bodyMeasures,
           exercises: all.exercises.filter((e) => e.owner_id !== null),
           plans: all.plans,
           templates: all.templates,
@@ -1417,6 +1434,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const next = { ...row, owner_id: owner, updated_at: stamp }
           writes.push({ store: 'bodyWeights', row: next })
           ops.push(upsert('body_weight_entries', next))
+        }
+        for (const row of file.bodyMeasures) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'bodyMeasures', row: next })
+          ops.push(upsert('body_measure_entries', next))
         }
         for (const row of file.checkins) {
           const next = { ...row, owner_id: owner, updated_at: stamp }
@@ -1916,6 +1938,54 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         )
         await removeFrom('bodyWeights', id)
         await appendOps([{ kind: 'delete', table: 'body_weight_entries', id }])
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      },
+
+      async logBodyMeasures(input) {
+        const hasGirth = [
+          input.neckCm,
+          input.waistCm,
+          input.hipCm,
+          input.armCm,
+          input.thighCm,
+          input.calfCm,
+        ].some((value) => value !== null)
+        if (!hasGirth) throw new Error(t('body.needGirth'))
+        const all = await readAll()
+        const existing = all.bodyMeasures.find((row) => row.recorded_on === input.date)
+        const stamp = nowIso()
+        const fields = {
+          neck_cm: input.neckCm,
+          waist_cm: input.waistCm,
+          hip_cm: input.hipCm,
+          arm_cm: input.armCm,
+          thigh_cm: input.thighCm,
+          calf_cm: input.calfCm,
+          notes: input.notes ?? null,
+        }
+        const row: BodyMeasureRow = existing
+          ? { ...existing, ...fields, updated_at: stamp }
+          : {
+              id: newId(),
+              owner_id: userIdRef.current ?? '',
+              recorded_on: input.date,
+              ...fields,
+              created_at: stamp,
+              updated_at: stamp,
+            }
+        await commit([{ store: 'bodyMeasures', row }], [upsert('body_measure_entries', row)])
+      },
+
+      async deleteBodyMeasures(id) {
+        await removeMatchingOps(
+          (op) =>
+            op.kind === 'upsert' &&
+            op.table === 'body_measure_entries' &&
+            String(op.row.id) === id,
+        )
+        await removeFrom('bodyMeasures', id)
+        await appendOps([{ kind: 'delete', table: 'body_measure_entries', id }])
         await reloadFromDb()
         scheduleDebouncedSync()
       },

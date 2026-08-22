@@ -30,6 +30,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     templateBlock: '',
     sessionBlock: '',
     aerobicActivity: '',
+    bodyMeasure: '',
   }
 
   async function signUp(name: string): Promise<SupabaseClient> {
@@ -57,6 +58,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
     await alice?.from('workout_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('aerobic_activities').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('tendon_checkins').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await alice?.from('body_measure_entries').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('schedule_items').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('recurrence_rules').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await alice?.from('workout_templates').delete().neq('id', '00000000-0000-0000-0000-000000000000')
@@ -196,6 +198,18 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         .single()
       expect(activityError).toBeNull()
       aliceIds.aerobicActivity = activity.id
+
+      const { data: measure, error: measureError } = await alice
+        .from('body_measure_entries')
+        .insert({
+          recorded_on: '2026-08-20',
+          neck_cm: 38,
+          waist_cm: 85,
+        })
+        .select()
+        .single()
+      expect(measureError).toBeNull()
+      aliceIds.bodyMeasure = measure.id
     })
 
     it('creates a tendon check-in', async () => {
@@ -323,6 +337,19 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(error).toBeDefined()
     })
 
+    it('cannot read or write Alice body measurements', async () => {
+      const { data } = await bob
+        .from('body_measure_entries')
+        .select()
+        .eq('id', aliceIds.bodyMeasure)
+      expect(data).toHaveLength(0)
+      const { error } = await bob
+        .from('body_measure_entries')
+        .update({ waist_cm: 90 })
+        .eq('id', aliceIds.bodyMeasure)
+      expect(error).toBeDefined()
+    })
+
     it('cannot read or write Alice aerobic activities', async () => {
       const { data } = await bob
         .from('aerobic_activities')
@@ -389,6 +416,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'workout_sets',
         'training_plans',
         'aerobic_activities',
+        'body_measure_entries',
       ]
       for (const table of tables) {
         const { error } = await anon.from(table).select().limit(1)

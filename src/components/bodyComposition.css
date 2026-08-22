@@ -1,0 +1,82 @@
+/* Body composition calculator on Progress. */
+
+.body-comp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.body-comp .field {
+  margin-bottom: 0;
+}
+
+.body-comp__fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 560px) {
+  .body-comp__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.body-comp__hint,
+.body-comp__disclaimer {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.body-comp__disclaimer {
+  color: var(--c-muted);
+}
+
+.body-comp__methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.body-comp__extras {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-s);
+  padding: 0.65rem 0.85rem;
+}
+
+.body-comp__extras > summary {
+  min-height: var(--control-h);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.body-comp__extras-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.body-comp__strength {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.body-comp__strength-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.body-comp__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

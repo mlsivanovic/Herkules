@@ -27,6 +27,7 @@ import { setSoundEnabled, setVibrationEnabled, soundEnabled, vibrationEnabled } 
 import { useTheme, type ThemePreference } from '../lib/theme'
 import { bcp47, useLocale, useT, type LocalePreference } from '../lib/i18n'
 import type { Sex } from '../types/db'
+import { latestBodyFatPercent } from '../lib/bodyComposition'
 import { LineChart } from '../components/Chart'
 import { IconChevronDown } from '../components/Icons'
 import { Modal } from '../components/ui'
@@ -156,6 +157,14 @@ export function Settings() {
     latestWeight && profile?.height_cm
       ? bodyMassIndex(latestWeight.weight_kg, profile.height_cm)
       : null
+  const bodyFatPct = latestBodyFatPercent({
+    sex: profile?.sex ?? null,
+    birthDate: profile?.birth_date ?? null,
+    heightCm: profile?.height_cm ?? null,
+    today: todayKey(),
+    weights: store.bodyWeights,
+    measures: store.bodyMeasures,
+  })
   const savedTimer = useRef<number | null>(null)
 
   useEffect(
@@ -470,6 +479,7 @@ export function Settings() {
                 formatWeight(latestWeight.weight_kg, units),
                 latestWeight.recorded_on,
                 bmi !== null ? t('settings.bmi', { n: bmi }) : null,
+                bodyFatPct !== null ? t('settings.bodyFat', { n: bodyFatPct.toFixed(1) }) : null,
               ])
             : t('settings.logWeighIn')
         }
@@ -481,6 +491,9 @@ export function Settings() {
             {t('settings.latest')} <strong>{formatWeight(latestWeight.weight_kg, units)}</strong>
             <small className="muted"> · {latestWeight.recorded_on}</small>
             {bmi !== null ? <small className="muted"> · {t('settings.bmi', { n: bmi })}</small> : null}
+            {bodyFatPct !== null ? (
+              <small className="muted"> · {t('settings.bodyFat', { n: bodyFatPct.toFixed(1) })}</small>
+            ) : null}
           </p>
         ) : (
           <p className="muted" style={{ margin: 0 }}>

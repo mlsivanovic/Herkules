@@ -6,6 +6,7 @@ import {
   formatWeight,
   ageYears,
   bodyMassIndex,
+  formatGirth,
   heightToCm,
   kmToM,
   lbToKg,
@@ -110,5 +111,10 @@ describe('body stats', () => {
 
   it('computes BMI', () => {
     expect(bodyMassIndex(80, 180)).toBe(24.7)
+  })
+
+  it('formats girth in both systems', () => {
+    expect(formatGirth(85, 'metric')).toBe('85 cm')
+    expect(formatGirth(85, 'imperial')).toBe('33.5 in')
   })
 })

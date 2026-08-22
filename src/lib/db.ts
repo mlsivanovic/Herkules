@@ -7,6 +7,7 @@ import { collapseOps, uniqueOpCount } from './outbox'
 import { sortByPosition } from './reorder'
 import type {
   AerobicActivityRow,
+  BodyMeasureRow,
   BodyWeightRow,
   ExerciseRow,
   OutboxOp,
@@ -32,6 +33,7 @@ export type StoreName =
   | 'schedules'
   | 'sessions'
   | 'bodyWeights'
+  | 'bodyMeasures'
   | 'checkins'
   | 'aerobicActivities'
 
@@ -52,13 +54,14 @@ interface HerkulesDB extends DBSchema {
   schedules: { key: string; value: DirtyRow }
   sessions: { key: string; value: DirtyRow }
   bodyWeights: { key: string; value: DirtyRow }
+  bodyMeasures: { key: string; value: DirtyRow }
   checkins: { key: string; value: DirtyRow }
   aerobicActivities: { key: string; value: DirtyRow }
   outbox: { key: number; value: OutboxOp & { seq: number }; autoIncrement: true }
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 6
+const DB_VERSION = 7
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -96,6 +99,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         if (oldVersion < 6 && !db.objectStoreNames.contains('aerobicActivities')) {
           db.createObjectStore('aerobicActivities', { keyPath: 'value.id' })
         }
+        if (oldVersion < 7 && !db.objectStoreNames.contains('bodyMeasures')) {
+          db.createObjectStore('bodyMeasures', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -130,6 +136,7 @@ export async function readAll(): Promise<{
   schedules: ScheduleItemRow[]
   sessions: SessionDoc[]
   bodyWeights: BodyWeightRow[]
+  bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
 }> {
@@ -144,6 +151,7 @@ export async function readAll(): Promise<{
     schedules,
     sessions,
     bodyWeights,
+    bodyMeasures,
     checkins,
     aerobicActivities,
   ] = await Promise.all([
@@ -156,6 +164,7 @@ export async function readAll(): Promise<{
     db.getAll('schedules'),
     db.getAll('sessions'),
     db.getAll('bodyWeights'),
+    db.getAll('bodyMeasures'),
     db.getAll('checkins'),
     db.getAll('aerobicActivities'),
   ])
@@ -170,6 +179,7 @@ export async function readAll(): Promise<{
     schedules: pick<ScheduleItemRow>(schedules).map(normalizeSchedule),
     sessions: pick<SessionDoc>(sessions).map(normalizeSession),
     bodyWeights: pick(bodyWeights),
+    bodyMeasures: pick(bodyMeasures),
     checkins: pick(checkins),
     aerobicActivities: pick(aerobicActivities),
   }
@@ -352,6 +362,7 @@ export async function clearDirtyFlags(): Promise<void> {
     'schedules',
     'sessions',
     'bodyWeights',
+    'bodyMeasures',
     'checkins',
     'aerobicActivities',
   ]
@@ -435,6 +446,7 @@ export async function wipeLocalData(): Promise<void> {
     'schedules',
     'sessions',
     'bodyWeights',
+    'bodyMeasures',
     'checkins',
     'aerobicActivities',
     'outbox',

@@ -264,7 +264,8 @@ export const sr: Messages = {
   },
   starters: {
     title: 'Početni programi',
-    add: 'Dodaj {name}',
+    add: 'Dodaj plan',
+    view: 'Pogledaj plan',
     viewNamed: 'Pogledaj {name}',
     routines: 'Rutine',
     previewHint:

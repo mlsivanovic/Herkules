@@ -30,7 +30,7 @@ test.describe('training plans', () => {
     await signUpFresh(page, 'starter-preview')
 
     await page.goto('/#/routines')
-    await page.getByRole('button', { name: 'View Foundations 3-day' }).click()
+    await page.getByRole('link', { name: 'View Foundations 3-day' }).click()
     await expect(page.getByRole('heading', { name: 'Foundations 3-day' })).toBeVisible()
     await page.getByRole('button', { name: /Foundations A/ }).click()
     await expect(page.getByRole('heading', { name: /Foundations A/ })).toBeVisible()

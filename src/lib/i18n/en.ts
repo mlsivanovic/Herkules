@@ -263,7 +263,8 @@ export const en = {
   },
   starters: {
     title: 'Starter programs',
-    add: 'Add {name}',
+    add: 'Add plan',
+    view: 'View plan',
     viewNamed: 'View {name}',
     routines: 'Routines',
     previewHint:

@@ -18,11 +18,13 @@ describe('t', () => {
   it('translates starter program names', () => {
     expect(t('starters.street.name', undefined, 'en')).toBe('Street 3-day')
     expect(t('starters.street.name', undefined, 'sr')).toBe('Street 3 dana')
-    expect(t('starters.add', { name: 'Street 3-day' }, 'en')).toBe('Add Street 3-day')
+    expect(t('starters.add', undefined, 'en')).toBe('Add plan')
+    expect(t('starters.view', undefined, 'en')).toBe('View plan')
+    expect(t('starters.add', undefined, 'sr')).toBe('Dodaj plan')
+    expect(t('starters.view', undefined, 'sr')).toBe('Pogledaj plan')
     expect(t('starters.viewNamed', { name: 'Foundations 3-day' }, 'en')).toBe(
       'View Foundations 3-day',
     )
-    expect(t('starters.viewNamed', { name: 'Osnove 3 dana' }, 'sr')).toBe('Pogledaj Osnove 3 dana')
   })
 
   it('translates plan-delete routine prompt', () => {

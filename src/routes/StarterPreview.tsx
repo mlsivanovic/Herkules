@@ -127,7 +127,7 @@ function StarterPlanView({ program }: { program: StarterProgram }) {
             disabled={busy}
             onClick={() => void addProgram()}
           >
-            {busy ? t('routines.adding') : t('starters.add', { name })}
+            {busy ? t('routines.adding') : t('starters.add')}
           </button>
         )}
         <button type="button" className="btn" onClick={() => void navigate('/routines')}>

@@ -121,8 +121,8 @@ export function Routines() {
           >
             {t('routines.export')}
           </button>
-          <button type="button" className="btn" onClick={() => void navigate('/plans/new')}>
-            {t('routines.newPlan')}
+          <button type="button" className="btn btn--accent" onClick={() => void navigate('/plans/new')}>
+            <IconPlus width={18} height={18} /> {t('routines.newPlan')}
           </button>
           <button
             type="button"
@@ -183,7 +183,7 @@ export function Routines() {
                   className="btn"
                   onClick={() => void navigate(`/starters/${program.sourceKey}`)}
                 >
-                  {t('starters.viewNamed', { name })}
+                  {t('starters.view')}
                 </button>
                 {installed && plan ? (
                   <>
@@ -206,9 +206,7 @@ export function Routines() {
                     disabled={busyKey !== null}
                     onClick={() => void addProgram(program)}
                   >
-                    {busyKey === program.sourceKey
-                      ? t('routines.adding')
-                      : t('starters.add', { name })}
+                    {busyKey === program.sourceKey ? t('routines.adding') : t('starters.add')}
                   </button>
                 )}
               </div>

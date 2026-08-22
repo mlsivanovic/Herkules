@@ -131,6 +131,14 @@ describe('routines JSON', () => {
     expect(() => parseRoutines(backup)).toThrow(/full backup/)
   })
 
+  it('rejects a non-UUID superset group before queuing a sync operation', () => {
+    const json = serializeRoutines([template], items, [bench, curl]).replace(
+      '"superset_group": "11111111-1111-4111-8111-111111111401"',
+      '"superset_group": "bench-row"',
+    )
+    expect(() => parseRoutines(json)).toThrow(/invalid superset group/)
+  })
+
   it('rejects a newer file version', () => {
     const json = serializeRoutines([template], items, [bench, curl]).replace(
       '"version": 2',

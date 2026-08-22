@@ -820,6 +820,7 @@ export const en = {
     itemNotObject: 'Routine "{name}" item {n} is not an object.',
     itemMissingExercise: 'Routine "{name}" item {n} is missing an exercise.',
     itemMissingName: 'Routine "{name}" item {n} is missing an exercise name.',
+    itemInvalidSupersetGroup: 'Routine "{name}" item {n} has an invalid superset group.',
     blockNotObject: 'Routine block {n} is not an object.',
     notHerkulesCsv: 'This file is not a Herkules workout CSV (missing workout_name / session_id).',
     notStrongHevy: 'This file does not look like a Strong or Hevy workout export.',

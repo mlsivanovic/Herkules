@@ -819,6 +819,7 @@ export const sr: Messages = {
     itemNotObject: 'Stavka {n} rutine "{name}" nije objekat.',
     itemMissingExercise: 'Stavci {n} rutine "{name}" nedostaje vežba.',
     itemMissingName: 'Stavci {n} rutine "{name}" nedostaje naziv vežbe.',
+    itemInvalidSupersetGroup: 'Stavka {n} rutine "{name}" ima neispravnu grupu superseta.',
     blockNotObject: 'Blok rutine {n} nije objekat.',
     notHerkulesCsv: 'Ovo nije Herkules CSV treninga (nedostaje workout_name / session_id).',
     notStrongHevy: 'Ovaj fajl ne liči na Strong ili Hevy izvoz treninga.',

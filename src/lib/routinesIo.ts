@@ -484,6 +484,10 @@ function parseItem(value: unknown, index: number, routineName: string): RoutineI
   }
   const row = value as Partial<RoutineItemExport>
   const planned = asNumber(row.planned_sets)
+  const supersetGroup = asOptionalString(row.superset_group)
+  if (supersetGroup !== null && !isUuid(supersetGroup)) {
+    throw new Error(t('errors.itemInvalidSupersetGroup', { name: routineName, n: index + 1 }))
+  }
   return {
     id: isUuid(row.id) ? row.id : null,
     position: asNumber(row.position) ?? index,
@@ -495,7 +499,7 @@ function parseItem(value: unknown, index: number, routineName: string): RoutineI
     rest_seconds: asNumber(row.rest_seconds),
     tempo: asOptionalString(row.tempo),
     notes: asOptionalString(row.notes),
-    superset_group: asOptionalString(row.superset_group),
+    superset_group: supersetGroup,
     block_role: normalizeBlockRole(row.block_role),
     block_id: isUuid(row.block_id) ? row.block_id : null,
     block_position: asNumber(row.block_position) ?? index,

@@ -118,7 +118,15 @@ export function BodyMeasureFields({
             value={waist}
             onChange={(e) => setWaist(e.target.value)}
           />
-          <small className="muted">{t('body.waistHow')}</small>
+          <small className="muted">
+            {t(
+              sex === 'female'
+                ? 'body.waistHowFemale'
+                : sex === 'male'
+                  ? 'body.waistHowMale'
+                  : 'body.waistHow',
+            )}
+          </small>
         </div>
         {sex === 'female' ? (
           <div className="field">

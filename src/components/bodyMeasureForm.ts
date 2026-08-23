@@ -3,9 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { todayKey } from '../lib/dates'
 import {
+  BODY_GIRTH_RANGES_CM,
   estimateBodyComposition,
+  firstInvalidBodyGirth,
   formulaFromProfile,
   weightOnDate,
+  type BodyGirthField,
   type SexFormula,
 } from '../lib/bodyComposition'
 import {
@@ -151,12 +154,48 @@ export function useBodyMeasureForm() {
     thighCm !== null ||
     calfCm !== null
 
+  const girthInputs: { field: BodyGirthField; text: string; value: number | null }[] = [
+    { field: 'neckCm', text: neck, value: neckCm },
+    { field: 'waistCm', text: waist, value: waistCm },
+    { field: 'hipCm', text: hip, value: hipCm },
+    { field: 'armCm', text: arm, value: armCm },
+    { field: 'thighCm', text: thigh, value: thighCm },
+    { field: 'calfCm', text: calf, value: calfCm },
+  ]
+
+  function setGirthValidationError(field: BodyGirthField) {
+    const labels: Record<BodyGirthField, string> = {
+      neckCm: t('body.neck', { unit: girthUnit }),
+      waistCm: t('body.waist', { unit: girthUnit }),
+      hipCm: t('body.hips', { unit: girthUnit }),
+      armCm: t('body.arm', { unit: girthUnit }),
+      thighCm: t('body.thigh', { unit: girthUnit }),
+      calfCm: t('body.calf', { unit: girthUnit }),
+    }
+    const range = BODY_GIRTH_RANGES_CM[field]
+    setSaveError(
+      t('body.girthRange', {
+        field: labels[field],
+        min: heightForInput(range.min, units),
+        max: heightForInput(range.max, units),
+        unit: girthUnit,
+      }),
+    )
+  }
+
   function applyDate(next: string) {
     setDate(next || today)
     setSaveError(null)
   }
 
   async function save() {
+    const invalidText = girthInputs.find(({ text, value }) => text.trim() !== '' && value === null)
+    const invalidRange = firstInvalidBodyGirth({ neckCm, waistCm, hipCm, armCm, thighCm, calfCm })
+    const invalidField = invalidText?.field ?? invalidRange
+    if (invalidField) {
+      setGirthValidationError(invalidField)
+      return
+    }
     if (!hasGirth) {
       setSaveError(t('body.needGirth'))
       return

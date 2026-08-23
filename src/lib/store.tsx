@@ -84,6 +84,7 @@ import {
 } from './programs/plans'
 import { buildProgramUpgrade } from './programs/recipe'
 import { normalizeBlockRole } from './blockRole'
+import { firstInvalidBodyGirth } from './bodyComposition'
 import {
   rotationOccurrences,
   type TrainingFrequency,
@@ -1952,6 +1953,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           input.calfCm,
         ].some((value) => value !== null)
         if (!hasGirth) throw new Error(t('body.needGirth'))
+        if (firstInvalidBodyGirth(input)) throw new Error(t('body.girthInvalid'))
         const all = await readAll()
         const existing = all.bodyMeasures.find((row) => row.recorded_on === input.date)
         const stamp = nowIso()

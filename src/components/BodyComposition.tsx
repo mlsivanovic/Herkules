@@ -182,7 +182,7 @@ export function BodyComposition() {
                   {log.map((row) => (
                     <tr key={row.measureId}>
                       <td>{row.date}</td>
-                      <td>{formatWeight(row.weightKg, units)}</td>
+                      <td>{row.weightKg !== null ? formatWeight(row.weightKg, units) : '—'}</td>
                       <td>
                         {dash(row.bodyFatPct != null ? t('body.percent', { n: row.bodyFatPct.toFixed(1) }) : null)}
                       </td>

@@ -5,6 +5,7 @@ import {
   ffmiBand,
   ffmiValue,
   compositionLog,
+  firstInvalidBodyGirth,
   formulaFromProfile,
   latestBodyFatPercent,
   latestComposition,
@@ -14,6 +15,15 @@ import {
   relativeFatMassPct,
   weightOnDate,
 } from './bodyComposition'
+
+describe('body girth validation', () => {
+  it('matches the database bounds and accepts empty optional fields', () => {
+    expect(firstInvalidBodyGirth({ neckCm: 15, waistCm: 220, hipCm: null })).toBeNull()
+    expect(firstInvalidBodyGirth({ neckCm: 14.9, waistCm: 85 })).toBe('neckCm')
+    expect(firstInvalidBodyGirth({ waistCm: 220.1 })).toBe('waistCm')
+    expect(firstInvalidBodyGirth({ thighCm: Number.NaN })).toBe('thighCm')
+  })
+})
 
 describe('navyBodyFatPct', () => {
   it('estimates a typical male from neck and waist', () => {
@@ -166,10 +176,10 @@ describe('weightOnDate', () => {
     { recorded_on: '2026-08-10', weight_kg: 81 },
   ]
 
-  it('prefers the exact date, else the latest on or before', () => {
+  it('prefers the exact date, else the latest on or before, without using future data', () => {
     expect(weightOnDate(entries, '2026-08-10')).toBe(81)
     expect(weightOnDate(entries, '2026-08-05')).toBe(82)
-    expect(weightOnDate(entries, '2026-07-01')).toBe(81)
+    expect(weightOnDate(entries, '2026-07-01')).toBeNull()
   })
 
   it('returns null when empty', () => {
@@ -195,6 +205,39 @@ describe('formulaFromProfile / latestBodyFatPercent', () => {
     })
     expect(pct).toBeGreaterThan(10)
     expect(pct).toBeLessThan(40)
+  })
+
+  it('keeps saved tape rows visible when profile data and weight are missing', () => {
+    const rows = compositionLog({
+      sex: null,
+      birthDate: null,
+      heightCm: null,
+      weights: [],
+      measures: [
+        {
+          id: 'm1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-01',
+          neck_cm: 38,
+          waist_cm: 88,
+          hip_cm: null,
+          arm_cm: null,
+          thigh_cm: null,
+          calf_cm: null,
+          notes: null,
+          created_at: '2026-08-01T00:00:00Z',
+          updated_at: '2026-08-01T00:00:00Z',
+        },
+      ],
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      date: '2026-08-01',
+      measureId: 'm1',
+      weightKg: null,
+      bodyFatPct: null,
+      leanMassKg: null,
+    })
   })
 
   it('builds a newest-first daily log from saved tape rows', () => {

@@ -7,6 +7,7 @@ import { ageYears, bodyMassIndex, cmToIn } from './units'
 export type SexFormula = 'male' | 'female'
 export type FatMethod = 'navy' | 'rfm' | 'cunbae'
 export type MuscleMethod = 'leeGirth' | 'leeBmi'
+export type BodyGirthField = 'neckCm' | 'waistCm' | 'hipCm' | 'armCm' | 'thighCm' | 'calfCm'
 export type FfmiBand =
   | 'belowAverage'
   | 'average'
@@ -51,6 +52,28 @@ export interface BodyCompositionResult {
 
 const BF_MIN = 2
 const BF_MAX = 60
+
+export const BODY_GIRTH_RANGES_CM: Record<BodyGirthField, { min: number; max: number }> = {
+  neckCm: { min: 15, max: 80 },
+  waistCm: { min: 40, max: 220 },
+  hipCm: { min: 40, max: 220 },
+  armCm: { min: 15, max: 80 },
+  thighCm: { min: 25, max: 120 },
+  calfCm: { min: 15, max: 80 },
+}
+
+/** Keep offline writes inside the same bounds enforced by Postgres. */
+export function firstInvalidBodyGirth(
+  values: Partial<Record<BodyGirthField, number | null>>,
+): BodyGirthField | null {
+  for (const field of Object.keys(BODY_GIRTH_RANGES_CM) as BodyGirthField[]) {
+    const value = values[field]
+    if (value === null || value === undefined) continue
+    const range = BODY_GIRTH_RANGES_CM[field]
+    if (!Number.isFinite(value) || value < range.min || value > range.max) return field
+  }
+  return null
+}
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10
@@ -332,7 +355,7 @@ export interface CompositionLogInput {
 export interface CompositionLogRow {
   date: string
   measureId: string
-  weightKg: number
+  weightKg: number | null
   bodyFatPct: number | null
   fatMassKg: number | null
   leanMassKg: number | null
@@ -366,23 +389,24 @@ function estimateForDay(
 /** Newest-first daily estimates from saved tape logs. */
 export function compositionLog(args: CompositionLogInput): CompositionLogRow[] {
   const sex = formulaFromProfile(args.sex)
-  if (sex === null || args.heightCm === null || args.heightCm <= 0) return []
   const sorted = [...args.measures].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1))
   const rows: CompositionLogRow[] = []
   for (const measure of sorted) {
     const weightKg = weightOnDate(args.weights, measure.recorded_on)
-    if (weightKg === null) continue
-    const result = estimateForDay(sex, args.birthDate, args.heightCm, measure.recorded_on, weightKg, measure)
+    const result =
+      sex !== null && args.heightCm !== null && args.heightCm > 0 && weightKg !== null
+        ? estimateForDay(sex, args.birthDate, args.heightCm, measure.recorded_on, weightKg, measure)
+        : null
     rows.push({
       date: measure.recorded_on,
       measureId: measure.id,
       weightKg,
-      bodyFatPct: result.bodyFatPct,
-      fatMassKg: result.fatMassKg,
-      leanMassKg: result.leanMassKg,
-      skeletalMuscleKg: result.skeletalMuscleKg,
-      fatMethod: result.fatMethod,
-      muscleMethod: result.muscleMethod,
+      bodyFatPct: result?.bodyFatPct ?? null,
+      fatMassKg: result?.fatMassKg ?? null,
+      leanMassKg: result?.leanMassKg ?? null,
+      skeletalMuscleKg: result?.skeletalMuscleKg ?? null,
+      fatMethod: result?.fatMethod ?? null,
+      muscleMethod: result?.muscleMethod ?? null,
     })
   }
   return rows
@@ -402,7 +426,7 @@ export function latestBodyFatPercent(args: CompositionLogInput & { today: string
   return latestComposition(args)?.bodyFatPct ?? null
 }
 
-/** Weigh-in on `date`, else the most recent one on or before that date, else latest overall. */
+/** Weigh-in on `date`, else the most recent one on or before that date. */
 export function weightOnDate(
   entries: { recorded_on: string; weight_kg: number }[],
   date: string,
@@ -414,6 +438,5 @@ export function weightOnDate(
     .filter((row) => row.recorded_on <= date)
     .sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1))
   if (earlier[0]) return earlier[0].weight_kg
-  const latest = [...entries].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1))
-  return latest[0]?.weight_kg ?? null
+  return null
 }

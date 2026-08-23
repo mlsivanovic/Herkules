@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   HYBRID_PROGRAM_TAG,
+  HYBRID_EDITABLE_FROM_VERSION,
+  HYBRID_SOURCE_KEY,
   HYBRID_SOURCE_VERSION,
   HYBRID_TEMPLATES,
   SYS,
@@ -10,6 +12,7 @@ import {
   hybridTemplatesFrom,
   isHybridProgramInstalled,
   isHybridV2CanonicalRecipe,
+  requiresHybridLegacyUpgrade,
 } from './hybrid4day'
 
 describe('Hybrid canonical recipe', () => {
@@ -56,6 +59,14 @@ describe('Hybrid canonical recipe', () => {
     expect(isHybridProgramInstalled(installed)).toBe(true)
     expect(isHybridProgramInstalled(installed.slice(0, 3))).toBe(false)
     expect(hybridTemplatesFrom(installed)?.C.id).toBe('t-2')
+  })
+
+  it('stops automatic recipe replacement once Hybrid becomes editable', () => {
+    expect(HYBRID_EDITABLE_FROM_VERSION).toBe(6)
+    expect(requiresHybridLegacyUpgrade({ source_key: HYBRID_SOURCE_KEY, source_version: 5 })).toBe(true)
+    expect(requiresHybridLegacyUpgrade({ source_key: HYBRID_SOURCE_KEY, source_version: 6 })).toBe(false)
+    expect(requiresHybridLegacyUpgrade({ source_key: HYBRID_SOURCE_KEY, source_version: 99 })).toBe(false)
+    expect(requiresHybridLegacyUpgrade({ source_key: null, source_version: 0 })).toBe(true)
   })
 
   it('matches the complete final-program item and block snapshot', () => {

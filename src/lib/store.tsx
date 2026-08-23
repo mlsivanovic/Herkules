@@ -64,12 +64,11 @@ import { t } from './i18n'
 import { starterBySourceKey } from './programs/catalog'
 import {
   HYBRID_SOURCE_KEY,
-  HYBRID_SOURCE_VERSION,
   HYBRID_TEMPLATES,
   buildHybridV2Upgrade,
-  isHybridV2CanonicalRecipe,
   hybridTemplatesFrom,
   hybridTemplatesOnPlan,
+  requiresHybridLegacyUpgrade,
 } from './programs/hybrid4day'
 import {
   compactPlanPositions,
@@ -1026,20 +1025,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? hybridTemplatesOnPlan(all.templates, plan.id)
           : hybridTemplatesFrom(all.templates)
         if (!installed) return
-        // A stale client must never overwrite a recipe created by a newer app.
-        if (
-          plan?.source_key === HYBRID_SOURCE_KEY &&
-          (plan.source_version ?? 0) > HYBRID_SOURCE_VERSION
-        ) return
-        const canonical =
-          plan?.source_key === HYBRID_SOURCE_KEY &&
-          (plan.source_version ?? 0) >= HYBRID_SOURCE_VERSION &&
-          isHybridV2CanonicalRecipe({
-            templates: installed,
-            blocks: all.templateBlocks,
-            items: all.templateItems,
-          })
-        if (!canonical) await actionsRef.current?.installHybridProgram()
+        // V6 completes the legacy conversion. It is deliberately not a
+        // canonical-recipe check: manual edits and same-ID imports must stick.
+        if (requiresHybridLegacyUpgrade(plan)) await actionsRef.current?.installHybridProgram()
       },
 
       async ensureHybridBlockRoles() {

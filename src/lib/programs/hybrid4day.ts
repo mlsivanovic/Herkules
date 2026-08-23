@@ -35,6 +35,9 @@ export const HYBRID_PROGRAM_TAG = 'Program: Hybrid 4-day'
 export const HYBRID_SOURCE_KEY = 'hybrid-4-day'
 // Internal recipe revision. The user-facing program remains Hybrid 4-day; notes say V3.
 export const HYBRID_SOURCE_VERSION = 6
+// V6 is the final automatic recipe migration. Do not increase this value:
+// from here, Hybrid is a user-owned plan and must retain manual changes.
+export const HYBRID_EDITABLE_FROM_VERSION = 6
 
 const DAY_RULES =
   'Most work at RPE 7–8 with 2–3 reps in reserve. Never grind tendon work. Use double progression: add load only after every work set reaches the top of its range at RPE 8 or lower.'
@@ -313,6 +316,18 @@ export function isHybridProgramInstalled(
   templates: Pick<TemplateRow, 'id' | 'name' | 'notes' | 'source_slot'>[],
 ): boolean {
   return hybridTemplatesFrom(templates) !== null
+}
+
+/**
+ * Only Hybrid recipes created before V6 are replaced automatically. Once a
+ * plan has reached V6, users can edit or re-import it like any other plan;
+ * a later bundled-recipe revision must not overwrite those changes.
+ */
+export function requiresHybridLegacyUpgrade(
+  plan: Pick<TrainingPlanRow, 'source_key' | 'source_version'> | null,
+): boolean {
+  return plan?.source_key !== HYBRID_SOURCE_KEY
+    || (plan.source_version ?? 0) < HYBRID_EDITABLE_FROM_VERSION
 }
 
 /** Legacy compatibility for old callers; V2 derives the role from its block. */

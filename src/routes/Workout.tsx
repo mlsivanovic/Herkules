@@ -16,6 +16,7 @@ import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { distanceForInput, formatDuration, formatWeight, formatDistance, weightForInput } from '../lib/units'
 import { formatSetLoad, isBodyweightLoadExercise } from '../lib/bodyweightLoad'
+import { formVideoUrl } from '../lib/video'
 import { previousSetsForExercise } from '../lib/metrics'
 import { timerCue } from '../lib/cues'
 import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
@@ -597,7 +598,7 @@ function ExerciseCard({
   const catalogExercise = exercise.exercise_id
     ? store.exercises.find((row) => row.id === exercise.exercise_id)
     : null
-  const catalogVideo = catalogExercise?.video_url ?? null
+  const catalogVideo = formVideoUrl(catalogExercise?.name ?? exercise.name_snapshot)
   const catalogSource = catalogExercise?.source_url ?? null
 
   const previous = useMemo(

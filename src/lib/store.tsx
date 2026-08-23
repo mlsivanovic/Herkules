@@ -61,6 +61,7 @@ import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
 import { t } from './i18n'
+import { youtubeProperFormUrl } from './video'
 import { starterBySourceKey } from './programs/catalog'
 import {
   HYBRID_SOURCE_KEY,
@@ -553,10 +554,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           muscle_groups: input.muscle_groups,
           equipment: input.equipment,
           instructions: input.instructions,
-          video_url: input.video_url,
+          video_url: youtubeProperFormUrl(input.name),
           source_title: null,
           source_provider: null,
-          source_url: input.video_url,
+          source_url: null,
           source_verified_at: null,
           is_archived: false,
           created_at: nowIso(),
@@ -569,7 +570,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async updateExercise(id, patch) {
         const existing = await readOne<ExerciseRow>('exercises', id)
         if (!existing) throw new Error(t('errors.exerciseNotFound'))
-        const row: ExerciseRow = { ...existing, ...patch, updated_at: nowIso() }
+        const name = (patch.name ?? existing.name).trim()
+        const row: ExerciseRow = {
+          ...existing,
+          ...patch,
+          name: name === '' ? existing.name : name,
+          video_url: youtubeProperFormUrl(name === '' ? existing.name : name),
+          updated_at: nowIso(),
+        }
         await commit([{ store: 'exercises', row }], [upsert('exercises', row)])
       },
 
@@ -1620,7 +1628,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 muscle_groups: [],
                 equipment: [],
                 instructions: null,
-                video_url: null,
+                video_url: youtubeProperFormUrl(item.name),
                 is_archived: false,
                 created_at: stamp,
                 updated_at: stamp,

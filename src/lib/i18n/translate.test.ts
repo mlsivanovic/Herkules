@@ -46,6 +46,11 @@ describe('t', () => {
     expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')
   })
 
+  it('translates automatic YouTube form-video copy', () => {
+    expect(t('exercises.videoHint', undefined, 'en')).toMatch(/proper form/)
+    expect(t('exercises.videoHint', undefined, 'sr')).toMatch(/proper form/)
+  })
+
   it('translates warm-up exercise and bodyweight load copy', () => {
     expect(t('editor.warmupExercise', undefined, 'en')).toBe('Warm-up exercise')
     expect(t('editor.warmupExercise', undefined, 'sr')).toBe('Vežba zagrevanja')

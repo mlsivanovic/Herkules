@@ -27,6 +27,7 @@ import {
 } from '../lib/units'
 import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
+import { formVideoUrl } from '../lib/video'
 import { downloadTextFile, routinesExportFilename } from '../lib/routinesIo'
 import './routineEditor.css'
 
@@ -349,6 +350,7 @@ export function RoutineEditor() {
               id: exercise?.id,
               name: exercise?.name,
             })
+            const videoHref = formVideoUrl(exercise?.name)
             const dragging = reorder.active?.from === index
             const dropTarget =
               reorder.active !== null &&
@@ -399,9 +401,9 @@ export function RoutineEditor() {
                       <strong className="exercise-head__title">{name}</strong>
                     </button>
                   </div>
-                  {exercise?.video_url ? (
+                  {videoHref ? (
                     <a
-                      href={exercise.video_url}
+                      href={videoHref}
                       target="_blank"
                       rel="noreferrer noopener"
                       className="form-link-icon"
@@ -444,7 +446,7 @@ export function RoutineEditor() {
                 </div>
                 {isExpanded ? (
                 <>
-                {exercise?.source_url && exercise.source_url !== exercise.video_url ? (
+                {exercise?.source_url && exercise.source_url !== videoHref ? (
                   <div className="exercise-guide-row">
                     <a
                       href={exercise.source_url}

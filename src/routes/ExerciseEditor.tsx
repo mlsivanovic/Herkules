@@ -5,7 +5,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { ExerciseCategory, ExerciseMeasurement } from '../types/db'
 import { useStore } from '../lib/store'
 import { EmptyState } from '../components/ui'
-import { validateHttpsUrl, validateRequiredName } from '../lib/validation'
+import { validateRequiredName } from '../lib/validation'
+import { formVideoUrl, youtubeProperFormUrl } from '../lib/video'
 import {
   categoryLabel,
   displayExerciseInstructions,
@@ -43,7 +44,6 @@ export function ExerciseEditor() {
   const [muscleGroups, setMuscleGroups] = useState('')
   const [equipment, setEquipment] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [videoUrl, setVideoUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Load once per exercise id: store reloads replace the `exercises` array
@@ -61,7 +61,6 @@ export function ExerciseEditor() {
       )
       setEquipment(exercise.owner_id === null ? displayTags(exercise.equipment) : exercise.equipment.join(', '))
       setInstructions(displayExerciseInstructions(exercise) ?? '')
-      setVideoUrl(exercise.video_url ?? '')
       setLoadedFor(loadKey)
     }
   }, [exercise, loadedFor, locale])
@@ -73,6 +72,7 @@ export function ExerciseEditor() {
 
   const isSystem = exercise?.owner_id === null
   const editing = !isSystem
+  const videoHref = formVideoUrl(name || exercise?.name)
 
   function splitList(value: string): string[] {
     return value
@@ -83,22 +83,22 @@ export function ExerciseEditor() {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    const validation =
-      validateRequiredName(name, t('exercises.nameRequired')) ?? validateHttpsUrl(videoUrl)
+    const validation = validateRequiredName(name, t('exercises.nameRequired'))
     if (validation) {
       setError(validation)
       return
     }
     setBusy(true)
     setError(null)
+    const trimmedName = name.trim()
     const input = {
-      name: name.trim(),
+      name: trimmedName,
       category,
       measurement,
       muscle_groups: splitList(muscleGroups),
       equipment: splitList(equipment),
       instructions: instructions.trim() === '' ? null : instructions.trim(),
-      video_url: videoUrl.trim() === '' ? null : videoUrl.trim(),
+      video_url: youtubeProperFormUrl(trimmedName),
     }
     try {
       if (isNew) {
@@ -224,18 +224,9 @@ export function ExerciseEditor() {
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="exercise-video">{t('exercises.video')}</label>
-            <input
-              id="exercise-video"
-              className="input"
-              type="url"
-              placeholder={t('exercises.videoPh')}
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              readOnly={!editing && !isNew}
-            />
-          </div>
+          <p className="muted" style={{ marginTop: '0.35rem' }}>
+            {t('exercises.videoHint')}
+          </p>
         </fieldset>
 
         {error ? (
@@ -264,7 +255,7 @@ export function ExerciseEditor() {
           </button>
         </div>
       </form>
-      {exercise?.source_url || exercise?.video_url ? (
+      {exercise?.source_url || videoHref ? (
         <div className="stack" style={{ marginTop: '1rem' }}>
           {exercise?.source_url ? (
             <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
@@ -273,12 +264,10 @@ export function ExerciseEditor() {
                 : t('exercises.guide')}
             </a>
           ) : null}
-          {exercise?.video_url ? (
-          <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
-            {exercise.video_url.includes('youtube.com/results')
-              ? t('exercises.youtube')
-              : t('exercises.guide')}
-          </a>
+          {videoHref ? (
+            <a href={videoHref} target="_blank" rel="noreferrer noopener">
+              {t('exercises.youtube')}
+            </a>
           ) : null}
         </div>
       ) : null}

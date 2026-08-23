@@ -5,6 +5,7 @@ import type { ExerciseCategory, ExerciseRow } from '../types/db'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
 import { MEASUREMENT_LABELS } from '../components/ExercisePicker'
+import { formVideoUrl } from '../lib/video'
 import { IconPlus } from '../components/Icons'
 import {
   categoryLabel,
@@ -119,6 +120,7 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
     MEASUREMENT_LABELS(exercise.measurement),
   ]
   if (exercise.muscle_groups.length > 0) details.push(displayTags(exercise.muscle_groups))
+  const videoHref = formVideoUrl(exercise.name)
   return (
     <li className="card" style={{ padding: '0.75rem 0.9rem' }}>
       <button
@@ -142,7 +144,7 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
         </span>
         <small className="muted">{details.join(' · ')}</small>
       </button>
-      {exercise.source_url || exercise.video_url ? (
+      {exercise.source_url || videoHref ? (
         <small className="row row--wrap" style={{ marginTop: '0.35rem' }}>
           {exercise.source_url ? (
             <a href={exercise.source_url} target="_blank" rel="noreferrer noopener">
@@ -151,8 +153,8 @@ function ExerciseCard({ exercise }: { exercise: ExerciseRow }) {
                 : t('exercises.guide')}
             </a>
           ) : null}
-          {exercise.video_url && exercise.video_url !== exercise.source_url ? (
-            <a href={exercise.video_url} target="_blank" rel="noreferrer noopener">
+          {videoHref ? (
+            <a href={videoHref} target="_blank" rel="noreferrer noopener">
               {t('exercises.youtube')}
             </a>
           ) : null}

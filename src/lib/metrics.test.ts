@@ -10,6 +10,7 @@ import {
   bestE1RM,
   e1RM,
   exerciseProgress,
+  groupPersonalRecords,
   personalRecords,
   previousSetsForExercise,
   sessionTotals,
@@ -213,6 +214,42 @@ describe('personal records', () => {
     expect(records).toHaveLength(1)
     expect(records[0]?.exerciseName).toBe('Old Move')
     expect(records[0]?.exerciseId).toBeNull()
+  })
+
+  it('groups kinds onto one exercise and sorts by latest date', () => {
+    const sessions = [
+      makeSession({
+        id: 's-squat',
+        started_at: '2026-08-15T10:00:00Z',
+        session_exercises: [
+          makeSessionEx(
+            { id: 'se-squat', session_id: 's-squat', name_snapshot: 'Squat', exercise_id: 'ex-squat' },
+            [makeSet({ weight_kg: 100, reps: 4, session_exercise_id: 'se-squat' })],
+          ),
+        ],
+      }),
+      makeSession({
+        id: 's-run',
+        started_at: '2026-08-01T10:00:00Z',
+        session_exercises: [
+          makeSessionEx(
+            {
+              id: 'se-run',
+              session_id: 's-run',
+              name_snapshot: 'Treadmill Run',
+              measurement_snapshot: 'distance_duration',
+              exercise_id: 'ex-run',
+            },
+            [makeSet({ distance_m: 5200, duration_s: 1800, session_exercise_id: 'se-run' })],
+          ),
+        ],
+      }),
+    ]
+    const groups = groupPersonalRecords(personalRecords(sessions))
+    expect(groups.map((g) => g.exerciseName)).toEqual(['Squat', 'Treadmill Run'])
+    expect(groups[0]?.records.map((r) => r.kind)).toEqual(['e1rm', 'weight', 'reps'])
+    expect(groups[1]?.records.map((r) => r.kind)).toEqual(['distance', 'duration'])
+    expect(groups[0]?.latestDate).toBe('2026-08-15')
   })
 })
 

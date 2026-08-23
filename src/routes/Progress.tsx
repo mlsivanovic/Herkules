@@ -4,15 +4,17 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import type { TendonCheckinRow } from '../types/db'
-import { addDays, startOfWeek, todayKey } from '../lib/dates'
+import { addDays, formatDateCompact, startOfWeek, todayKey } from '../lib/dates'
 import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import {
   adherence,
   exerciseProgress,
+  groupPersonalRecords,
   personalRecords,
   sessionTotals,
   setsPerMuscleGroup,
   weeklyVolume,
+  type PersonalRecord,
 } from '../lib/metrics'
 import { formatWeight, formatDistance, formatDuration } from '../lib/units'
 import { BarChart, LineChart } from '../components/Chart'
@@ -23,6 +25,9 @@ import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite
 import './progress.css'
 
 const WEEKS_SHOWN = 12
+const PR_VISIBLE = 6
+const PR_RECENT_DAYS = 30
+const PR_NEW_DAYS = 7
 
 export function Progress() {
   const { t } = useT()
@@ -164,6 +169,8 @@ export function Progress() {
         />
       </div>
 
+      <PersonalRecords records={stats.records} units={units} />
+
       <div className="section-title">{t('progress.trend')}</div>
       <div className="field">
         <label htmlFor="progress-exercise">{t('progress.exercise')}</label>
@@ -236,26 +243,6 @@ export function Progress() {
         <p className="muted">{t('progress.willAppear')}</p>
       )}
 
-      <div className="section-title">
-        <IconTrophy width={16} height={16} /> {t('progress.prs')}
-      </div>
-      {stats.records.length === 0 ? (
-        <p className="muted">{t('progress.prEmpty')}</p>
-      ) : (
-        <ul className="history-list">
-          {stats.records.map((record) => (
-            <li key={`${record.exerciseName}-${record.kind}`} className="card">
-              <div className="row row--between">
-                <strong>{displaySnapshotName(record.exerciseName, null)}</strong>
-                <span className="badge badge--planned">{prLabel(record.kind)}</span>
-              </div>
-              <span className="mono">{formatPrValue(record, units)}</span>
-              <small className="muted"> · {record.date}</small>
-            </li>
-          ))}
-        </ul>
-      )}
-
       {checkins.length > 0 ? (
         <>
           <div className="section-title">{t('progress.tendon')}</div>
@@ -263,6 +250,169 @@ export function Progress() {
         </>
       ) : null}
     </div>
+  )
+}
+
+function PersonalRecords({
+  records,
+  units,
+}: {
+  records: PersonalRecord[]
+  units: 'metric' | 'imperial'
+}) {
+  const { t } = useT()
+  const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState(false)
+  const recentSince = addDays(todayKey(), -PR_RECENT_DAYS)
+  const freshSince = addDays(todayKey(), -PR_NEW_DAYS)
+  const [period, setPeriod] = useState<'recent' | 'all'>(() =>
+    records.some((record) => record.date >= addDays(todayKey(), -PR_RECENT_DAYS))
+      ? 'recent'
+      : 'all',
+  )
+
+  const groups = useMemo(() => groupPersonalRecords(records), [records])
+  const recentCount = useMemo(
+    () => groups.filter((group) => group.latestDate >= recentSince).length,
+    [groups, recentSince],
+  )
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return groups.filter((group) => {
+      if (period === 'recent' && group.latestDate < recentSince) return false
+      if (needle === '') return true
+      if (group.exerciseName.toLowerCase().includes(needle)) return true
+      return displaySnapshotName(group.exerciseName, group.exerciseId, 'sr')
+        .toLowerCase()
+        .includes(needle)
+    })
+  }, [groups, period, query, recentSince])
+
+  const searching = query.trim() !== ''
+  const visible = searching || expanded ? filtered : filtered.slice(0, PR_VISIBLE)
+  const hiddenCount = filtered.length - visible.length
+
+  function selectPeriod(next: 'recent' | 'all') {
+    setPeriod(next)
+    setExpanded(false)
+  }
+
+  return (
+    <>
+      <div className="section-title pr-head">
+        <span className="pr-head__title">
+          <IconTrophy width={16} height={16} /> {t('progress.prs')}
+        </span>
+      </div>
+      {records.length === 0 ? (
+        <p className="muted">{t('progress.prEmpty')}</p>
+      ) : (
+        <div className="card pr-panel">
+          <div className="pr-toolbar">
+            <input
+              id="pr-search"
+              className="input"
+              type="search"
+              value={query}
+              placeholder={t('progress.prSearchPlaceholder')}
+              aria-label={t('progress.prSearch')}
+              onChange={(e) => {
+                const value = e.target.value
+                setQuery(value)
+                setExpanded(false)
+                if (value.trim() !== '') setPeriod('all')
+              }}
+            />
+            <div className="row row--wrap" role="group" aria-label={t('progress.prFilterAria')}>
+              <button
+                type="button"
+                className={`btn btn--small${period === 'recent' ? ' btn--primary' : ''}`}
+                aria-pressed={period === 'recent'}
+                onClick={() => selectPeriod('recent')}
+              >
+                {t('progress.prFilterRecent', { count: recentCount })}
+              </button>
+              <button
+                type="button"
+                className={`btn btn--small${period === 'all' ? ' btn--primary' : ''}`}
+                aria-pressed={period === 'all'}
+                onClick={() => selectPeriod('all')}
+              >
+                {t('progress.prFilterAll', { count: groups.length })}
+              </button>
+            </div>
+          </div>
+          {filtered.length === 0 ? (
+            <div className="pr-empty">
+              <p className="muted" style={{ margin: 0 }}>
+                {searching ? t('progress.prNoMatch') : t('progress.prRecentEmpty')}
+              </p>
+              {!searching && period === 'recent' ? (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={() => selectPeriod('all')}
+                >
+                  {t('progress.prSeeAll')}
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <ul className="pr-list">
+                {visible.map((group) => {
+                  const name = displaySnapshotName(group.exerciseName, group.exerciseId)
+                  const hasFresh = group.records.some((record) => record.date >= freshSince)
+                  return (
+                    <li key={group.key} className="pr-group">
+                      <div className="pr-group__head">
+                        <strong className="pr-group__name" title={name}>
+                          {name}
+                        </strong>
+                        {hasFresh ? (
+                          <span className="badge badge--completed">{t('progress.prNew')}</span>
+                        ) : null}
+                      </div>
+                      <div className="pr-kinds">
+                        {group.records.map((record) => (
+                          <div
+                            key={record.kind}
+                            className={`pr-kind${record.date >= freshSince ? ' pr-kind--fresh' : ''}`}
+                          >
+                            <span className="pr-kind__label">{prLabel(record.kind)}</span>
+                            <span className="pr-kind__value mono">{formatPrValue(record, units)}</span>
+                            <span className="pr-kind__date">{formatDateCompact(record.date)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+              {hiddenCount > 0 ? (
+                <button
+                  type="button"
+                  className="btn btn--small pr-more"
+                  onClick={() => setExpanded(true)}
+                >
+                  {t('progress.prShowMore', { count: hiddenCount })}
+                </button>
+              ) : null}
+              {expanded && !searching && filtered.length > PR_VISIBLE ? (
+                <button
+                  type="button"
+                  className="btn btn--small btn--ghost pr-more"
+                  onClick={() => setExpanded(false)}
+                >
+                  {t('progress.prShowLess')}
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -364,7 +514,7 @@ function formatPrValue(
     case 'weight':
       return formatWeight(record.value, units)
     case 'reps':
-      return `${record.value} reps`
+      return String(record.value)
     case 'distance':
       return formatDistance(record.value, units)
     case 'duration':

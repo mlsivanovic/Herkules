@@ -66,6 +66,14 @@ export function formatDateShort(key: DateKey): string {
   }).format(parseDateKey(key))
 }
 
+/** Compact date for dense lists: "Aug 12", with year when it is not the current year. */
+export function formatDateCompact(key: DateKey): string {
+  const date = parseDateKey(key)
+  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  if (date.getFullYear() !== new Date().getFullYear()) options.year = 'numeric'
+  return new Intl.DateTimeFormat(bcp47(), options).format(date)
+}
+
 export function formatDateLong(key: DateKey): string {
   return new Intl.DateTimeFormat(bcp47(), {
     weekday: 'long',

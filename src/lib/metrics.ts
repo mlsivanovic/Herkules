@@ -205,6 +205,48 @@ export function personalRecords(sessions: SessionDoc[]): PersonalRecord[] {
   return records.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
 
+const PR_KIND_ORDER: readonly PrKind[] = ['e1rm', 'weight', 'reps', 'distance', 'duration']
+
+export interface GroupedPersonalRecord {
+  key: string
+  exerciseId: string | null
+  exerciseName: string
+  records: PersonalRecord[]
+  latestDate: DateKey
+}
+
+/** Collapse per-kind PRs into one row per exercise, newest first. */
+export function groupPersonalRecords(records: PersonalRecord[]): GroupedPersonalRecord[] {
+  const map = new Map<string, GroupedPersonalRecord>()
+  for (const rec of records) {
+    const key = rec.exerciseId ?? `name:${rec.exerciseName}`
+    const existing = map.get(key)
+    if (existing) {
+      existing.records.push(rec)
+      if (rec.date > existing.latestDate) existing.latestDate = rec.date
+    } else {
+      map.set(key, {
+        key,
+        exerciseId: rec.exerciseId,
+        exerciseName: rec.exerciseName,
+        records: [rec],
+        latestDate: rec.date,
+      })
+    }
+  }
+  return [...map.values()]
+    .map((group) => ({
+      ...group,
+      records: [...group.records].sort(
+        (a, b) => PR_KIND_ORDER.indexOf(a.kind) - PR_KIND_ORDER.indexOf(b.kind),
+      ),
+    }))
+    .sort((a, b) => {
+      if (a.latestDate !== b.latestDate) return a.latestDate < b.latestDate ? 1 : -1
+      return a.exerciseName.localeCompare(b.exerciseName)
+    })
+}
+
 /** Previous performance for an exercise, from the most recent session that
  * contains it (excluding the given session). Returns formatted raw sets. */
 export function previousSetsForExercise(

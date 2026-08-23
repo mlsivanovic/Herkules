@@ -321,32 +321,85 @@ export function formulaFromProfile(sex: Sex | null | undefined): SexFormula | nu
   return null
 }
 
-export function latestBodyFatPercent(args: {
+export interface CompositionLogInput {
   sex: Sex | null
   birthDate: string | null
   heightCm: number | null
-  today: string
   weights: { recorded_on: string; weight_kg: number }[]
   measures: BodyMeasureRow[]
-}): number | null {
+}
+
+export interface CompositionLogRow {
+  date: string
+  measureId: string
+  weightKg: number
+  bodyFatPct: number | null
+  fatMassKg: number | null
+  leanMassKg: number | null
+  skeletalMuscleKg: number | null
+  fatMethod: FatMethod | null
+  muscleMethod: MuscleMethod | null
+}
+
+function estimateForDay(
+  sex: SexFormula,
+  birthDate: string | null,
+  heightCm: number,
+  date: string,
+  weightKg: number,
+  measure: BodyMeasureRow | null,
+): BodyCompositionResult {
+  return estimateBodyComposition({
+    sex,
+    ageYears: birthDate ? ageYears(birthDate, date) : null,
+    heightCm,
+    weightKg,
+    neckCm: measure?.neck_cm ?? null,
+    waistCm: measure?.waist_cm ?? null,
+    hipCm: measure?.hip_cm ?? null,
+    armCm: measure?.arm_cm ?? null,
+    thighCm: measure?.thigh_cm ?? null,
+    calfCm: measure?.calf_cm ?? null,
+  })
+}
+
+/** Newest-first daily estimates from saved tape logs. */
+export function compositionLog(args: CompositionLogInput): CompositionLogRow[] {
+  const sex = formulaFromProfile(args.sex)
+  if (sex === null || args.heightCm === null || args.heightCm <= 0) return []
+  const sorted = [...args.measures].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1))
+  const rows: CompositionLogRow[] = []
+  for (const measure of sorted) {
+    const weightKg = weightOnDate(args.weights, measure.recorded_on)
+    if (weightKg === null) continue
+    const result = estimateForDay(sex, args.birthDate, args.heightCm, measure.recorded_on, weightKg, measure)
+    rows.push({
+      date: measure.recorded_on,
+      measureId: measure.id,
+      weightKg,
+      bodyFatPct: result.bodyFatPct,
+      fatMassKg: result.fatMassKg,
+      leanMassKg: result.leanMassKg,
+      skeletalMuscleKg: result.skeletalMuscleKg,
+      fatMethod: result.fatMethod,
+      muscleMethod: result.muscleMethod,
+    })
+  }
+  return rows
+}
+
+export function latestComposition(args: CompositionLogInput & { today: string }): BodyCompositionResult | null {
   const sex = formulaFromProfile(args.sex)
   if (sex === null || args.heightCm === null || args.heightCm <= 0) return null
   const latestMeasure = [...args.measures].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1))[0]
   const date = latestMeasure?.recorded_on ?? args.today
   const weightKg = weightOnDate(args.weights, date)
   if (weightKg === null) return null
-  return estimateBodyComposition({
-    sex,
-    ageYears: args.birthDate ? ageYears(args.birthDate, date) : null,
-    heightCm: args.heightCm,
-    weightKg,
-    neckCm: latestMeasure?.neck_cm ?? null,
-    waistCm: latestMeasure?.waist_cm ?? null,
-    hipCm: latestMeasure?.hip_cm ?? null,
-    armCm: latestMeasure?.arm_cm ?? null,
-    thighCm: latestMeasure?.thigh_cm ?? null,
-    calfCm: latestMeasure?.calf_cm ?? null,
-  }).bodyFatPct
+  return estimateForDay(sex, args.birthDate, args.heightCm, date, weightKg, latestMeasure ?? null)
+}
+
+export function latestBodyFatPercent(args: CompositionLogInput & { today: string }): number | null {
+  return latestComposition(args)?.bodyFatPct ?? null
 }
 
 /** Weigh-in on `date`, else the most recent one on or before that date, else latest overall. */

@@ -639,6 +639,11 @@ export const sr: Messages = {
     updateWeighIn: 'Ažuriraj merenje',
     enterWeight: 'Unesi težinu u {unit}.',
     deleteWeighIn: 'Obriši merenje od {date}',
+    bodyTitle: 'Sastav tela',
+    bodyHint:
+      'Zabeleži vrat, struk i opcione obime za danas ili drugi datum. Jedan unos po danu — ponovno čuvanje ga ažurira.',
+    saveBody: 'Sačuvaj unos',
+    updateBody: 'Ažuriraj unos',
     tendonTitle: 'Tetive',
     todayCount: '{count} danas',
     tendonHint:
@@ -751,6 +756,12 @@ export const sr: Messages = {
     percent: '{n}%',
     hipsOptional: 'Kukovi ({unit}, opciono)',
     needGirth: 'Unesi bar jedan obim da sačuvaš.',
+    details: 'Detalji',
+    table: 'Dnevni napredak',
+    tableAria: 'Sastav tela po danima',
+    tableEmpty: 'Sačuvaj unos na Danas i svaki dan će se pojaviti ovde.',
+    colWeight: 'Težina',
+    logTitle: 'Zabeleži merenja',
   },
   settings: {
     title: 'Podešavanja',

@@ -70,12 +70,7 @@ export function Progress() {
 
   if (!ready) return <Loader />
 
-  const composition = (
-    <>
-      <div className="section-title">{t('body.title')}</div>
-      <BodyComposition />
-    </>
-  )
+  const composition = <BodyComposition />
 
   if (sessions.length === 0) {
     return (

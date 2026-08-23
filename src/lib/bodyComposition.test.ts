@@ -4,8 +4,10 @@ import {
   estimateBodyComposition,
   ffmiBand,
   ffmiValue,
+  compositionLog,
   formulaFromProfile,
   latestBodyFatPercent,
+  latestComposition,
   leeBmiSkeletalMuscleKg,
   leeGirthSkeletalMuscleKg,
   navyBodyFatPct,
@@ -193,5 +195,81 @@ describe('formulaFromProfile / latestBodyFatPercent', () => {
     })
     expect(pct).toBeGreaterThan(10)
     expect(pct).toBeLessThan(40)
+  })
+
+  it('builds a newest-first daily log from saved tape rows', () => {
+    const rows = compositionLog({
+      sex: 'male',
+      birthDate: '1990-01-01',
+      heightCm: 180,
+      weights: [
+        { recorded_on: '2026-08-01', weight_kg: 82 },
+        { recorded_on: '2026-08-10', weight_kg: 80 },
+      ],
+      measures: [
+        {
+          id: 'm1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-01',
+          neck_cm: 38,
+          waist_cm: 88,
+          hip_cm: null,
+          arm_cm: null,
+          thigh_cm: null,
+          calf_cm: null,
+          notes: null,
+          created_at: '2026-08-01T00:00:00Z',
+          updated_at: '2026-08-01T00:00:00Z',
+        },
+        {
+          id: 'm2',
+          owner_id: 'u1',
+          recorded_on: '2026-08-10',
+          neck_cm: 38,
+          waist_cm: 84,
+          hip_cm: null,
+          arm_cm: 33,
+          thigh_cm: 55,
+          calf_cm: 38,
+          notes: null,
+          created_at: '2026-08-10T00:00:00Z',
+          updated_at: '2026-08-10T00:00:00Z',
+        },
+      ],
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.date).toBe('2026-08-10')
+    expect(rows[0]?.fatMethod).toBe('navy')
+    expect(rows[0]?.muscleMethod).toBe('leeGirth')
+    expect(rows[1]?.date).toBe('2026-08-01')
+    expect(rows[0]?.bodyFatPct).not.toBeNull()
+  })
+
+  it('uses the latest saved day for the summary cards', () => {
+    const result = latestComposition({
+      sex: 'male',
+      birthDate: '1990-01-01',
+      heightCm: 180,
+      today: '2026-08-23',
+      weights: [{ recorded_on: '2026-08-10', weight_kg: 80 }],
+      measures: [
+        {
+          id: 'm2',
+          owner_id: 'u1',
+          recorded_on: '2026-08-10',
+          neck_cm: 38,
+          waist_cm: 84,
+          hip_cm: null,
+          arm_cm: null,
+          thigh_cm: null,
+          calf_cm: null,
+          notes: null,
+          created_at: '2026-08-10T00:00:00Z',
+          updated_at: '2026-08-10T00:00:00Z',
+        },
+      ],
+    })
+    expect(result?.fatMethod).toBe('navy')
+    expect(result?.bodyFatPct).not.toBeNull()
   })
 })

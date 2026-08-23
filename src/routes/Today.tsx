@@ -9,6 +9,7 @@ import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { IconPlay, IconPlus } from '../components/Icons'
 import { TendonCheckin } from '../components/TendonCheckin'
 import { WeightCheckin } from '../components/WeightCheckin'
+import { BodyCompositionCheckin } from '../components/BodyCompositionCheckin'
 import { AerobicGoal } from '../components/AerobicGoal'
 import './today.css'
 import { nextTemplateForPlan } from '../lib/programs/plans'
@@ -207,6 +208,7 @@ export function Today() {
       <div className="today-checkins">
         <AerobicGoal />
         <WeightCheckin />
+        <BodyCompositionCheckin />
         <TendonCheckin />
       </div>
     </div>

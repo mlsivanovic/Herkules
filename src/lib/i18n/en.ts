@@ -639,6 +639,11 @@ export const en = {
     updateWeighIn: 'Update weigh-in',
     enterWeight: 'Enter a weight in {unit}.',
     deleteWeighIn: 'Delete weigh-in from {date}',
+    bodyTitle: 'Body composition check-in',
+    bodyHint:
+      'Log neck, waist and optional limb girths for today or another date. One entry per day — saving again updates it.',
+    saveBody: 'Save check-in',
+    updateBody: 'Update check-in',
     tendonTitle: 'Tendon check-in',
     todayCount: '{count} today',
     tendonHint:
@@ -751,6 +756,12 @@ export const en = {
     percent: '{n}%',
     hipsOptional: 'Hips ({unit}, optional)',
     needGirth: 'Enter at least one circumference to save.',
+    details: 'Details',
+    table: 'Daily progress',
+    tableAria: 'Body composition by day',
+    tableEmpty: 'Save a check-in on Today and each day will show up here.',
+    colWeight: 'Weight',
+    logTitle: 'Log measurements',
   },
   settings: {
     title: 'Settings',

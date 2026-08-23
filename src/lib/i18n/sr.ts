@@ -276,6 +276,7 @@ export const sr: Messages = {
     duration: '{min}–{max} min',
     equipmentGym: 'Teretana',
     equipmentHome: 'Kuća · bučice',
+    equipmentHomeBar: 'Kuća · vratilo · TRX',
     equipmentStreet: 'Šipke · sopstvena težina',
     equipmentMachines: 'Sprave · bučice',
     hybrid: {
@@ -292,6 +293,11 @@ export const sr: Messages = {
       name: 'Kuća 3 dana',
       blurb:
         'Trening u stanu sa bučicama i trakom. Bez šipke, sajli i sprava. ~40–50 min.',
+    },
+    home2: {
+      name: 'Kuća 2 dana',
+      blurb:
+        'Vratilo, TRX, sklekeri, bučice do 15 kg. Dva full-body dana, tri puta nedeljno. Spori ekscentrici i unilateralne noge. ~55–70 min.',
     },
     street: {
       name: 'Street 3 dana',

@@ -275,6 +275,7 @@ export const en = {
     duration: '{min}–{max} min',
     equipmentGym: 'Gym',
     equipmentHome: 'Home · dumbbells',
+    equipmentHomeBar: 'Home · bar · TRX',
     equipmentStreet: 'Bars · bodyweight',
     equipmentMachines: 'Machines · dumbbells',
     hybrid: {
@@ -291,6 +292,11 @@ export const en = {
       name: 'Home 3-day',
       blurb:
         'Apartment training with dumbbells and a band. No barbell, cables or machines. ~40–50 min.',
+    },
+    home2: {
+      name: 'Home 2-day',
+      blurb:
+        'Pull-up bar, TRX, push-up handles, dumbbells capped at 15 kg each. Two full-body days, three times a week. Slow eccentrics and unilateral legs. ~55–70 min.',
     },
     street: {
       name: 'Street 3-day',

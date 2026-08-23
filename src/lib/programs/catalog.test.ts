@@ -4,6 +4,7 @@ import { SYS } from './exercises'
 import { HYBRID_SOURCE_KEY } from './hybrid4day'
 import { buildProgramRows, buildProgramUpgrade, isCanonicalRecipe } from './recipe'
 import { STREET_SOURCE_KEY, STREET_TEMPLATES } from './street3day'
+import { HOME2_SOURCE_KEY, HOME2_TEMPLATES } from './home2day'
 import { HOME_TEMPLATES } from './home3day'
 
 const GYM_ONLY = new Set<string>([
@@ -32,12 +33,13 @@ const GYM_ONLY = new Set<string>([
 ])
 
 describe('starter catalog', () => {
-  it('lists seven unique programs including Hybrid and Street', () => {
-    expect(STARTER_PROGRAMS).toHaveLength(7)
+  it('lists eight unique programs including Hybrid, Street and Home 2-day', () => {
+    expect(STARTER_PROGRAMS).toHaveLength(8)
     const keys = STARTER_PROGRAMS.map((row) => row.sourceKey)
-    expect(new Set(keys).size).toBe(7)
+    expect(new Set(keys).size).toBe(8)
     expect(keys).toContain(HYBRID_SOURCE_KEY)
     expect(keys).toContain(STREET_SOURCE_KEY)
+    expect(keys).toContain(HOME2_SOURCE_KEY)
     expect(starterBySourceKey('missing')).toBeNull()
   })
 
@@ -84,10 +86,15 @@ describe('starter catalog', () => {
   it('keeps Street and Home off gym machines, cables and barbells', () => {
     const streetIds = STREET_TEMPLATES.flatMap((day) => day.items.map((item) => item.exerciseId))
     const homeIds = HOME_TEMPLATES.flatMap((day) => day.items.map((item) => item.exerciseId))
+    const home2Ids = HOME2_TEMPLATES.flatMap((day) => day.items.map((item) => item.exerciseId))
     expect(streetIds.some((id) => GYM_ONLY.has(id))).toBe(false)
     expect(homeIds.some((id) => GYM_ONLY.has(id))).toBe(false)
+    expect(home2Ids.some((id) => GYM_ONLY.has(id))).toBe(false)
     expect(streetIds).toContain(SYS.pullUp)
     expect(streetIds).toContain(SYS.dip)
     expect(homeIds).toContain(SYS.gobletSquat)
+    expect(home2Ids).toContain(SYS.pullUp)
+    expect(home2Ids).toContain(SYS.bulgarianSplitSquat)
+    expect(home2Ids).toContain(SYS.trxFacePull)
   })
 })

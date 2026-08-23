@@ -11,6 +11,7 @@ describe('isBodyweightLoadExercise', () => {
     expect(isBodyweightLoadExercise({ id: SYS.pullUp, name: 'Other' })).toBe(true)
     expect(isBodyweightLoadExercise({ id: SYS.chinUp })).toBe(true)
     expect(isBodyweightLoadExercise({ id: SYS.dip })).toBe(true)
+    expect(isBodyweightLoadExercise({ id: SYS.pushUp })).toBe(true)
     expect(isBodyweightLoadExercise({ id: SYS.barbellBenchPress, name: 'Bench' })).toBe(false)
   })
 

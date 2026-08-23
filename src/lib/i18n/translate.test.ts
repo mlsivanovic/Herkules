@@ -18,6 +18,9 @@ describe('t', () => {
   it('translates starter program names', () => {
     expect(t('starters.street.name', undefined, 'en')).toBe('Street 3-day')
     expect(t('starters.street.name', undefined, 'sr')).toBe('Street 3 dana')
+    expect(t('starters.home2.name', undefined, 'en')).toBe('Home 2-day')
+    expect(t('starters.home2.name', undefined, 'sr')).toBe('Kuća 2 dana')
+    expect(t('starters.equipmentHomeBar', undefined, 'en')).toBe('Home · bar · TRX')
     expect(t('starters.add', undefined, 'en')).toBe('Add plan')
     expect(t('starters.view', undefined, 'en')).toBe('View plan')
     expect(t('starters.add', undefined, 'sr')).toBe('Dodaj plan')

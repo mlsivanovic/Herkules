@@ -36,4 +36,16 @@ test.describe('training plans', () => {
     await expect(page.getByRole('heading', { name: /Foundations A/ })).toBeVisible()
     await expect(page.getByText('Goblet Squat')).toBeVisible()
   })
+
+  test('view Home 2-day starter with pull-up and TRX work', async ({ page }) => {
+    await signUpFresh(page, 'home2-preview')
+
+    await page.goto('/#/routines')
+    await page.getByRole('link', { name: 'View Home 2-day' }).click()
+    await expect(page.getByRole('heading', { name: 'Home 2-day' })).toBeVisible()
+    await page.getByRole('button', { name: /Home A/ }).click()
+    await expect(page.getByRole('heading', { name: /Home A/ })).toBeVisible()
+    await expect(page.getByText('Bulgarian Split Squat')).toBeVisible()
+    await expect(page.getByText('Pull-Up')).toBeVisible()
+  })
 })

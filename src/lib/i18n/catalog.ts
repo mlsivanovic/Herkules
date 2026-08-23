@@ -697,6 +697,26 @@ export const SR_EXERCISES: Record<string, ExerciseCopy> = {
     instructions:
       'Uradi kontrolisan burpee, ustani i pređi korakom preko niske stabilne kutije. Ovo je kondicioni pokret, ne skok na kutiju.',
   },
+  '11111111-1111-4111-8111-111111111239': {
+    name: 'Iskorak unazad',
+    instructions:
+      'Drži bučice pored tela. Korak unazad, spusti zadnje koleno kontrolisano i gurni kroz prednje stopalo da se uspraviš. Trup ostaje visok. Završi jednu stranu ili menjaj, i beleži po nozi.',
+  },
+  '11111111-1111-4111-8111-111111111240': {
+    name: 'TRX face pull',
+    instructions:
+      'Drži TRX ručke dlanovima unutra. Nagni se unazad i povuci šake ka slepoočnicama sa visokim laktovima, pa dodaj malu spoljašnju rotaciju tako da šake završe pored glave. Povratak kontrolisan. Stopala napred čine vežbu težom.',
+  },
+  '11111111-1111-4111-8111-111111111241': {
+    name: 'TRX body saw',
+    instructions:
+      'Stopala u TRX trakama, daska na šakama ili laktovima. Gurni stopala unazad da produžiš telo, pa se povuci dok ramena ne dođu iznad šaka. Rebra dole, kukovi ne smeju da padnu. Stani ako donja leđa preuzmu posao.',
+  },
+  '11111111-1111-4111-8111-111111111242': {
+    name: 'Suitcase hold',
+    instructions:
+      'Stani uspravno sa jednom bučicom sa strane. Ne naginji se ka tegu ni od njega. Učvrsti se kao da očekuješ gurkanje. Promeni ruku posle predviđenog vremena. Beleži vreme držanja, ne hod.',
+  },
 }
 
 const MUSCLE: Record<string, string> = {
@@ -765,6 +785,7 @@ const EQUIPMENT: Record<string, string> = {
   bodyweight: 'sopstvena težina',
   bar: 'vratilo',
   rings: 'karike',
+  trx: 'TRX',
   'partner or Nordic bench': 'partner ili nordijska klupa',
   none: 'bez opreme',
   elliptical: 'eliptik',

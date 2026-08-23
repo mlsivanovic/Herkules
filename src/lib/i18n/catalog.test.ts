@@ -70,6 +70,7 @@ describe('displayTag', () => {
   it('translates known muscle and equipment tags', () => {
     expect(displayTag('quads', 'sr')).toBe('kvadriceps')
     expect(displayTag('barbell', 'sr')).toBe('šipka')
+    expect(displayTag('trx', 'sr')).toBe('TRX')
     expect(displayTag('mystery', 'sr')).toBe('mystery')
   })
 })

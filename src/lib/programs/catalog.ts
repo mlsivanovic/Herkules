@@ -2,6 +2,7 @@ import type { TemplateRow, TrainingPlanRow } from '../../types/db'
 import { BUILD_PLAN_NAME, BUILD_PLAN_NOTES, BUILD_SOURCE_KEY, BUILD_SOURCE_VERSION, BUILD_TEMPLATES } from './build4day'
 import { BUSY_PLAN_NAME, BUSY_PLAN_NOTES, BUSY_SOURCE_KEY, BUSY_SOURCE_VERSION, BUSY_TEMPLATES } from './busy3day'
 import { FOUNDATIONS_PLAN_NAME, FOUNDATIONS_PLAN_NOTES, FOUNDATIONS_SOURCE_KEY, FOUNDATIONS_SOURCE_VERSION, FOUNDATIONS_TEMPLATES } from './foundations3day'
+import { HOME2_PLAN_NAME, HOME2_PLAN_NOTES, HOME2_SOURCE_KEY, HOME2_SOURCE_VERSION, HOME2_TEMPLATES } from './home2day'
 import { HOME_PLAN_NAME, HOME_PLAN_NOTES, HOME_SOURCE_KEY, HOME_SOURCE_VERSION, HOME_TEMPLATES } from './home3day'
 import {
   HYBRID_PLAN_NAME,
@@ -22,12 +23,13 @@ export type StarterCopyKey =
   | 'hybrid'
   | 'foundations'
   | 'home'
+  | 'home2'
   | 'street'
   | 'busy'
   | 'build'
   | 'longevity'
 
-export type StarterEquipment = 'gym' | 'home' | 'street' | 'machines'
+export type StarterEquipment = 'gym' | 'home' | 'home_bar' | 'street' | 'machines'
 
 export interface StarterProgram {
   sourceKey: string
@@ -74,6 +76,17 @@ export const STARTER_PROGRAMS: StarterProgram[] = [
     durationMin: 40,
     durationMax: 50,
     templates: HOME_TEMPLATES,
+  },
+  {
+    sourceKey: HOME2_SOURCE_KEY,
+    sourceVersion: HOME2_SOURCE_VERSION,
+    copyKey: 'home2',
+    planName: HOME2_PLAN_NAME,
+    planNotes: HOME2_PLAN_NOTES,
+    equipment: 'home_bar',
+    durationMin: 55,
+    durationMax: 70,
+    templates: HOME2_TEMPLATES,
   },
   {
     sourceKey: STREET_SOURCE_KEY,
@@ -158,8 +171,9 @@ export function isStarterInstalled(
 
 export function equipmentCopyKey(
   equipment: StarterEquipment,
-): 'starters.equipmentGym' | 'starters.equipmentHome' | 'starters.equipmentStreet' | 'starters.equipmentMachines' {
+): 'starters.equipmentGym' | 'starters.equipmentHome' | 'starters.equipmentHomeBar' | 'starters.equipmentStreet' | 'starters.equipmentMachines' {
   if (equipment === 'home') return 'starters.equipmentHome'
+  if (equipment === 'home_bar') return 'starters.equipmentHomeBar'
   if (equipment === 'street') return 'starters.equipmentStreet'
   if (equipment === 'machines') return 'starters.equipmentMachines'
   return 'starters.equipmentGym'

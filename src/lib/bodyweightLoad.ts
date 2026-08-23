@@ -1,5 +1,5 @@
-// Pull-ups and dips default to bodyweight; a logged weight is extra load,
-// not the total mass on a bar.
+// Pull-ups, dips and push-ups default to bodyweight; a logged weight is extra
+// load (backpack, belt), not the total mass on a bar.
 import type { UnitSystem } from '../types/db'
 import { SYS } from './programs/exercises'
 import { formatWeight } from './units'
@@ -9,6 +9,7 @@ const BODYWEIGHT_LOAD_IDS = new Set<string>([
   SYS.pullUp,
   SYS.chinUp,
   SYS.dip,
+  SYS.pushUp,
   '11111111-1111-4111-8111-111111111175', // Neutral-Grip Pull-Up
 ])
 

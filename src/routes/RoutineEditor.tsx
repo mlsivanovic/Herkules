@@ -26,10 +26,11 @@ import {
   weightUnitLabel,
 } from '../lib/units'
 import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
+import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { downloadTextFile, routinesExportFilename } from '../lib/routinesIo'
 import './routineEditor.css'
 
-function newItem(exerciseId: string, position: number): TemplateItemInput {
+function newItem(exerciseId: string, position: number, isWarmup = false): TemplateItemInput {
   return {
     id: null,
     exercise_id: exerciseId,
@@ -63,6 +64,7 @@ function newItem(exerciseId: string, position: number): TemplateItemInput {
     tempo_concentric: null,
     tempo_contracted_pause: null,
     tempo_intent: 'controlled',
+    is_warmup: isWarmup,
   }
 }
 
@@ -111,6 +113,7 @@ export function RoutineEditor() {
   const [busy, setBusy] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const [openNotes, setOpenNotes] = useState<Record<number, boolean>>({})
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [announce, setAnnounce] = useState('')
 
   useEffect(() => {
@@ -122,11 +125,21 @@ export function RoutineEditor() {
         templateItems
           .filter((i) => i.template_id === template.id)
           .sort((a, b) => a.position - b.position)
-          .map((i) => ({ ...i, block_role: normalizeBlockRole(i.block_role) })),
+          .map((i) => {
+            const itemBlock = i.block_id
+              ? templateBlocks.find((block) => block.id === i.block_id)
+              : null
+            return {
+              ...i,
+              block_role: normalizeBlockRole(i.block_role),
+              is_warmup: i.is_warmup === true || itemBlock?.role === 'warmup',
+            }
+          }),
       )
+      setExpanded(new Set())
       setLoadedFor(template.id)
     }
-  }, [template, templateItems, loadedFor])
+  }, [template, templateItems, templateBlocks, loadedFor])
 
   const exerciseById = useMemo(
     () => new Map(exercises.map((e) => [e.id, e])),
@@ -136,6 +149,16 @@ export function RoutineEditor() {
   const moveTo = useCallback((from: number, to: number) => {
     setItems((prev) => moveIndex(prev, from, to))
     setOpenNotes({})
+    setExpanded((prev) => {
+      const next = new Set<number>()
+      for (const index of prev) {
+        if (index === from) next.add(to)
+        else if (from < to && index > from && index <= to) next.add(index - 1)
+        else if (to < from && index >= to && index < from) next.add(index + 1)
+        else next.add(index)
+      }
+      return next
+    })
   }, [])
 
   const reorder = usePointerReorder({
@@ -320,6 +343,12 @@ export function RoutineEditor() {
             const legacyPartners = supersetPartners(items, item, partnerName)
             const partners = blockPartners.length > 0 ? blockPartners : legacyPartners
             const notesOpen = Boolean(openNotes[index])
+            const isExpanded = expanded.has(index)
+            const role = normalizeBlockRole(item.block_role)
+            const bodyweightLoad = isBodyweightLoadExercise({
+              id: exercise?.id,
+              name: exercise?.name,
+            })
             const dragging = reorder.active?.from === index
             const dropTarget =
               reorder.active !== null &&
@@ -329,7 +358,7 @@ export function RoutineEditor() {
               <li
                 key={item.id ?? `draft-${index}`}
                 ref={reorder.setItemRef(index)}
-                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group || itemBlock?.format === 'superset' ? ' routine-item--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group || itemBlock?.format === 'superset' ? ' routine-item--superset' : ''}${isExpanded ? ' routine-item--expanded' : ' routine-item--collapsed'}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
               >
                 <div className="exercise-head">
                   <div className="exercise-head__drag" {...reorder.getHandleProps(index)}>
@@ -353,7 +382,22 @@ export function RoutineEditor() {
                     >
                       <IconGrip width={16} height={16} />
                     </button>
-                    <strong className="exercise-head__title">{name}</strong>
+                    <button
+                      type="button"
+                      className="exercise-head__toggle"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? t('editor.collapseNamed', { name }) : t('editor.expandNamed', { name })}
+                      onClick={() =>
+                        setExpanded((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(index)) next.delete(index)
+                          else next.add(index)
+                          return next
+                        })
+                      }
+                    >
+                      <strong className="exercise-head__title">{name}</strong>
+                    </button>
                   </div>
                   {exercise?.video_url ? (
                     <a
@@ -368,7 +412,38 @@ export function RoutineEditor() {
                       <span aria-hidden="true">▶️</span>
                     </a>
                   ) : null}
+                  {isExpanded ? null : (
+                    <>
+                      <span className={`badge role-chip role-chip--${role} is-selected`}>
+                        {blockRoles().find((row) => row.value === role)?.label ?? role}
+                      </span>
+                      {item.is_warmup ? (
+                        <span className="badge badge--planned">{t('workout.warmup')}</span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn btn--icon btn--small btn--danger"
+                        data-no-drag
+                        aria-label={t('editor.removeNamed', { name })}
+                        onClick={() => {
+                          setItems((prev) => prev.filter((_, i) => i !== index))
+                          setExpanded((prev) => {
+                            const next = new Set<number>()
+                            for (const value of prev) {
+                              if (value === index) continue
+                              next.add(value > index ? value - 1 : value)
+                            }
+                            return next
+                          })
+                        }}
+                      >
+                        <IconTrash width={16} height={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
+                {isExpanded ? (
+                <>
                 {exercise?.source_url && exercise.source_url !== exercise.video_url ? (
                   <div className="exercise-guide-row">
                     <a
@@ -403,18 +478,26 @@ export function RoutineEditor() {
                   </div>
                 ) : null}
                 <div className="row row--wrap" role="group" aria-label={t('editor.roleFor', { name })}>
-                  {blockRoles().map((role) => (
+                  {blockRoles().map((chip) => (
                     <button
-                      key={role.value}
+                      key={chip.value}
                       type="button"
-                      className={`btn btn--small role-chip role-chip--${role.value}${normalizeBlockRole(item.block_role) === role.value ? ' is-selected' : ''}`}
-                      aria-pressed={normalizeBlockRole(item.block_role) === role.value}
-                      onClick={() => update(index, { block_role: role.value })}
+                      className={`btn btn--small role-chip role-chip--${chip.value}${role === chip.value ? ' is-selected' : ''}`}
+                      aria-pressed={role === chip.value}
+                      onClick={() => update(index, { block_role: chip.value })}
                     >
-                      {role.label}
+                      {chip.label}
                     </button>
                   ))}
                 </div>
+                <label className="field field--check">
+                  <input
+                    type="checkbox"
+                    checked={item.is_warmup === true}
+                    onChange={(event) => update(index, { is_warmup: event.target.checked })}
+                  />
+                  <span>{t('editor.warmupExercise')}</span>
+                </label>
 
                 <div className="exercise-meta-row">
                   <small className="muted">
@@ -425,7 +508,17 @@ export function RoutineEditor() {
                     className="btn btn--icon btn--small btn--danger"
                     data-no-drag
                     aria-label={t('editor.removeNamed', { name })}
-                    onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
+                    onClick={() => {
+                      setItems((prev) => prev.filter((_, i) => i !== index))
+                      setExpanded((prev) => {
+                        const next = new Set<number>()
+                        for (const value of prev) {
+                          if (value === index) continue
+                          next.add(value > index ? value - 1 : value)
+                        }
+                        return next
+                      })
+                    }}
                   >
                     <IconTrash width={16} height={16} />
                   </button>
@@ -451,13 +544,18 @@ export function RoutineEditor() {
                   {measurement === 'weight_reps' ? (
                     <>
                       <label className="field">
-                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
+                        <span>
+                          {bodyweightLoad
+                            ? t('editor.addedLoad', { unit: weightUnitLabel(units) })
+                            : t('editor.targetWeight', { unit: weightUnitLabel(units) })}
+                        </span>
                         <input
                           className="input input--cell"
                           type="number"
                           min={0}
                           step="0.5"
                           value={weightForInput(item.target_weight_kg, units)}
+                          placeholder={bodyweightLoad ? t('set.bodyweight') : undefined}
                           onChange={(e) =>
                             update(index, {
                               target_weight_kg:
@@ -744,6 +842,8 @@ export function RoutineEditor() {
                     {item.superset_group ? t('editor.inSuperset') : t('editor.supersetNext')}
                   </button>
                 )}
+                </>
+                ) : null}
               </li>
             )
           })}
@@ -805,10 +905,13 @@ export function RoutineEditor() {
       {pickerOpen ? (
         <Modal title={t('editor.addToRoutine')} onClose={() => setPickerOpen(false)}>
           <ExercisePicker
+            warmupOption
             onClose={() => setPickerOpen(false)}
-            onSelect={(exerciseId) =>
-              setItems((prev) => [...prev, newItem(exerciseId, prev.length)])
-            }
+            onSelect={(exerciseId, options) => {
+              const nextIndex = items.length
+              setItems((prev) => [...prev, newItem(exerciseId, prev.length, options?.isWarmup === true)])
+              setExpanded((keys) => new Set(keys).add(nextIndex))
+            }}
           />
         </Modal>
       ) : null}

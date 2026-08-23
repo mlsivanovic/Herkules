@@ -34,15 +34,18 @@ export function ExercisePicker({
   title,
   onSelect,
   onClose,
+  warmupOption,
 }: {
   title?: string
-  onSelect(exerciseId: string): void
+  onSelect(exerciseId: string, options?: { isWarmup?: boolean }): void
   onClose(): void
+  warmupOption?: boolean
 }) {
   const { t } = useT()
   const { exercises } = useStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ExerciseCategory | 'all'>('all')
+  const [asWarmup, setAsWarmup] = useState(false)
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -71,6 +74,16 @@ export function ExercisePicker({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
+      {warmupOption ? (
+        <label className="picker-warmup">
+          <input
+            type="checkbox"
+            checked={asWarmup}
+            onChange={(event) => setAsWarmup(event.target.checked)}
+          />
+          <span>{t('editor.warmupExercise')}</span>
+        </label>
+      ) : null}
       <div
         className="row row--wrap"
         style={{ marginBottom: '0.75rem' }}
@@ -106,7 +119,7 @@ export function ExercisePicker({
                 type="button"
                 className="picker-item"
                 onClick={() => {
-                  onSelect(exercise.id)
+                  onSelect(exercise.id, { isWarmup: asWarmup })
                   onClose()
                 }}
               >

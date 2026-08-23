@@ -67,6 +67,7 @@ const items: TemplateItemRow[] = [
     notes: 'pause at chest',
     superset_group: '11111111-1111-4111-8111-111111111401',
     block_role: 'gym',
+    is_warmup: true,
     created_at: NOW,
     updated_at: NOW,
   },
@@ -102,7 +103,9 @@ describe('routines JSON', () => {
     expect(routine?.items).toHaveLength(2)
     expect(routine?.items[0]?.exercise.name).toBe('Barbell Bench Press')
     expect(routine?.items[0]?.tempo).toBe('3-0-1')
+    expect(routine?.items[0]?.is_warmup).toBe(true)
     expect(routine?.items[1]?.block_role).toBe('tendon')
+    expect(routine?.items[1]?.is_warmup).toBe(false)
     expect(routine?.items[1]?.exercise.name).toBe('My Special Curl')
   })
 

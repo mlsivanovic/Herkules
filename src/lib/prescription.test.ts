@@ -65,6 +65,18 @@ describe('V2 session prescription', () => {
     expect(rows.every((row) => row.side === null)).toBe(true)
   })
 
+  it('marks planned sets as warm-up when the exercise slot is a warm-up', () => {
+    let id = 0
+    const rows = materializePlannedSets({
+      exercise: exercise({ is_warmup: true, planned_sets: 2 }),
+      block: block(),
+      newId: () => `set-${++id}`,
+      now: NOW,
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows.every((row) => row.is_warmup)).toBe(true)
+  })
+
   it('uses block rounds for circuits and starts rest only after a complete set-group', () => {
     let id = 0
     const rows = materializePlannedSets({

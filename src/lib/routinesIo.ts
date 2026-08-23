@@ -83,6 +83,7 @@ export interface RoutineItemExport {
   tempo_concentric: number | null
   tempo_contracted_pause: number | null
   tempo_intent: NonNullable<TemplateItemRow['tempo_intent']>
+  is_warmup: boolean
   exercise: RoutineExerciseSnapshot
 }
 
@@ -172,6 +173,7 @@ export function serializeRoutines(
             tempo_concentric: item.tempo_concentric ?? null,
             tempo_contracted_pause: item.tempo_contracted_pause ?? null,
             tempo_intent: item.tempo_intent ?? 'controlled',
+            is_warmup: item.is_warmup === true,
             exercise: snapshotExercise(exercise),
           } satisfies RoutineItemExport,
         ]
@@ -341,6 +343,7 @@ export function planRoutineImport(input: {
         tempo_concentric: item.tempo_concentric,
         tempo_contracted_pause: item.tempo_contracted_pause,
         tempo_intent: item.tempo_intent,
+        is_warmup: item.is_warmup === true,
         created_at: previousItem?.created_at ?? input.now,
         updated_at: input.now,
       })
@@ -521,6 +524,7 @@ function parseItem(value: unknown, index: number, routineName: string): RoutineI
     tempo_concentric: asNumber(row.tempo_concentric),
     tempo_contracted_pause: asNumber(row.tempo_contracted_pause),
     tempo_intent: row.tempo_intent === 'explosive' ? 'explosive' : 'controlled',
+    is_warmup: row.is_warmup === true,
     exercise: parseExerciseSnapshot(row.exercise, index, routineName),
   }
 }

@@ -32,3 +32,18 @@
 .picker-name {
   font-weight: 600;
 }
+
+.picker-warmup {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--control-h);
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.picker-warmup input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}

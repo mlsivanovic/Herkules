@@ -48,3 +48,23 @@
   font-weight: 600;
   color: var(--c-muted);
 }
+
+.routine-item--collapsed {
+  gap: 0.35rem;
+}
+
+.routine-item--collapsed .exercise-head {
+  flex-wrap: wrap;
+}
+
+.routine-item--collapsed .exercise-head .badge,
+.routine-item--collapsed .exercise-head .btn--danger {
+  flex-shrink: 0;
+}
+
+.routine-items .field--check span {
+  font-size: 0.9rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--c-text);
+}

@@ -15,13 +15,13 @@ import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import { distanceForInput, formatDuration, formatWeight, formatDistance, weightForInput } from '../lib/units'
+import { formatSetLoad, isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { previousSetsForExercise } from '../lib/metrics'
 import { timerCue } from '../lib/cues'
 import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
-import { PlateCalculatorModal, WarmupModal } from '../components/Calculators'
 import { IntervalTimerModal } from '../components/IntervalTimer'
 import { isBlockRoundComplete, isSetGroupComplete, progressionSuggestions } from '../lib/prescription'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
@@ -534,7 +534,16 @@ function prescriptionLabel(
   const sets = exercise.planned_sets
   if (exercise.measurement_snapshot === 'weight_reps' || exercise.measurement_snapshot === 'reps') {
     const reps = rangeLabel(exercise.target_reps_min ?? exercise.target_reps, exercise.target_reps_max ?? exercise.target_reps)
-    const load = exercise.target_weight_kg != null ? ` @ ${formatWeight(exercise.target_weight_kg, units)}` : ''
+    const bodyweightLoad = isBodyweightLoadExercise({
+      id: exercise.exercise_id,
+      name: exercise.name_snapshot,
+    })
+    const load =
+      exercise.target_weight_kg != null
+        ? ` @ ${formatSetLoad(exercise.target_weight_kg, units, bodyweightLoad)}`
+        : bodyweightLoad
+          ? ` @ ${formatSetLoad(null, units, true)}`
+          : ''
     return `${sets} × ${reps} ${translate('set.reps')}${load}`
   }
   if (exercise.measurement_snapshot === 'duration' || exercise.measurement_snapshot === 'weight_duration') {
@@ -585,7 +594,6 @@ function ExerciseCard({
   const units = store.profile?.unit_system ?? 'metric'
   const shownName = displaySnapshotName(exercise.name_snapshot, exercise.exercise_id)
   const [notesOpen, setNotesOpen] = useState(false)
-  const [calcOpen, setCalcOpen] = useState<'plates' | 'warmup' | null>(null)
   const catalogExercise = exercise.exercise_id
     ? store.exercises.find((row) => row.id === exercise.exercise_id)
     : null
@@ -624,7 +632,17 @@ function ExerciseCard({
     }
   }
 
-  function addSet() {
+  const bodyweightLoad = isBodyweightLoadExercise({
+    id: exercise.exercise_id,
+    name: exercise.name_snapshot,
+  })
+  const exerciseIsWarmup = exercise.is_warmup === true || block?.role === 'warmup'
+
+  function addSet(asWarmup = false) {
+    if (asWarmup || exerciseIsWarmup) {
+      void store.addWarmupSets(session.id, exercise.id, [{ weightKg: null, reps: null }])
+      return
+    }
     const position = exercise.sets.reduce((m, s) => Math.max(m, s.position), 0) + 1
     const set: SetRow = {
       id: newId(),
@@ -656,14 +674,6 @@ function ExerciseCard({
   )
   const logged = exercise.sets.some((set) => set.completed_at !== null)
   const role = normalizeBlockRole(exercise.block_role)
-  // Prefill for the calculators: the last completed weight of this session,
-  // falling back to the previous performance.
-  const lastCompleted = [...exercise.sets]
-    .filter((set) => set.completed_at !== null)
-    .sort((a, b) => a.position - b.position)
-    .at(-1)
-  const initialKg =
-    lastCompleted?.weight_kg ?? previous?.[0]?.weight_kg ?? null
 
   return (
     <section
@@ -741,7 +751,7 @@ function ExerciseCard({
         {exercise.tempo_intent === 'explosive' ? (
           <span className="badge badge--in-progress">{t('workout.explosive')}</span>
         ) : null}
-        {block?.role === 'warmup' ? <span className="badge badge--planned">{t('workout.warmup')}</span> : null}
+        {exerciseIsWarmup ? <span className="badge badge--planned">{t('workout.warmup')}</span> : null}
         {block?.role === 'tendon' ? <span className="badge badge--planned">{t('workoutRole.tendon')}</span> : null}
         {catalogSource && catalogSource !== catalogVideo ? (
           <a
@@ -781,26 +791,6 @@ function ExerciseCard({
           <span />
         )}
         <div className="row">
-          {exercise.measurement_snapshot === 'weight_reps' ? (
-            <>
-              <button
-                type="button"
-                className="btn btn--small"
-                data-no-drag
-                onClick={() => setCalcOpen('plates')}
-              >
-                {t('workout.plates')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--small"
-                data-no-drag
-                onClick={() => setCalcOpen('warmup')}
-              >
-                {t('workout.warmup')}
-              </button>
-            </>
-          ) : null}
           <button
             type="button"
             className="btn btn--icon btn--small"
@@ -828,7 +818,7 @@ function ExerciseCard({
           {previous
             .map((set) => {
               if (exercise.measurement_snapshot === 'weight_reps') {
-                return `${formatWeight(set.weight_kg ?? 0, units)} × ${set.reps ?? '–'}`
+                return `${formatSetLoad(set.weight_kg, units, bodyweightLoad)} × ${set.reps ?? '–'}`
               }
               if (exercise.measurement_snapshot === 'reps')
                 return `${set.reps ?? '–'} ${t('set.reps')}`
@@ -857,6 +847,7 @@ function ExerciseCard({
             set={set}
             measurement={exercise.measurement_snapshot}
             units={units}
+            bodyweightLoad={bodyweightLoad}
             suggestion={{
               weight: weightForInput(exercise.target_weight_kg ?? previous?.[setIndex]?.weight_kg ?? null, units),
               reps: exercise.target_reps_min != null || exercise.target_reps_max != null
@@ -872,7 +863,12 @@ function ExerciseCard({
             onDelete={() => void store.deleteSet(session.id, exercise.id, set.id)}
           />
         ))}
-        <AddSetButton onAdd={addSet} />
+        <div className="row row--wrap" style={{ gap: '0.4rem' }}>
+          <AddSetButton onAdd={() => addSet(false)} />
+          {exerciseIsWarmup ? null : (
+            <AddSetButton onAdd={() => addSet(true)} label={t('set.addWarmup')} />
+          )}
+        </div>
         {exercise.planned_sets > exercise.sets.length ? (
           <small className="muted">
             {t('workout.morePlanned', {
@@ -884,25 +880,6 @@ function ExerciseCard({
         </>
       ) : null}
 
-      {calcOpen === 'plates' ? (
-        <PlateCalculatorModal
-          units={units}
-          initialKg={initialKg}
-          onClose={() => setCalcOpen(null)}
-        />
-      ) : null}
-
-      {calcOpen === 'warmup' ? (
-        <WarmupModal
-          units={units}
-          initialKg={initialKg}
-          onAdd={(sets) => {
-            setCalcOpen(null)
-            void store.addWarmupSets(session.id, exercise.id, sets)
-          }}
-          onClose={() => setCalcOpen(null)}
-        />
-      ) : null}
     </section>
   )
 }

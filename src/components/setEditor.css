@@ -14,7 +14,7 @@
 
 .set-index {
   flex-shrink: 0;
-  width: 26px;
+  min-width: 26px;
   height: 26px;
   display: flex;
   align-items: center;
@@ -57,25 +57,67 @@
   gap: 0.3rem;
 }
 
+.set-bw {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: var(--control-h);
+  padding: 0 0.55rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-s);
+  background: var(--c-card);
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.set-bw.is-on {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+.set-bw:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 400px) {
   .set-field--rpe {
     display: none;
   }
 }
 
-/* Warm-up ramp sets: visually quieter than working sets */
-.set-row--warmup .set-inputs {
-  opacity: 0.72;
+/* Warm-up sets: accent wash so they read apart from working sets */
+.set-row--warmup {
+  background: color-mix(in srgb, var(--c-accent-soft) 82%, var(--c-card));
+  outline: 1px solid color-mix(in srgb, var(--c-accent) 32%, var(--c-border));
+}
+
+.set-row--warmup.set-row--done {
+  background: color-mix(in srgb, var(--c-success-soft) 58%, var(--c-accent-soft));
+}
+
+.set-row--warmup .set-index {
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+.set-row--warmup.set-row--done .set-index {
+  background: var(--c-accent);
+  color: #fff;
 }
 
 .set-warmup-badge {
   display: inline-block;
-  margin-left: 0.3rem;
+  margin-left: 0.25rem;
   padding: 0 0.3rem;
   border-radius: 999px;
   font-size: 0.62rem;
   font-weight: 700;
   line-height: 1.35;
-  color: var(--c-card);
-  background: var(--c-muted, #64748b);
+  color: var(--c-on-primary);
+  background: var(--c-accent);
 }

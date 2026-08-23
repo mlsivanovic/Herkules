@@ -173,6 +173,7 @@ export function buildProgramRows(input: {
           tempo_concentric: item.tempo.concentric,
           tempo_contracted_pause: item.tempo.contractedPause,
           tempo_intent: item.tempo.intent,
+          is_warmup: definitionBlock.role === 'warmup',
           created_at: input.now, updated_at: input.now,
         })
       })

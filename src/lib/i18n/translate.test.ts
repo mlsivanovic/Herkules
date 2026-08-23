@@ -46,6 +46,13 @@ describe('t', () => {
     expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')
   })
 
+  it('translates warm-up exercise and bodyweight load copy', () => {
+    expect(t('editor.warmupExercise', undefined, 'en')).toBe('Warm-up exercise')
+    expect(t('editor.warmupExercise', undefined, 'sr')).toBe('Vežba zagrevanja')
+    expect(t('set.addWarmup', undefined, 'en')).toBe('Add warm-up')
+    expect(t('set.bodyweight', undefined, 'sr')).toBe('BW')
+  })
+
   it('translates progress chart empty copy', () => {
     expect(t('progress.chartEmpty', undefined, 'en')).toBe('No data yet.')
     expect(t('progress.chartEmpty', undefined, 'sr')).toBe('Još nema podataka.')

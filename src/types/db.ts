@@ -160,6 +160,8 @@ export interface TemplateItemRow {
   tempo_concentric?: number | null
   tempo_contracted_pause?: number | null
   tempo_intent?: TempoIntent
+  /** Whole-exercise warm-up slot. Sets materialize with is_warmup. */
+  is_warmup?: boolean
   created_at: string
   updated_at: string
 }
@@ -264,6 +266,8 @@ export interface SessionExerciseRow {
   tempo_concentric?: number | null
   tempo_contracted_pause?: number | null
   tempo_intent?: TempoIntent
+  /** Copied from the routine slot; new sets on this exercise stay warm-up. */
+  is_warmup?: boolean
   created_at: string
   updated_at: string
 }

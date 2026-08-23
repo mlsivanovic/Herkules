@@ -232,6 +232,7 @@ function normalizeTemplateItem(row: TemplateItemRow): TemplateItemRow {
     tempo_concentric: row.tempo_concentric ?? null,
     tempo_contracted_pause: row.tempo_contracted_pause ?? null,
     tempo_intent: row.tempo_intent ?? 'controlled',
+    is_warmup: row.is_warmup === true,
   }
 }
 
@@ -273,6 +274,7 @@ function normalizeSession(row: SessionDoc): SessionDoc {
       tempo_concentric: exercise.tempo_concentric ?? null,
       tempo_contracted_pause: exercise.tempo_contracted_pause ?? null,
       tempo_intent: exercise.tempo_intent ?? 'controlled',
+      is_warmup: exercise.is_warmup === true,
       sets: sortByPosition((exercise.sets ?? []).map((set) => ({
         ...set,
         round_index: set.round_index ?? null,

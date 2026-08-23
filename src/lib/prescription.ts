@@ -102,6 +102,7 @@ export function snapshotExercise(
     tempo_concentric: item.tempo_concentric,
     tempo_contracted_pause: item.tempo_contracted_pause,
     tempo_intent: item.tempo_intent ?? 'controlled',
+    is_warmup: item.is_warmup === true,
     created_at: input.now,
     updated_at: input.now,
   }
@@ -139,7 +140,7 @@ export function materializePlannedSets(input: {
           distance_m: null,
           rpe: null,
           notes: null,
-          is_warmup: block?.role === 'warmup',
+          is_warmup: block?.role === 'warmup' || exercise.is_warmup === true,
           round_index: round,
           side,
           direction,

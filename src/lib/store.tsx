@@ -172,6 +172,7 @@ export interface TemplateItemInput {
   tempo_concentric?: number | null
   tempo_contracted_pause?: number | null
   tempo_intent?: TemplateItemRow['tempo_intent']
+  is_warmup?: boolean
 }
 
 export interface StartSessionInput {
@@ -294,7 +295,7 @@ export interface StoreActions {
   addWarmupSets(
     sessionId: string,
     sessionExerciseId: string,
-    planned: { weightKg: number; reps: number }[],
+    planned: { weightKg: number | null; reps: number | null }[],
   ): Promise<void>
 
   // profile
@@ -829,6 +830,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             tempo_concentric: item.tempo_concentric ?? null,
             tempo_contracted_pause: item.tempo_contracted_pause ?? null,
             tempo_intent: item.tempo_intent ?? 'controlled',
+            is_warmup: item.is_warmup === true,
             created_at: previous?.created_at ?? nowIso(),
             updated_at: nowIso(),
           }
@@ -1658,6 +1660,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               notes: null,
               superset_group: null,
               block_role: 'gym',
+              is_warmup: false,
               created_at: stamp,
               updated_at: stamp,
               sets,
@@ -1710,6 +1713,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           notes: null,
           superset_group: null,
           block_role: 'gym',
+          is_warmup: false,
           created_at: nowIso(),
           updated_at: nowIso(),
           sets: [],
@@ -1844,11 +1848,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!target) throw new Error(t('errors.sessionExerciseNotFound'))
 
         const stamp = nowIso()
-        // Warm-ups take positions 1..n; existing sets shift behind them.
+        const existingWarmups = target.sets.filter((set) => set.is_warmup)
+        const work = target.sets.filter((set) => !set.is_warmup)
+        // Append after existing warm-ups so adding one-by-one keeps order.
         const warmups: SetRow[] = planned.map((step, index) => ({
           id: newId(),
           session_exercise_id: sessionExerciseId,
-          position: index + 1,
+          position: existingWarmups.length + index + 1,
           weight_kg: step.weightKg,
           reps: step.reps,
           duration_s: null,
@@ -1860,23 +1866,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           created_at: stamp,
           updated_at: stamp,
         }))
-        const moved = target.sets.map((set) => ({
+        const movedWork = work.map((set, index) => ({
           ...set,
-          position: set.position + warmups.length,
+          position: existingWarmups.length + warmups.length + index + 1,
           updated_at: stamp,
         }))
+        const nextSets = [...existingWarmups, ...warmups, ...movedWork]
 
         const ops: OutboxOp[] = [
           ...warmups.map((set) => upsert('workout_sets', set)),
-          ...moved.map((set) => upsert('workout_sets', set)),
+          ...movedWork.map((set) => upsert('workout_sets', set)),
         ]
         const nextExercises = doc.session_exercises.map((se) =>
           se.id === sessionExerciseId
-            ? {
-                ...se,
-                sets: [...warmups, ...moved].sort((a, b) => a.position - b.position),
-                updated_at: stamp,
-              }
+            ? { ...se, sets: nextSets, updated_at: stamp }
             : se,
         )
         const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: stamp }

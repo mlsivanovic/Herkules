@@ -6,6 +6,7 @@ import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SetRow } from '../types/db'
 import { formatDateLong } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
+import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { sessionVolume } from '../lib/metrics'
 import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
@@ -47,7 +48,14 @@ export function HistoryDetail() {
     0,
   )
 
-  function addSet(sessionExerciseId: string, position: number) {
+  function addSet(sessionExerciseId: string, asWarmup = false) {
+    const exercise = current.session_exercises.find((row) => row.id === sessionExerciseId)
+    if (!exercise) return
+    if (asWarmup || exercise.is_warmup === true) {
+      void store.addWarmupSets(current.id, sessionExerciseId, [{ weightKg: null, reps: null }])
+      return
+    }
+    const position = exercise.sets.reduce((max, set) => Math.max(max, set.position), 0) + 1
     const set: SetRow = {
       id: newId(),
       session_exercise_id: sessionExerciseId,
@@ -157,13 +165,22 @@ export function HistoryDetail() {
                     set={set}
                     measurement={se.measurement_snapshot}
                     units={units}
+                    bodyweightLoad={isBodyweightLoadExercise({
+                      id: se.exercise_id,
+                      name: se.name_snapshot,
+                    })}
                     onChange={(next) => void store.upsertSet(session.id, next)}
                     onComplete={(next) => void store.upsertSet(session.id, next)}
                     onDelete={() => void store.deleteSet(session.id, se.id, set.id)}
                   />
                 ))
               )}
-              <AddSetButton onAdd={() => addSet(se.id, se.sets.length + 1)} />
+              <div className="row row--wrap" style={{ gap: '0.4rem' }}>
+                <AddSetButton onAdd={() => addSet(se.id, false)} />
+                {se.is_warmup === true ? null : (
+                  <AddSetButton onAdd={() => addSet(se.id, true)} label={t('set.addWarmup')} />
+                )}
+              </div>
             </div>
           </section>
         ))}

@@ -25,26 +25,43 @@ function sameValues(a: SetRow, b: SetRow): boolean {
     a.duration_s === b.duration_s &&
     a.distance_m === b.distance_m &&
     a.rpe === b.rpe &&
-    a.completed_at === b.completed_at
+    a.completed_at === b.completed_at &&
+    a.is_warmup === b.is_warmup
   )
 }
 
 interface Draft {
   weight: string
+  bodyweight: boolean
   reps: string
   duration: string
   distance: string
   rpe: string
 }
 
-function draftFromSet(set: SetRow, units: UnitSystem): Draft {
+function isBodyweightLogged(weightKg: number | null, treatEmptyAsBw: boolean): boolean {
+  if (weightKg === 0) return true
+  return treatEmptyAsBw && weightKg == null
+}
+
+function draftFromSet(set: SetRow, units: UnitSystem, treatEmptyAsBw: boolean): Draft {
+  const bodyweight = isBodyweightLogged(set.weight_kg, treatEmptyAsBw)
   return {
-    weight: weightForInput(set.weight_kg, units),
+    weight: bodyweight ? '' : weightForInput(set.weight_kg, units),
+    bodyweight,
     reps: set.reps === null ? '' : String(set.reps),
     duration: set.duration_s === null ? '' : formatDuration(set.duration_s),
     distance: distanceForInput(set.distance_m, units),
     rpe: set.rpe === null ? '' : String(set.rpe),
   }
+}
+
+function measurementHasWeight(measurement: ExerciseMeasurement): boolean {
+  return (
+    measurement === 'weight_reps' ||
+    measurement === 'weight_duration' ||
+    measurement === 'weight_distance'
+  )
 }
 
 export function SetEditor({
@@ -53,6 +70,7 @@ export function SetEditor({
   measurement,
   units,
   readonly,
+  bodyweightLoad,
   onChange,
   onComplete,
   onDelete,
@@ -63,12 +81,17 @@ export function SetEditor({
   measurement: ExerciseMeasurement
   units: UnitSystem
   readonly?: boolean
+  /** Pull-ups / dips: empty load means bodyweight, a number is extra kg. */
+  bodyweightLoad?: boolean
   onChange(next: SetRow): void
   onComplete(next: SetRow): void
   onDelete(): void
   suggestion?: Partial<Draft>
 }) {
-  const [draft, setDraft] = useState<Draft>(() => draftFromSet(set, units))
+  const warmup = set.is_warmup === true
+  const treatEmptyAsBw = bodyweightLoad === true
+  const showBwToggle = measurementHasWeight(measurement) && (treatEmptyAsBw || warmup)
+  const [draft, setDraft] = useState<Draft>(() => draftFromSet(set, units, treatEmptyAsBw))
   const lastEmitted = useRef<SetRow>(set)
 
   // Adopt upstream changes (sync, programmatic edits) — but never our own
@@ -76,14 +99,26 @@ export function SetEditor({
   useEffect(() => {
     if (sameValues(lastEmitted.current, set)) return
     lastEmitted.current = set
-    setDraft(draftFromSet(set, units))
-  }, [set, units])
+    setDraft(draftFromSet(set, units, treatEmptyAsBw))
+  }, [set, units, treatEmptyAsBw])
 
   function apply(patch: Partial<Draft>) {
-    const nextDraft = { ...draft, ...patch }
+    const nextDraft: Draft = { ...draft, ...patch }
+    if (patch.weight !== undefined && patch.weight.trim() !== '') {
+      nextDraft.bodyweight = false
+    }
+    if (patch.bodyweight === true) {
+      nextDraft.weight = ''
+    }
     setDraft(nextDraft)
 
-    const weight = parseNonNegative(nextDraft.weight)
+    let weightKg: number | null
+    if (nextDraft.bodyweight) {
+      weightKg = 0
+    } else {
+      const weight = parseNonNegative(nextDraft.weight)
+      weightKg = weight === null ? null : weightToKg(weight, units)
+    }
     const reps = nextDraft.reps === '' ? null : Number(nextDraft.reps)
     const duration = parseDurationInput(nextDraft.duration)
     const distance = parseNonNegative(nextDraft.distance)
@@ -91,7 +126,7 @@ export function SetEditor({
 
     const next: SetRow = {
       ...set,
-      weight_kg: weight === null ? null : weightToKg(weight, units),
+      weight_kg: weightKg,
       reps: reps !== null && Number.isFinite(reps) && reps >= 0 ? Math.round(reps) : null,
       duration_s: duration,
       distance_m: distance === null ? null : distanceToM(distance, units),
@@ -104,12 +139,15 @@ export function SetEditor({
 
   const { t } = useT()
   const completed = set.completed_at !== null
-  const warmup = set.is_warmup === true
   const identity = [
     set.round_index ?? index + 1,
     set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : null,
     set.direction === 'pronation' ? 'P' : set.direction === 'supination' ? 'S' : null,
   ].filter(Boolean).join('·')
+  const unit = weightUnitLabel(units)
+  const weightPlaceholder = treatEmptyAsBw
+    ? t('set.bodyweight')
+    : suggestion?.weight || `${unit}`
 
   return (
     <div className={`set-row ${completed ? 'set-row--done' : ''}${warmup ? ' set-row--warmup' : ''}`}>
@@ -119,20 +157,37 @@ export function SetEditor({
       </span>
 
       <div className="set-inputs" role="group" aria-label={t('set.values', { n: index + 1 })}>
+        {showBwToggle ? (
+          <button
+            type="button"
+            className={`set-bw ${draft.bodyweight ? 'is-on' : ''}`}
+            aria-pressed={draft.bodyweight}
+            title={t('set.bodyweightTitle')}
+            disabled={readonly}
+            onClick={() => apply({ bodyweight: !draft.bodyweight })}
+          >
+            {t('set.bodyweight')}
+          </button>
+        ) : null}
+
         {measurement === 'weight_reps' ? (
           <>
-            <label className="set-field">
-              <span className="visually-hidden">{t('set.weightIn', { unit: weightUnitLabel(units) })}</span>
-              <input
-                className="input input--cell"
-                type="text"
-                inputMode="decimal"
-                placeholder={suggestion?.weight || `${weightUnitLabel(units)}`}
-                value={draft.weight}
-                disabled={readonly}
-                onChange={(e) => apply({ weight: e.target.value })}
-              />
-            </label>
+            {draft.bodyweight && !treatEmptyAsBw ? null : (
+              <label className="set-field">
+                <span className="visually-hidden">
+                  {treatEmptyAsBw ? t('set.addedLoad', { unit }) : t('set.weightIn', { unit })}
+                </span>
+                <input
+                  className="input input--cell"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={weightPlaceholder}
+                  value={draft.weight}
+                  disabled={readonly}
+                  onChange={(e) => apply({ weight: e.target.value })}
+                />
+              </label>
+            )}
             <label className="set-field">
               <span className="visually-hidden">{t('set.repetitions')}</span>
               <input
@@ -164,18 +219,22 @@ export function SetEditor({
         ) : null}
 
         {measurement === 'weight_duration' || measurement === 'weight_distance' ? (
-          <label className="set-field">
-            <span className="visually-hidden">{t('set.weightIn', { unit: weightUnitLabel(units) })}</span>
-            <input
-              className="input input--cell"
-              type="text"
-              inputMode="decimal"
-              placeholder={suggestion?.weight || `${weightUnitLabel(units)}`}
-              value={draft.weight}
-              disabled={readonly}
-              onChange={(e) => apply({ weight: e.target.value })}
-            />
-          </label>
+          draft.bodyweight && !treatEmptyAsBw ? null : (
+            <label className="set-field">
+              <span className="visually-hidden">
+                {treatEmptyAsBw ? t('set.addedLoad', { unit }) : t('set.weightIn', { unit })}
+              </span>
+              <input
+                className="input input--cell"
+                type="text"
+                inputMode="decimal"
+                placeholder={weightPlaceholder}
+                value={draft.weight}
+                disabled={readonly}
+                onChange={(e) => apply({ weight: e.target.value })}
+              />
+            </label>
+          )
         ) : null}
 
         {measurement === 'duration' || measurement === 'distance_duration' || measurement === 'weight_duration' ? (

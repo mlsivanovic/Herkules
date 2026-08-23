@@ -386,6 +386,58 @@ function estimateForDay(
   })
 }
 
+function measureOnOrBefore(measures: BodyMeasureRow[], date: string): BodyMeasureRow | null {
+  let best: BodyMeasureRow | null = null
+  for (const row of measures) {
+    if (row.recorded_on <= date && (best === null || row.recorded_on > best.recorded_on)) {
+      best = row
+    }
+  }
+  return best
+}
+
+export interface CompositionTrendPoint {
+  date: string
+  bodyFatPct: number | null
+  leanMassKg: number | null
+  skeletalMuscleKg: number | null
+}
+
+/**
+ * One estimate per weigh-in (and tape day), so Progress can chart composition
+ * even when the user has never saved a tape log — CUN-BAE / Lee BMI still run.
+ */
+export function compositionTrend(args: CompositionLogInput): CompositionTrendPoint[] {
+  const sex = formulaFromProfile(args.sex)
+  if (sex === null || args.heightCm === null || args.heightCm <= 0) return []
+
+  const dates = new Set<string>()
+  for (const row of args.weights) dates.add(row.recorded_on)
+  for (const row of args.measures) dates.add(row.recorded_on)
+
+  const points: CompositionTrendPoint[] = []
+  for (const date of [...dates].sort()) {
+    const weightKg = weightOnDate(args.weights, date)
+    if (weightKg === null) continue
+    const result = estimateForDay(
+      sex,
+      args.birthDate,
+      args.heightCm,
+      date,
+      weightKg,
+      measureOnOrBefore(args.measures, date),
+    )
+    if (result.bodyFatPct === null && result.leanMassKg === null) continue
+    points.push({
+      date,
+      bodyFatPct: result.bodyFatPct,
+      leanMassKg: result.leanMassKg,
+      skeletalMuscleKg: result.skeletalMuscleKg,
+    })
+  }
+  return points
+}
+
 /** Newest-first daily estimates from saved tape logs. */
 export function compositionLog(args: CompositionLogInput): CompositionLogRow[] {
   const sex = formulaFromProfile(args.sex)

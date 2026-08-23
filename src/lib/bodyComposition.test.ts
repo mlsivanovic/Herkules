@@ -5,6 +5,7 @@ import {
   ffmiBand,
   ffmiValue,
   compositionLog,
+  compositionTrend,
   firstInvalidBodyGirth,
   formulaFromProfile,
   latestBodyFatPercent,
@@ -205,6 +206,35 @@ describe('formulaFromProfile / latestBodyFatPercent', () => {
     })
     expect(pct).toBeGreaterThan(10)
     expect(pct).toBeLessThan(40)
+  })
+
+  it('charts composition from weigh-ins even without tape logs', () => {
+    const points = compositionTrend({
+      sex: 'male',
+      birthDate: '1990-01-01',
+      heightCm: 180,
+      weights: [
+        { recorded_on: '2026-07-01', weight_kg: 84 },
+        { recorded_on: '2026-08-20', weight_kg: 80 },
+      ],
+      measures: [],
+    })
+    expect(points).toHaveLength(2)
+    expect(points[0]?.date).toBe('2026-07-01')
+    expect(points[0]?.bodyFatPct).toBeGreaterThan(10)
+    expect(points[1]?.leanMassKg).toBeGreaterThan(50)
+  })
+
+  it('needs sex and height before it can chart composition', () => {
+    expect(
+      compositionTrend({
+        sex: null,
+        birthDate: '1990-01-01',
+        heightCm: 180,
+        weights: [{ recorded_on: '2026-08-20', weight_kg: 80 }],
+        measures: [],
+      }),
+    ).toEqual([])
   })
 
   it('keeps saved tape rows visible when profile data and weight are missing', () => {

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import type { TendonCheckinRow } from '../types/db'
+import type { SessionDoc, TendonCheckinRow } from '../types/db'
 import { addDays, formatDateCompact, startOfWeek, todayKey } from '../lib/dates'
 import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import {
@@ -15,10 +15,9 @@ import {
   setsPerMuscleGroup,
   weeklyVolume,
   type PersonalRecord,
-  type WeekVolume,
 } from '../lib/metrics'
-import { compositionLog, type CompositionLogRow } from '../lib/bodyComposition'
-import { weeklyValues } from '../lib/trendChart'
+import { compositionTrend, type CompositionTrendPoint } from '../lib/bodyComposition'
+import { trendWindowStart, weekCountInclusive, weeklyValues, type TrendRange } from '../lib/trendChart'
 import { formatWeight, formatDistance, formatDuration } from '../lib/units'
 import { BarChart, LineChart, MultiLineChart, type MultiChartSeries } from '../components/Chart'
 import { EmptyState, Loader } from '../components/ui'
@@ -27,7 +26,6 @@ import { BodyComposition } from '../components/BodyComposition'
 import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, t as translate, useT } from '../lib/i18n'
 import './progress.css'
 
-const WEEKS_SHOWN = 12
 const PR_VISIBLE = 6
 const PR_RECENT_DAYS = 30
 const PR_NEW_DAYS = 7
@@ -58,11 +56,10 @@ export function Progress() {
     const planned = occurrencesInRange(refs, windowStart, today).length
     const plan = adherence(planned, sessions, windowStart, today)
 
-    const volumeByWeek = weeklyVolume(sessions, WEEKS_SHOWN, weekStartDay, today)
     const muscleSets = setsPerMuscleGroup(sessions, exercises, addDays(today, -30))
     const records = personalRecords(sessions)
 
-    return { totals, plan, volumeByWeek, muscleSets, records }
+    return { totals, plan, muscleSets, records }
   }, [sessions, exercises, schedules, rules, today, weekStartDay])
 
   const trackedExercises = useMemo(() => {
@@ -77,9 +74,9 @@ export function Progress() {
   const selected = trackedExercises.find((e) => e.id === exerciseId) ?? trackedExercises[0]
   const selectedProgress = selected ? exerciseProgress(sessions, selected) : []
 
-  const compositionLogRows = useMemo(
+  const compositionTrendRows = useMemo(
     () =>
-      compositionLog({
+      compositionTrend({
         sex: profile?.sex ?? null,
         birthDate: profile?.birth_date ?? null,
         heightCm: profile?.height_cm ?? null,
@@ -95,11 +92,12 @@ export function Progress() {
 
   const trends = (
     <TrendsPanel
-      volumeByWeek={stats.volumeByWeek}
+      sessions={sessions}
       bodyWeights={bodyWeights}
-      composition={compositionLogRows}
+      composition={compositionTrendRows}
+      weekStartDay={weekStartDay}
+      today={today}
       units={units}
-      includeVolume={sessions.length > 0}
     />
   )
 
@@ -252,28 +250,49 @@ export function Progress() {
 
 type TrendId = 'volume' | 'weight' | 'fat' | 'lean'
 
+const TREND_RANGES: TrendRange[] = ['1m', '3m', '6m', '1y', 'all']
+
 function TrendsPanel({
-  volumeByWeek,
+  sessions,
   bodyWeights,
   composition,
+  weekStartDay,
+  today,
   units,
-  includeVolume,
 }: {
-  volumeByWeek: WeekVolume[]
+  sessions: SessionDoc[]
   bodyWeights: { recorded_on: string; weight_kg: number }[]
-  composition: CompositionLogRow[]
+  composition: CompositionTrendPoint[]
+  weekStartDay: 'monday' | 'sunday'
+  today: string
   units: 'metric' | 'imperial'
-  includeVolume: boolean
 }) {
   const { t } = useT()
+  const [range, setRange] = useState<TrendRange>('3m')
   const [enabled, setEnabled] = useState<Partial<Record<TrendId, boolean>>>({})
 
+  const earliest = useMemo(() => {
+    const dates = [
+      ...sessions.map((session) => session.started_at.slice(0, 10)),
+      ...bodyWeights.map((row) => row.recorded_on),
+      ...composition.map((row) => row.date),
+    ]
+    if (dates.length === 0) return null
+    return dates.reduce((min, date) => (date < min ? date : min))
+  }, [bodyWeights, composition, sessions])
+
+  const volumeByWeek = useMemo(() => {
+    const start = trendWindowStart(range, today, earliest)
+    const weeks = weekCountInclusive(start, today, weekStartDay)
+    return weeklyVolume(sessions, weeks, weekStartDay, today)
+  }, [earliest, range, sessions, today, weekStartDay])
+
   const weekStarts = volumeByWeek.map((week) => week.weekStart)
-  const labels = weekStarts.map((start) => start.slice(5))
+  const labels = weekStarts.map((start) => formatDateCompact(start))
 
   const catalog = useMemo((): MultiChartSeries[] => {
     const series: MultiChartSeries[] = []
-    if (includeVolume) {
+    if (sessions.length > 0) {
       series.push({
         id: 'volume',
         label: t('progress.trendsVolume'),
@@ -282,6 +301,7 @@ function TrendsPanel({
         zeroBased: true,
         formatValue: (value) => formatWeight(Math.round(value), units),
         values: volumeByWeek.map((week) => week.volume),
+        marks: volumeByWeek.map((week) => week.volume > 0),
       })
     }
     const weight = weeklyValues(
@@ -336,7 +356,7 @@ function TrendsPanel({
       })
     }
     return series
-  }, [bodyWeights, composition, includeVolume, t, units, volumeByWeek, weekStarts])
+  }, [bodyWeights, composition, sessions.length, t, units, volumeByWeek, weekStarts])
 
   if (catalog.length === 0) return null
 
@@ -350,10 +370,32 @@ function TrendsPanel({
     })
   }
 
+  const rangeLabel: Record<TrendRange, 'progress.trendsRange1m' | 'progress.trendsRange3m' | 'progress.trendsRange6m' | 'progress.trendsRange1y' | 'progress.trendsRangeAll'> =
+    {
+      '1m': 'progress.trendsRange1m',
+      '3m': 'progress.trendsRange3m',
+      '6m': 'progress.trendsRange6m',
+      '1y': 'progress.trendsRange1y',
+      all: 'progress.trendsRangeAll',
+    }
+
   return (
     <>
       <div className="section-title">{t('progress.trends')}</div>
       <div className="card trends-panel">
+        <div className="row row--wrap" role="group" aria-label={t('progress.trendsRangeAria')}>
+          {TREND_RANGES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={`btn btn--small${range === value ? ' btn--primary' : ''}`}
+              aria-pressed={range === value}
+              onClick={() => setRange(value)}
+            >
+              {t(rangeLabel[value])}
+            </button>
+          ))}
+        </div>
         <div className="row row--wrap" role="group" aria-label={t('progress.trendsSeriesAria')}>
           {catalog.map((row) => {
             const on = enabled[row.id as TrendId] !== false
@@ -376,7 +418,7 @@ function TrendsPanel({
           })}
         </div>
         {visible.length === 0 ? (
-          <p className="muted" style={{ margin: '0.7rem 0 0' }}>
+          <p className="muted" style={{ margin: 0 }}>
             {t('progress.trendsNone')}
           </p>
         ) : (

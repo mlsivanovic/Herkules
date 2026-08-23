@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { valueOnOrBefore, weeklyValues } from './trendChart'
+import { trendWindowStart, valueOnOrBefore, weekCountInclusive, weeklyValues } from './trendChart'
 
 describe('weekly body-metric alignment', () => {
   it('returns the last value on or before a date', () => {
@@ -31,5 +31,17 @@ describe('weekly body-metric alignment', () => {
     ])
     expect(values.map((row) => row.value)).toEqual([null, 82, 82])
     expect(values.map((row) => row.recorded)).toEqual([false, true, false])
+  })
+})
+
+describe('trend window', () => {
+  it('counts week buckets from the window start through today', () => {
+    expect(weekCountInclusive('2026-08-01', '2026-08-23', 'monday')).toBe(4)
+    expect(weekCountInclusive('2026-08-17', '2026-08-23', 'monday')).toBe(1)
+  })
+
+  it('uses the first entry for the all-time window', () => {
+    expect(trendWindowStart('all', '2026-08-23', '2026-01-15')).toBe('2026-01-15')
+    expect(trendWindowStart('1m', '2026-08-23', '2026-01-15')).toBe('2026-07-25')
   })
 })

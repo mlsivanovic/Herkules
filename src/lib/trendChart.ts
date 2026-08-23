@@ -1,5 +1,41 @@
 // Align daily body metrics onto the same weekly buckets as training volume.
-import { addDays, type DateKey } from './dates'
+import { addDays, startOfWeek, type DateKey } from './dates'
+
+export type TrendRange = '1m' | '3m' | '6m' | '1y' | 'all'
+
+const RANGE_DAYS: Record<Exclude<TrendRange, 'all'>, number> = {
+  '1m': 30,
+  '3m': 91,
+  '6m': 182,
+  '1y': 365,
+}
+
+export function trendWindowStart(
+  range: TrendRange,
+  today: DateKey,
+  earliest: DateKey | null,
+): DateKey {
+  if (range === 'all') return earliest ?? addDays(today, 1 - RANGE_DAYS['3m'])
+  return addDays(today, 1 - RANGE_DAYS[range])
+}
+
+/** Number of week buckets from `from` through `to`, inclusive. */
+export function weekCountInclusive(
+  from: DateKey,
+  to: DateKey,
+  weekStartDay: 'monday' | 'sunday',
+): number {
+  const start = startOfWeek(from, weekStartDay)
+  const end = startOfWeek(to, weekStartDay)
+  let count = 1
+  let cursor = start
+  while (cursor < end) {
+    cursor = addDays(cursor, 7)
+    count += 1
+    if (count > 520) break
+  }
+  return count
+}
 
 export interface DateValue {
   date: DateKey

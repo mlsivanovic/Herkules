@@ -1,5 +1,5 @@
 // Progress body-composition section: four summary cards stay visible;
-// details (daily table, charts, strength, tape form) start collapsed.
+// details (daily table, strength, tape form) start collapsed.
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { todayKey } from '../lib/dates'
@@ -12,7 +12,6 @@ import {
 import { strengthFromHistory, type LiftId, type StrengthLevel } from '../lib/strengthLevel'
 import { formatWeight } from '../lib/units'
 import { useT } from '../lib/i18n'
-import { LineChart } from './Chart'
 import { IconChevronDown } from './Icons'
 import { BodyMeasureFields } from './BodyMeasureFields'
 import { useBodyMeasureForm } from './bodyMeasureForm'
@@ -88,7 +87,6 @@ export function BodyComposition() {
   }
   const log = compositionLog(logArgs)
   const latest = latestComposition({ ...logArgs, today })
-  const historyOldestFirst = useMemo(() => [...log].reverse(), [log])
 
   const strength = useMemo(() => {
     if (form.sex === null) return { lifts: [], overall: null }
@@ -209,39 +207,6 @@ export function BodyComposition() {
               </table>
             </div>
           )}
-
-          {historyOldestFirst.length > 1 ? (
-            <>
-              <div className="section-title">{t('body.chartsFat')}</div>
-              <div className="card">
-                <LineChart
-                  points={historyOldestFirst
-                    .filter((point) => point.bodyFatPct !== null)
-                    .map((point) => ({
-                      label: point.date.slice(5),
-                      value: point.bodyFatPct ?? 0,
-                    }))}
-                  formatValue={(value) => t('body.percent', { n: value.toFixed(1) })}
-                  ariaLabel={t('body.chartsFatAria')}
-                  emptyText={t('progress.chartEmpty')}
-                />
-              </div>
-              <div className="section-title">{t('body.chartsLean')}</div>
-              <div className="card">
-                <LineChart
-                  points={historyOldestFirst
-                    .filter((point) => point.leanMassKg !== null)
-                    .map((point) => ({
-                      label: point.date.slice(5),
-                      value: point.leanMassKg ?? 0,
-                    }))}
-                  formatValue={(value) => formatWeight(value, units)}
-                  ariaLabel={t('body.chartsLeanAria')}
-                  emptyText={t('progress.chartEmpty')}
-                />
-              </div>
-            </>
-          ) : null}
 
           <div className="section-title">{t('body.strength')}</div>
           <div className="card stack">

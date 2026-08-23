@@ -1,4 +1,4 @@
-// Progress: totals, streak, adherence, weekly volume, sets per muscle group,
+// Progress: totals, streak, adherence, combined body/volume trends, muscle sets,
 // personal records and per-exercise trend charts.
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -15,9 +15,12 @@ import {
   setsPerMuscleGroup,
   weeklyVolume,
   type PersonalRecord,
+  type WeekVolume,
 } from '../lib/metrics'
+import { compositionLog, type CompositionLogRow } from '../lib/bodyComposition'
+import { weeklyValues } from '../lib/trendChart'
 import { formatWeight, formatDistance, formatDuration } from '../lib/units'
-import { BarChart, LineChart } from '../components/Chart'
+import { BarChart, LineChart, MultiLineChart, type MultiChartSeries } from '../components/Chart'
 import { EmptyState, Loader } from '../components/ui'
 import { IconTrophy } from '../components/Icons'
 import { BodyComposition } from '../components/BodyComposition'
@@ -32,7 +35,8 @@ const PR_NEW_DAYS = 7
 export function Progress() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { sessions, exercises, schedules, rules, profile, ready, bodyWeights, checkins } = useStore()
+  const { sessions, exercises, schedules, rules, profile, ready, bodyWeights, bodyMeasures, checkins } =
+    useStore()
   const [exerciseId, setExerciseId] = useState<string>('')
   const [tendonSite, setTendonSite] = useState<string>('')
 
@@ -73,15 +77,38 @@ export function Progress() {
   const selected = trackedExercises.find((e) => e.id === exerciseId) ?? trackedExercises[0]
   const selectedProgress = selected ? exerciseProgress(sessions, selected) : []
 
+  const compositionLogRows = useMemo(
+    () =>
+      compositionLog({
+        sex: profile?.sex ?? null,
+        birthDate: profile?.birth_date ?? null,
+        heightCm: profile?.height_cm ?? null,
+        weights: bodyWeights,
+        measures: bodyMeasures,
+      }),
+    [profile?.sex, profile?.birth_date, profile?.height_cm, bodyWeights, bodyMeasures],
+  )
+
   if (!ready) return <Loader />
 
   const composition = <BodyComposition />
+
+  const trends = (
+    <TrendsPanel
+      volumeByWeek={stats.volumeByWeek}
+      bodyWeights={bodyWeights}
+      composition={compositionLogRows}
+      units={units}
+      includeVolume={sessions.length > 0}
+    />
+  )
 
   if (sessions.length === 0) {
     return (
       <div>
         <h1>{t('progress.title')}</h1>
         {composition}
+        {trends}
         <EmptyState
           title={t('progress.emptyTitle')}
           hint={t('progress.emptyHint')}
@@ -124,37 +151,7 @@ export function Progress() {
         </div>
       </div>
 
-      {bodyWeights.length > 0 ? (
-        <>
-          <div className="section-title">{t('progress.bodyWeight')}</div>
-          <div className="card">
-            <LineChart
-              points={[...bodyWeights]
-                .sort((a, b) => (a.recorded_on < b.recorded_on ? -1 : 1))
-                .map((row) => ({
-                  label: row.recorded_on.slice(5),
-                  value: row.weight_kg,
-                }))}
-              formatValue={(value) => formatWeight(value, units)}
-              ariaLabel={t('progress.bodyWeightAria')}
-              emptyText={t('progress.chartEmpty')}
-            />
-          </div>
-        </>
-      ) : null}
-
-      <div className="section-title">{t('progress.weeklyVolume')}</div>
-      <div className="card">
-        <LineChart
-          points={stats.volumeByWeek.map((week) => ({
-            label: week.weekStart.slice(5),
-            value: Math.round(week.volume),
-          }))}
-          formatValue={(value) => t('progress.volumeFmt', { value: formatWeight(value, units) })}
-          ariaLabel={t('progress.weeklyVolumeAria')}
-          emptyText={t('progress.chartEmpty')}
-        />
-      </div>
+      {trends}
 
       <div className="section-title">{t('progress.muscleSets')}</div>
       <div className="card">
@@ -250,6 +247,169 @@ export function Progress() {
         </>
       ) : null}
     </div>
+  )
+}
+
+type TrendId = 'volume' | 'weight' | 'fat' | 'lean'
+
+function TrendsPanel({
+  volumeByWeek,
+  bodyWeights,
+  composition,
+  units,
+  includeVolume,
+}: {
+  volumeByWeek: WeekVolume[]
+  bodyWeights: { recorded_on: string; weight_kg: number }[]
+  composition: CompositionLogRow[]
+  units: 'metric' | 'imperial'
+  includeVolume: boolean
+}) {
+  const { t } = useT()
+  const [enabled, setEnabled] = useState<Partial<Record<TrendId, boolean>>>({})
+
+  const weekStarts = volumeByWeek.map((week) => week.weekStart)
+  const labels = weekStarts.map((start) => start.slice(5))
+
+  const catalog = useMemo((): MultiChartSeries[] => {
+    const series: MultiChartSeries[] = []
+    if (includeVolume) {
+      series.push({
+        id: 'volume',
+        label: t('progress.trendsVolume'),
+        color: 'var(--c-primary)',
+        areaFill: 'var(--c-primary-soft)',
+        zeroBased: true,
+        formatValue: (value) => formatWeight(Math.round(value), units),
+        values: volumeByWeek.map((week) => week.volume),
+      })
+    }
+    const weight = weeklyValues(
+      weekStarts,
+      bodyWeights.map((row) => ({ date: row.recorded_on, value: row.weight_kg })),
+    )
+    if (weight.some((row) => row.value !== null)) {
+      series.push({
+        id: 'weight',
+        label: t('progress.trendsWeight'),
+        color: 'var(--c-accent)',
+        areaFill: 'var(--c-accent-soft)',
+        formatValue: (value) => formatWeight(value, units),
+        values: weight.map((row) => row.value),
+        marks: weight.map((row) => row.recorded),
+      })
+    }
+    const fat = weeklyValues(
+      weekStarts,
+      composition.flatMap((row) =>
+        row.bodyFatPct === null ? [] : [{ date: row.date, value: row.bodyFatPct }],
+      ),
+    )
+    if (fat.some((row) => row.value !== null)) {
+      series.push({
+        id: 'fat',
+        label: t('body.bodyFat'),
+        color: 'var(--c-warning)',
+        dash: '6 4',
+        areaFill: 'var(--c-warning-soft)',
+        formatValue: (value) => t('body.percent', { n: value.toFixed(1) }),
+        values: fat.map((row) => row.value),
+        marks: fat.map((row) => row.recorded),
+      })
+    }
+    const lean = weeklyValues(
+      weekStarts,
+      composition.flatMap((row) =>
+        row.leanMassKg === null ? [] : [{ date: row.date, value: row.leanMassKg }],
+      ),
+    )
+    if (lean.some((row) => row.value !== null)) {
+      series.push({
+        id: 'lean',
+        label: t('body.leanMass'),
+        color: 'var(--c-success)',
+        dash: '2 3',
+        areaFill: 'var(--c-success-soft)',
+        formatValue: (value) => formatWeight(value, units),
+        values: lean.map((row) => row.value),
+        marks: lean.map((row) => row.recorded),
+      })
+    }
+    return series
+  }, [bodyWeights, composition, includeVolume, t, units, volumeByWeek, weekStarts])
+
+  if (catalog.length === 0) return null
+
+  const visible = catalog.filter((row) => enabled[row.id as TrendId] !== false)
+
+  function toggle(id: TrendId) {
+    setEnabled((prev) => {
+      const next = { ...prev, [id]: prev[id] === false }
+      const onCount = catalog.filter((row) => next[row.id as TrendId] !== false).length
+      return onCount === 0 ? prev : next
+    })
+  }
+
+  return (
+    <>
+      <div className="section-title">{t('progress.trends')}</div>
+      <div className="card trends-panel">
+        <div className="row row--wrap" role="group" aria-label={t('progress.trendsSeriesAria')}>
+          {catalog.map((row) => {
+            const on = enabled[row.id as TrendId] !== false
+            return (
+              <button
+                key={row.id}
+                type="button"
+                className={`btn btn--small${on ? ' btn--primary' : ''}`}
+                aria-pressed={on}
+                onClick={() => toggle(row.id as TrendId)}
+              >
+                <span
+                  className="chart-legend__swatch"
+                  style={{ background: row.color }}
+                  aria-hidden="true"
+                />
+                {row.label}
+              </button>
+            )
+          })}
+        </div>
+        {visible.length === 0 ? (
+          <p className="muted" style={{ margin: '0.7rem 0 0' }}>
+            {t('progress.trendsNone')}
+          </p>
+        ) : (
+          <div className="trends-chart">
+            <MultiLineChart
+              labels={labels}
+              series={visible}
+              ariaLabel={t('progress.trendsAria')}
+              emptyText={t('progress.chartEmpty')}
+            />
+            <ul className="chart-legend">
+              {visible.map((row) => {
+                const latest = [...row.values].reverse().find((value) => value !== null)
+                return (
+                  <li key={row.id} className="chart-legend__item">
+                    <span
+                      className={`chart-legend__swatch${row.dash ? ' chart-legend__swatch--dash' : ''}`}
+                      style={{ background: row.color }}
+                      aria-hidden="true"
+                    />
+                    {row.label}
+                    {latest !== undefined && latest !== null ? ` · ${row.formatValue(latest)}` : ''}
+                  </li>
+                )
+              })}
+            </ul>
+            {visible.length > 1 ? (
+              <p className="muted chart-scale">{t('progress.trendsScale')}</p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

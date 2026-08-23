@@ -147,3 +147,13 @@
   width: 100%;
   margin-top: 0.45rem;
 }
+
+.trends-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.trends-chart {
+  min-width: 0;
+}

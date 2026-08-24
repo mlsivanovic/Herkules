@@ -16,6 +16,7 @@ import {
   IconUser,
 } from './Icons'
 import { BrandLogo } from './BrandLogo'
+import { ActiveWorkoutBanner } from './ActiveWorkoutBanner'
 import './appLayout.css'
 
 export function AppLayout() {
@@ -110,6 +111,8 @@ export function AppLayout() {
         <main className="app-content" id="main-content">
           <Outlet />
         </main>
+
+        <ActiveWorkoutBanner />
 
         <nav className="app-bottom-nav" aria-label={t('nav.main')}>
           {tabs.map(({ to, label, Icon }) => (

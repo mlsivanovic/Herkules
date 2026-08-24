@@ -330,10 +330,14 @@ export async function reconcileStore(
   const db = await getDb()
   const tx = db.transaction(store, 'readwrite')
   const local = await tx.store.getAll()
+  const serverMap = new Map(serverRows.map((r) => [r.id, r]))
+  const localIdSet = new Set<string>()
+
   for (const entry of local) {
     const id = String(entry.value.id)
+    localIdSet.add(id)
     if (entry.dirty) continue
-    const serverRow = serverRows.find((r) => r.id === id)
+    const serverRow = serverMap.get(id)
     if (serverRow) {
       await tx.store.put({
         value: serverRow as unknown as Record<string, unknown>,
@@ -344,7 +348,7 @@ export async function reconcileStore(
     }
   }
   for (const row of serverRows) {
-    if (!local.some((e) => String(e.value.id) === row.id)) {
+    if (!localIdSet.has(row.id)) {
       await tx.store.put({ value: row as unknown as Record<string, unknown>, dirty: false })
     }
   }

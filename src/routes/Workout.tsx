@@ -18,7 +18,6 @@ import { distanceForInput, formatDuration, formatWeight, formatDistance, weightF
 import { formatSetLoad, isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { formVideoUrl } from '../lib/video'
 import { previousSetsForExercise } from '../lib/metrics'
-import { timerCue } from '../lib/cues'
 import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
@@ -30,10 +29,13 @@ import {
   IconGrip,
   IconPlay,
   IconPlus,
+  IconSun,
   IconSwap,
   IconTimer,
   IconTrash,
 } from '../components/Icons'
+import { useRestTimer } from '../lib/restTimer'
+import { useScreenWakeLock } from '../lib/wakeLock'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
 import './workout.css'
 
@@ -59,10 +61,19 @@ export function Workout() {
   const [finishBusy, setFinishBusy] = useState(false)
   const [finishError, setFinishError] = useState<string | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
-  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const {
+    remaining: restRemaining,
+    start: startRest,
+    addSeconds: addRestSeconds,
+    skip: skipRest,
+  } = useRestTimer()
   const [intervalsOpen, setIntervalsOpen] = useState(false)
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
+  const [wakeLockEnabled, setWakeLockEnabled] = useState(true)
+  const { isLocked: wakeLocked, isSupported: wakeLockSupported } = useScreenWakeLock(
+    wakeLockEnabled && active !== null,
+  )
   const startingRef = useRef(false)
   const [announce, setAnnounce] = useState('')
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
@@ -145,6 +156,17 @@ export function Workout() {
           </span>
         </div>
         <span className="row">
+          {wakeLockSupported ? (
+            <button
+              type="button"
+              className={`btn btn--icon btn--small ${wakeLocked ? 'btn--primary' : ''}`}
+              aria-label={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+              title={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+              onClick={() => setWakeLockEnabled((prev) => !prev)}
+            >
+              <IconSun width={18} height={18} />
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--icon btn--small"
@@ -256,7 +278,7 @@ export function Workout() {
                 })
               }}
               onSwap={() => setSwapTarget(se.id)}
-              onRestStart={(seconds) => setRestRemaining(seconds)}
+              onRestStart={(seconds) => startRest(seconds)}
             />
             </Fragment>
           )})}
@@ -272,8 +294,8 @@ export function Workout() {
       {restRemaining !== null ? (
         <RestChip
           remaining={restRemaining}
-          onTick={setRestRemaining}
-          onDone={() => setRestRemaining(null)}
+          onAdd15={() => addRestSeconds(15)}
+          onSkip={skipRest}
         />
       ) : null}
 
@@ -980,32 +1002,23 @@ function elapsedOf(session: SessionDoc): number {
 
 function RestChip({
   remaining,
-  onTick,
-  onDone,
+  onAdd15,
+  onSkip,
 }: {
   remaining: number
-  onTick(value: number): void
-  onDone(): void
+  onAdd15(): void
+  onSkip(): void
 }) {
   const { t } = useT()
-  useEffect(() => {
-    if (remaining <= 0) {
-      timerCue()
-      onDone()
-      return
-    }
-    const timer = window.setTimeout(() => onTick(remaining - 1), 1000)
-    return () => window.clearTimeout(timer)
-  }, [remaining, onTick, onDone])
 
   return (
     <div className="rest-chip" role="status">
       <IconTimer width={18} height={18} />
       <span className="mono">{t('workout.rest', { time: formatDuration(remaining) })}</span>
-      <button type="button" className="btn btn--small" onClick={() => onTick(remaining + 15)}>
+      <button type="button" className="btn btn--small" onClick={onAdd15}>
         {t('common.plus15')}
       </button>
-      <button type="button" className="btn btn--small btn--ghost" onClick={onDone}>
+      <button type="button" className="btn btn--small btn--ghost" onClick={onSkip}>
         {t('common.skip')}
       </button>
     </div>

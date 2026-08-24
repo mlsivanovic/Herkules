@@ -596,6 +596,18 @@ export const sr: Messages = {
     withPartners: 'sa {names}',
     distanceInTime: '{distance} za {duration}',
     collapseToReorder: 'Skupi {name} da promeniš redosled',
+    wakeLockEnabled: 'Ekran ostaje upaljen',
+    wakeLockDisabled: 'Ekran se gasi normalno',
+    wakeLockToggle: 'Drži ekran upaljenim',
+  },
+  rest: {
+    notificationTitle: 'Odmor završen',
+    notificationBody: 'Vreme je za sledeću seriju u Herkulesu!',
+  },
+  activeBanner: {
+    title: 'Aktivan trening: {name}',
+    resume: 'Nastavi',
+    rest: 'Odmor {time}',
   },
   set: {
     setN: 'Serija {n}',

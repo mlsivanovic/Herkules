@@ -1,0 +1,108 @@
+/* Floating active workout banner */
+
+.active-workout-banner {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
+  left: 12px;
+  right: 12px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--c-card);
+  border: 1px solid var(--c-primary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 0 12px var(--c-primary-soft);
+  cursor: pointer;
+  animation: banner-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes banner-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.active-workout-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.active-workout-banner__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--c-primary);
+  flex-shrink: 0;
+  animation: banner-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes banner-pulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+    box-shadow: 0 0 8px var(--c-primary);
+  }
+}
+
+.active-workout-banner__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.active-workout-banner__name {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--c-text);
+}
+
+.active-workout-banner__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+.active-workout-banner__rest {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.74rem;
+}
+
+.active-workout-banner__btn {
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .active-workout-banner {
+    bottom: 16px;
+    left: calc(220px + 24px);
+    right: 24px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+}

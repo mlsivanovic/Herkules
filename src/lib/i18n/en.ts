@@ -595,6 +595,18 @@ export const en = {
     withPartners: 'with {names}',
     distanceInTime: '{distance} in {duration}',
     collapseToReorder: 'Collapse {name} to reorder',
+    wakeLockEnabled: 'Screen awake (keep on)',
+    wakeLockDisabled: 'Screen sleep normal',
+    wakeLockToggle: 'Keep screen awake',
+  },
+  rest: {
+    notificationTitle: 'Rest Complete',
+    notificationBody: 'Time for your next set in Herkules!',
+  },
+  activeBanner: {
+    title: 'Active workout: {name}',
+    resume: 'Resume',
+    rest: 'Rest {time}',
   },
   set: {
     setN: 'Set {n}',

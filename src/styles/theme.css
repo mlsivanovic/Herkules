@@ -20,6 +20,12 @@
   --c-danger: #b91c1c;
   --c-danger-soft: #fee2e2;
   --c-track: #cbd5e1;
+  --c-rest-bg: #ea580c;
+  --c-rest-fg: #fff7ed;
+  --c-rest-border: #c2410c;
+  --c-rest-shadow: 0 10px 28px rgb(234 88 12 / 0.42), 0 2px 8px rgb(15 23 42 / 0.12);
+  --c-rest-btn-bg: #fff7ed;
+  --c-rest-btn-fg: #9a3412;
   --shadow: 0 1px 3px rgb(15 23 42 / 0.08), 0 4px 16px rgb(15 23 42 / 0.06);
   --radius: 14px;
   --radius-s: 10px;
@@ -49,5 +55,11 @@
   --c-danger: #f87171;
   --c-danger-soft: #3b1a1a;
   --c-track: #2c3a58;
+  --c-rest-bg: #fbbf24;
+  --c-rest-fg: #1a0f00;
+  --c-rest-border: #f59e0b;
+  --c-rest-shadow: 0 12px 32px rgb(251 191 36 / 0.48), 0 0 0 1px rgb(253 224 71 / 0.4);
+  --c-rest-btn-bg: #1a0f00;
+  --c-rest-btn-fg: #fde68a;
   --shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
 }

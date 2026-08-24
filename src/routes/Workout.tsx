@@ -1031,9 +1031,16 @@ function RestChip({
   const { t } = useT()
 
   return (
-    <div className="rest-chip" role="status">
-      <IconTimer width={18} height={18} />
-      <span className="mono">{t('workout.rest', { time: formatDuration(remaining) })}</span>
+    <div
+      className="rest-chip"
+      role="status"
+      aria-label={t('workout.rest', { time: formatDuration(remaining) })}
+    >
+      <IconTimer width={22} height={22} />
+      <span className="rest-chip__copy">
+        <span className="rest-chip__label">{t('workout.restLabel')}</span>
+        <span className="rest-chip__time mono">{formatDuration(remaining)}</span>
+      </span>
       <button type="button" className="btn btn--small" onClick={onAdd15}>
         {t('common.plus15')}
       </button>

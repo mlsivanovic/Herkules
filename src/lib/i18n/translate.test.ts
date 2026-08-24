@@ -40,6 +40,11 @@ describe('t', () => {
     expect(t('workout.setsLabel', undefined, 'sr')).toBe('Serije')
   })
 
+  it('translates rest chip label', () => {
+    expect(t('workout.restLabel', undefined, 'en')).toBe('Rest')
+    expect(t('workout.restLabel', undefined, 'sr')).toBe('Odmor')
+  })
+
   it('translates collapse-to-reorder copy', () => {
     expect(t('workout.collapseToReorder', { name: 'Squat' }, 'en')).toBe(
       'Collapse Squat to reorder',

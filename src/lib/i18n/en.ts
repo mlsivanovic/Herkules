@@ -578,6 +578,7 @@ export const en = {
     sessionRpe: 'Session RPE (1–10)',
     applyDouble: 'Apply double progression',
     rest: 'Rest {time}',
+    restLabel: 'Rest',
     firstTime: 'First time with this exercise — no history yet.',
     explosive: 'Explosive intent',
     warmup: 'Warm-up',

@@ -152,17 +152,55 @@
   z-index: 70;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.9rem;
+  flex-wrap: nowrap;
+  gap: 0.7rem;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.65rem 1rem 0.65rem 1.05rem;
   border-radius: 999px;
-  background: #101a2e;
-  color: #e6edf7;
-  box-shadow: var(--shadow);
+  background: var(--c-rest-bg);
+  color: var(--c-rest-fg);
+  border: 1px solid var(--c-rest-border);
+  box-shadow: var(--c-rest-shadow);
+  font-weight: 800;
+}
+
+.rest-chip__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.05;
+  min-width: 0;
+}
+
+.rest-chip__label {
+  font-size: 0.68rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.rest-chip__time {
+  font-size: 1.28rem;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
 .workout-page .rest-chip .btn {
-  min-height: 34px;
+  min-height: 40px;
+  padding: 0 0.8rem;
+  font-size: 0.92rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: var(--c-rest-btn-bg);
+  border-color: var(--c-rest-btn-bg);
+  color: var(--c-rest-btn-fg);
+}
+
+.workout-page .rest-chip .btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--c-rest-fg);
 }
 
 /* Plate / warm-up calculator output */

@@ -579,6 +579,7 @@ export const sr: Messages = {
     sessionRpe: 'RPE sesije (1–10)',
     applyDouble: 'Primeni dvostruku progresiju',
     rest: 'Odmor {time}',
+    restLabel: 'Odmor',
     firstTime: 'Prvi put sa ovom vežbom — još nema istorije.',
     explosive: 'Eksplozivna namera',
     warmup: 'Zagrevanje',

@@ -36,6 +36,7 @@ import {
 } from '../components/Icons'
 import { useRestTimer } from '../lib/restTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
+import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
 import './workout.css'
 
@@ -430,6 +431,10 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const message = startError ?? error
+  const routineGroups = useMemo(
+    () => templatesGroupedByPlan(store.plans, store.templates),
+    [store.plans, store.templates],
+  )
 
   function start(input: Parameters<typeof store.startSession>[0]) {
     setBusy(true)
@@ -472,11 +477,20 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
         >
           <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
         </button>
+        {routineGroups.length === 0 ? <p className="muted">{t('workout.noRoutines')}</p> : null}
+      </div>
 
-        {store.templates.length > 0 ? (
-          <>
-            <div className="section-title">{t('workout.fromRoutine')}</div>
-            {store.templates.map((template) => (
+      {routineGroups.map((group) => (
+        <Fragment key={group.plan?.id ?? 'unassigned'}>
+          <div className="section-title">
+            {group.plan
+              ? group.plan.name
+              : routineGroups.length === 1
+                ? t('workout.fromRoutine')
+                : t('routines.unassigned')}
+          </div>
+          <div className="stack">
+            {group.templates.map((template) => (
               <button
                 key={template.id}
                 type="button"
@@ -494,11 +508,9 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
                 </span>
               </button>
             ))}
-          </>
-        ) : (
-          <p className="muted">{t('workout.noRoutines')}</p>
-        )}
-      </div>
+          </div>
+        </Fragment>
+      ))}
     </div>
   )
 }

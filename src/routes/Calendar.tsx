@@ -16,6 +16,7 @@ import { dayStatus, occurrencesInRange, type ScheduleRef } from '../lib/recurren
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
+import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { nextTemplateForPlan } from '../lib/programs/plans'
 import { bcp47, useT } from '../lib/i18n'
 import './calendar.css'
@@ -372,8 +373,11 @@ function DayDetail({
 
 function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }) {
   const { t } = useT()
-  const { templates, scheduleSingleDate, scheduleWeekly } = useStore()
-  const [templateId, setTemplateId] = useState(templates[0]?.id ?? '')
+  const { plans, templates, scheduleSingleDate, scheduleWeekly } = useStore()
+  const routineGroups = useMemo(() => templatesGroupedByPlan(plans, templates), [plans, templates])
+  const [templateId, setTemplateId] = useState(
+    () => routineGroups[0]?.templates[0]?.id ?? templates[0]?.id ?? '',
+  )
   const [mode, setMode] = useState<'once' | 'weekly'>('once')
   const initialWeekday = isoWeekday(dayKey)
   const [weekdays, setWeekdays] = useState<number[]>([initialWeekday])
@@ -435,11 +439,22 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
         >
-          {templates.map((tpl) => (
-            <option key={tpl.id} value={tpl.id}>
-              {tpl.name}
-            </option>
-          ))}
+          {routineGroups.map((group) => {
+            const options = group.templates.map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name}
+              </option>
+            ))
+            if (routineGroups.length === 1) return options
+            return (
+              <optgroup
+                key={group.plan?.id ?? 'unassigned'}
+                label={group.plan?.name ?? t('routines.unassigned')}
+              >
+                {options}
+              </optgroup>
+            )
+          })}
         </select>
       </div>
 

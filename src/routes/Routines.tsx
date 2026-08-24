@@ -13,6 +13,7 @@ import {
 import {
   equipmentCopyKey,
   isStarterInstalled,
+  sortPlansForDisplay,
   STARTER_PROGRAMS,
   type StarterProgram,
 } from '../lib/programs/catalog'
@@ -42,6 +43,7 @@ export function Routines() {
   const [ioError, setIoError] = useState<string | null>(null)
 
   const loose = useMemo(() => unassignedTemplates(templates), [templates])
+  const orderedPlans = useMemo(() => sortPlansForDisplay(plans), [plans])
 
   async function addProgram(program: StarterProgram) {
     setBusyKey(program.sourceKey)
@@ -233,7 +235,7 @@ export function Routines() {
         />
       ) : (
         <ul className="exercise-list">
-          {plans.map((plan) => {
+          {orderedPlans.map((plan) => {
             const days = sortPlanTemplates(templates, plan.id)
             return (
               <li key={plan.id}>

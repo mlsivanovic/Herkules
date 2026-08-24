@@ -8,6 +8,7 @@ import {
   HYBRID_PLAN_NAME,
   HYBRID_PLAN_NOTES,
   planBySourceKey,
+  sortPlanTemplates,
 } from './plans'
 import {
   HYBRID_SOURCE_KEY,
@@ -136,6 +137,55 @@ export const STARTER_PROGRAMS: StarterProgram[] = [
 
 export function starterBySourceKey(sourceKey: string): StarterProgram | null {
   return STARTER_PROGRAMS.find((program) => program.sourceKey === sourceKey) ?? null
+}
+
+/** Catalog order for starters (Hybrid first), then custom plans by created_at. */
+export function sortPlansForDisplay(plans: TrainingPlanRow[]): TrainingPlanRow[] {
+  return [...plans].sort((a, b) => {
+    const rank = starterRank(a) - starterRank(b)
+    if (rank !== 0) return rank
+    return a.created_at.localeCompare(b.created_at) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+  })
+}
+
+function starterRank(plan: TrainingPlanRow): number {
+  if (plan.source_key) {
+    const byKey = STARTER_PROGRAMS.findIndex((row) => row.sourceKey === plan.source_key)
+    if (byKey >= 0) return byKey
+  }
+  const byName = STARTER_PROGRAMS.findIndex((row) => row.planName === plan.name)
+  if (byName >= 0) return byName
+  return STARTER_PROGRAMS.length
+}
+
+export interface TemplatePlanGroup<T> {
+  plan: TrainingPlanRow | null
+  templates: T[]
+}
+
+/** Routines grouped by plan (catalog order, days by plan_position), then unassigned. */
+export function templatesGroupedByPlan<
+  T extends { id: string; name: string; plan_id: string | null; plan_position: number },
+>(plans: TrainingPlanRow[], templates: T[]): TemplatePlanGroup<T>[] {
+  const groups: TemplatePlanGroup<T>[] = []
+  const seen = new Set<string>()
+  for (const plan of sortPlansForDisplay(plans)) {
+    const days = sortPlanTemplates(templates, plan.id)
+    if (days.length === 0) continue
+    groups.push({ plan, templates: days })
+    for (const row of days) seen.add(row.id)
+  }
+  const rest = templates
+    .filter((row) => !seen.has(row.id))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+  if (rest.length > 0) groups.push({ plan: null, templates: rest })
+  return groups
+}
+
+export function sortTemplatesForDisplay<
+  T extends { id: string; name: string; plan_id: string | null; plan_position: number },
+>(plans: TrainingPlanRow[], templates: T[]): T[] {
+  return templatesGroupedByPlan(plans, templates).flatMap((group) => group.templates)
 }
 
 export function starterSlots(program: StarterProgram): DaySlot[] {

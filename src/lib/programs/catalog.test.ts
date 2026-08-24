@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { STARTER_PROGRAMS, starterBySourceKey } from './catalog'
+import type { TemplateRow, TrainingPlanRow } from '../../types/db'
+import {
+  STARTER_PROGRAMS,
+  sortPlansForDisplay,
+  sortTemplatesForDisplay,
+  starterBySourceKey,
+  templatesGroupedByPlan,
+} from './catalog'
 import { SYS } from './exercises'
 import { HYBRID_SOURCE_KEY } from './hybrid4day'
 import { buildProgramRows, buildProgramUpgrade, isCanonicalRecipe } from './recipe'
@@ -96,5 +103,79 @@ describe('starter catalog', () => {
     expect(home2Ids).toContain(SYS.pullUp)
     expect(home2Ids).toContain(SYS.bulgarianSplitSquat)
     expect(home2Ids).toContain(SYS.trxFacePull)
+  })
+})
+
+const NOW = '2026-08-19T12:00:00.000Z'
+
+function plan(id: string, patch: Partial<TrainingPlanRow> & Pick<TrainingPlanRow, 'name'>): TrainingPlanRow {
+  return {
+    id,
+    owner_id: 'u1',
+    notes: null,
+    created_at: NOW,
+    updated_at: NOW,
+    ...patch,
+  }
+}
+
+function template(
+  id: string,
+  patch: Partial<TemplateRow> & Pick<TemplateRow, 'name'>,
+): TemplateRow {
+  return {
+    id,
+    owner_id: 'u1',
+    notes: null,
+    plan_id: null,
+    plan_position: 0,
+    created_at: NOW,
+    updated_at: NOW,
+    ...patch,
+  }
+}
+
+describe('start-workout plan order', () => {
+  it('lists Hybrid A–D before Home 2-day A–B even if Home was created first', () => {
+    const hybrid = plan('ph', {
+      name: 'Hybrid 4-day',
+      source_key: HYBRID_SOURCE_KEY,
+      created_at: '2026-08-24T00:00:00.000Z',
+    })
+    const home = plan('p2', {
+      name: 'Home 2-day',
+      source_key: HOME2_SOURCE_KEY,
+      created_at: '2026-08-01T00:00:00.000Z',
+    })
+    const rows = [
+      template('hb', { name: 'Hybrid B', plan_id: 'ph', plan_position: 1 }),
+      template('ha', { name: 'Home A', plan_id: 'p2', plan_position: 0 }),
+      template('hd', { name: 'Hybrid D', plan_id: 'ph', plan_position: 3 }),
+      template('home-b', { name: 'Home B', plan_id: 'p2', plan_position: 1 }),
+      template('hc', { name: 'Hybrid C', plan_id: 'ph', plan_position: 2 }),
+      template('hybrid-a', { name: 'Hybrid A', plan_id: 'ph', plan_position: 0 }),
+      template('loose', { name: 'Z extra' }),
+    ]
+    expect(sortPlansForDisplay([home, hybrid]).map((row) => row.id)).toEqual(['ph', 'p2'])
+    expect(sortTemplatesForDisplay([home, hybrid], rows).map((row) => row.name)).toEqual([
+      'Hybrid A',
+      'Hybrid B',
+      'Hybrid C',
+      'Hybrid D',
+      'Home A',
+      'Home B',
+      'Z extra',
+    ])
+    expect(templatesGroupedByPlan([home, hybrid], rows).map((group) => group.plan?.name ?? null)).toEqual([
+      'Hybrid 4-day',
+      'Home 2-day',
+      null,
+    ])
+  })
+
+  it('ranks a legacy Hybrid plan by name when source_key is missing', () => {
+    const hybrid = plan('ph', { name: 'Hybrid 4-day' })
+    const custom = plan('pc', { name: 'PPL', created_at: '2026-01-01T00:00:00.000Z' })
+    expect(sortPlansForDisplay([custom, hybrid]).map((row) => row.id)).toEqual(['ph', 'pc'])
   })
 })

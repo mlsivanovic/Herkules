@@ -7,26 +7,34 @@ import { t } from './i18n'
 
 export const REST_STORAGE_KEY = 'herkules:rest-target-ms'
 
+let memoryTargetMs: number | null = null
+
 export function readRestTarget(): number | null {
   try {
-    const raw = sessionStorage.getItem(REST_STORAGE_KEY)
-    if (!raw) return null
-    const ms = Number(raw)
-    return Number.isFinite(ms) && ms > 0 ? ms : null
+    if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+      const raw = sessionStorage.getItem(REST_STORAGE_KEY)
+      if (!raw) return null
+      const ms = Number(raw)
+      return Number.isFinite(ms) && ms > 0 ? ms : null
+    }
   } catch {
-    return null
+    /* private browsing or restricted iframe */
   }
+  return memoryTargetMs
 }
 
 export function writeRestTarget(targetMs: number | null): void {
+  memoryTargetMs = targetMs
   try {
-    if (targetMs !== null && targetMs > 0) {
-      sessionStorage.setItem(REST_STORAGE_KEY, String(targetMs))
-    } else {
-      sessionStorage.removeItem(REST_STORAGE_KEY)
+    if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+      if (targetMs !== null && targetMs > 0) {
+        sessionStorage.setItem(REST_STORAGE_KEY, String(targetMs))
+      } else {
+        sessionStorage.removeItem(REST_STORAGE_KEY)
+      }
     }
   } catch {
-    /* private mode */
+    /* private browsing or restricted iframe */
   }
 }
 

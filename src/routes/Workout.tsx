@@ -223,15 +223,6 @@ export function Workout() {
         />
       ) : (
         <div className="stack">
-          {(active.session_blocks ?? [])
-            .filter((block) => !active.session_exercises.some((exercise) => exercise.session_block_id === block.id))
-            .map((block) => (
-              <div key={block.id} className="card workout-block-head">
-                <span className="badge badge--planned">{workoutRoleLabel(block.role)}</span>
-                <strong>{blockFormatLabel(block.format)}</strong>
-                {block.notes ? <small className="muted">{block.notes}</small> : null}
-              </div>
-            ))}
           {orderedExercises.map((se, index) => {
             const block = active.session_blocks?.find((row) => row.id === se.session_block_id) ?? null
             const previous = index > 0 ? orderedExercises[index - 1] : null

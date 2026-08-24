@@ -1185,9 +1185,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               .filter((i) => i.template_id === template.id)
               .sort((a, b) => a.position - b.position)
           : []
+        const usedBlockIds = new Set(
+          items.map((item) => item.block_id).filter((id): id is string => Boolean(id)),
+        )
         const templateBlocks = template
           ? all.templateBlocks
-              .filter((block) => block.template_id === template.id)
+              .filter((block) => block.template_id === template.id && usedBlockIds.has(block.id))
               .sort((a, b) => a.position - b.position)
           : []
 

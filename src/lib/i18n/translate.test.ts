@@ -35,6 +35,11 @@ describe('t', () => {
     expect(t('editor.deletePlanKeepRoutines', undefined, 'sr')).toBe('Zadrži rutine')
   })
 
+  it('translates compact workout header stats', () => {
+    expect(t('workout.elapsed', undefined, 'en')).toBe('Time')
+    expect(t('workout.setsLabel', undefined, 'sr')).toBe('Serije')
+  })
+
   it('translates collapse-to-reorder copy', () => {
     expect(t('workout.collapseToReorder', { name: 'Squat' }, 'en')).toBe(
       'Collapse Squat to reorder',

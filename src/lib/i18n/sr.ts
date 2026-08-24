@@ -550,6 +550,8 @@ export const sr: Messages = {
     preparing: 'Priprema treninga…',
     back: '← Nazad',
     setsDone: '{count} serija urađeno',
+    elapsed: 'Vreme',
+    setsLabel: 'Serije',
     intervalTimer: 'Interval tajmer',
     discard: 'Odbaci',
     finish: 'Završi',

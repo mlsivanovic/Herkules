@@ -143,47 +143,16 @@ export function Workout() {
     return <StartScreen onStarted={() => navigate('/workout', { replace: true })} error={startError} />
   }
 
+  const completedSets = countCompletedSets(active)
+
   return (
     <div className="workout-page">
       <header className="workout-header">
-        <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
-          {t('workout.back')}
-        </button>
-        <div className="workout-title">
-          <strong>{active.name}</strong>
-          <span className="muted mono">
-            <Elapsed startedAt={active.started_at} /> ·{' '}
-            {t('workout.setsDone', { count: countCompletedSets(active) })}
-          </span>
-        </div>
-        <span className="row">
-          {wakeLockSupported ? (
-            <button
-              type="button"
-              className={`btn btn--icon btn--small ${wakeLocked ? 'btn--primary' : ''}`}
-              aria-label={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
-              title={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
-              onClick={() => setWakeLockEnabled((prev) => !prev)}
-            >
-              <IconSun width={18} height={18} />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn--icon btn--small"
-            aria-label={t('workout.intervalTimer')}
-            title={t('workout.intervalTimer')}
-            onClick={() => setIntervalsOpen(true)}
-          >
-            <IconTimer width={18} height={18} />
+        <div className="workout-header__bar">
+          <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
+            {t('workout.back')}
           </button>
-          <button
-            type="button"
-            className="btn btn--small"
-            onClick={() => setDiscardOpen(true)}
-          >
-            {t('workout.discard')}
-          </button>
+          <h1 className="workout-title">{active.name}</h1>
           <button
             type="button"
             className="btn btn--small btn--accent"
@@ -191,7 +160,55 @@ export function Workout() {
           >
             {t('workout.finish')}
           </button>
-        </span>
+        </div>
+        <div className="workout-header__meta">
+          <div className="workout-header__stats">
+            <span className="workout-stat">
+              <span className="workout-stat__value mono">
+                <Elapsed startedAt={active.started_at} />
+              </span>
+              <span className="workout-stat__label">{t('workout.elapsed')}</span>
+            </span>
+            <span
+              className="workout-stat"
+              aria-label={t('workout.setsDone', { count: completedSets })}
+            >
+              <span className="workout-stat__value mono">{completedSets}</span>
+              <span className="workout-stat__label" aria-hidden="true">
+                {t('workout.setsLabel')}
+              </span>
+            </span>
+          </div>
+          <div className="workout-header__tools">
+            {wakeLockSupported ? (
+              <button
+                type="button"
+                className={`btn btn--icon btn--small ${wakeLocked ? 'btn--primary' : ''}`}
+                aria-label={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+                title={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+                onClick={() => setWakeLockEnabled((prev) => !prev)}
+              >
+                <IconSun width={18} height={18} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn--icon btn--small"
+              aria-label={t('workout.intervalTimer')}
+              title={t('workout.intervalTimer')}
+              onClick={() => setIntervalsOpen(true)}
+            >
+              <IconTimer width={18} height={18} />
+            </button>
+            <button
+              type="button"
+              className="btn btn--small"
+              onClick={() => setDiscardOpen(true)}
+            >
+              {t('workout.discard')}
+            </button>
+          </div>
+        </div>
       </header>
 
       {active.session_exercises.length === 0 ? (
@@ -454,13 +471,12 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
   return (
     <div className="workout-page">
       <header className="workout-header">
-        <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
-          {t('workout.back')}
-        </button>
-        <div className="workout-title">
-          <strong>{t('workout.startTitle')}</strong>
+        <div className="workout-header__bar">
+          <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
+            {t('workout.back')}
+          </button>
+          <h1 className="workout-title">{t('workout.startTitle')}</h1>
         </div>
-        <span aria-hidden="true" />
       </header>
 
       <div className="stack">

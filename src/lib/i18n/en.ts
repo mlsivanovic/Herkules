@@ -549,6 +549,8 @@ export const en = {
     preparing: 'Preparing workout…',
     back: '← Back',
     setsDone: '{count} sets done',
+    elapsed: 'Time',
+    setsLabel: 'Sets',
     intervalTimer: 'Interval timer',
     discard: 'Discard',
     finish: 'Finish',

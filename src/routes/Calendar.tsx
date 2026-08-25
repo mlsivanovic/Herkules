@@ -1,5 +1,5 @@
 // Calendar: month view with per-day statuses (planned / in-progress /
-// completed / skipped), scheduling single dates or weekly recurrences.
+// completed / skipped), logged aerobic activities, and scheduling.
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
@@ -18,13 +18,14 @@ import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { nextTemplateForPlan } from '../lib/programs/plans'
-import { bcp47, useT } from '../lib/i18n'
+import { aerobicActivityLabel, bcp47, useT } from '../lib/i18n'
+import type { AerobicActivityRow } from '../types/db'
 import './calendar.css'
 
 export function Calendar() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { schedules, rules, templates, sessions, profile, ready } = useStore()
+  const { schedules, rules, templates, sessions, aerobicActivities, profile, ready } = useStore()
   const weekStart = profile?.week_start ?? 'monday'
   const today = todayKey()
 
@@ -87,6 +88,16 @@ export function Calendar() {
     return { plannedByDate: planned, statusByDate: statuses }
   }, [refs, grid, sessions, today])
 
+  const aerobicByDate = useMemo(() => {
+    const map = new Map<DateKey, AerobicActivityRow[]>()
+    for (const row of aerobicActivities) {
+      const list = map.get(row.recorded_on) ?? []
+      list.push(row)
+      map.set(row.recorded_on, list)
+    }
+    return map
+  }, [aerobicActivities])
+
   function shiftMonth(delta: number) {
     const date = new Date(year, month + delta, 1)
     setYear(date.getFullYear())
@@ -100,6 +111,7 @@ export function Calendar() {
   const selectedSessions = selectedDay
     ? sessions.filter((s) => (s.planned_date ?? s.started_at.slice(0, 10)) === selectedDay)
     : []
+  const selectedAerobic = selectedDay ? (aerobicByDate.get(selectedDay) ?? []) : []
 
   return (
     <div>
@@ -144,6 +156,7 @@ export function Calendar() {
           const inMonth = parseDateKey(key).getMonth() === month
           const status = statusByDate.get(key)
           const plannedCount = plannedByDate.get(key)?.length ?? 0
+          const aerobicCount = aerobicByDate.get(key)?.length ?? 0
           return (
             <button
               key={key}
@@ -166,12 +179,19 @@ export function Calendar() {
                   : ''
               }${
                 plannedCount > 0 ? `, ${t('calendar.plannedCount', { count: plannedCount })}` : ''
+              }${
+                aerobicCount > 0 ? `, ${t('calendar.aerobicCount', { count: aerobicCount })}` : ''
               }`}
               aria-current={key === today ? 'date' : undefined}
               onClick={() => setSelectedDay(key)}
             >
               <span className="calendar-day-num">{Number(key.slice(8))}</span>
-              {status ? <span className="calendar-dot" aria-hidden="true" /> : null}
+              {status || aerobicCount > 0 ? (
+                <span className="calendar-markers" aria-hidden="true">
+                  {status ? <span className="calendar-dot" /> : null}
+                  {aerobicCount > 0 ? <span className="calendar-dot calendar-dot--aerobic" /> : null}
+                </span>
+              ) : null}
             </button>
           )
         })}
@@ -182,6 +202,7 @@ export function Calendar() {
         <span><i className="calendar-dot calendar-dot--in-progress" /> {t('status.inProgress')}</span>
         <span><i className="calendar-dot calendar-dot--completed" /> {t('status.completed')}</span>
         <span><i className="calendar-dot calendar-dot--skipped" /> {t('status.skipped')}</span>
+        <span><i className="calendar-dot calendar-dot--aerobic" /> {t('calendar.aerobic')}</span>
       </div>
 
       {selectedDay ? (
@@ -197,6 +218,7 @@ export function Calendar() {
                   : undefined,
             }))}
             sessions={selectedSessions}
+            aerobic={selectedAerobic}
             onStart={(templateId, scheduleId) => {
               setSelectedDay(null)
               void navigate('/workout', {
@@ -231,23 +253,25 @@ function DayDetail({
   dayKey,
   planned,
   sessions,
+  aerobic,
   onStart,
   onSchedule,
 }: {
   dayKey: DateKey
   planned: { scheduleId: string; template: { id: string; name: string } | undefined }[]
   sessions: { id: string; name: string; status: string; schedule_item_id: string | null }[]
+  aerobic: AerobicActivityRow[]
   onStart(templateId: string, scheduleId: string): void
   onSchedule(): void
 }) {
   const { t } = useT()
-  const { deleteSchedule, deleteSession, skipOccurrence, unskipOccurrence } = useStore()
+  const { deleteSchedule, deleteSession, deleteAerobicActivity, skipOccurrence, unskipOccurrence } = useStore()
   const navigate = useNavigate()
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   return (
     <div className="stack">
-      {planned.length === 0 && sessions.length === 0 ? (
+      {planned.length === 0 && sessions.length === 0 && aerobic.length === 0 ? (
         <EmptyState title={t('calendar.nothingTitle')} hint={t('calendar.nothingHint')} />
       ) : null}
 
@@ -342,6 +366,37 @@ function DayDetail({
           </div>
         )
       })}
+
+      {aerobic.length > 0 ? (
+        <>
+          <div className="section-title">{t('calendar.aerobic')}</div>
+          {aerobic.map((row) => {
+            const activity = aerobicActivityLabel(row.activity_type)
+            const minutes = Math.round(row.duration_s / 60)
+            return (
+              <div key={row.id} className="card calendar-aerobic">
+                <div className="calendar-session-open calendar-session-open--static">
+                  <span>
+                    <strong>{activity}</strong>{' '}
+                    <small className="muted">
+                      · {t('calendar.aerobicMinutes', { minutes })}
+                    </small>
+                  </span>
+                  <span className="badge badge--neutral">{t('calendar.aerobic')}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--icon btn--small btn--danger"
+                  aria-label={t('aerobic.deleteActivity', { activity, date: dayKey })}
+                  onClick={() => void deleteAerobicActivity(row.id)}
+                >
+                  <IconTrash width={16} height={16} />
+                </button>
+              </div>
+            )
+          })}
+        </>
+      ) : null}
 
       <button type="button" className="btn btn--block" onClick={onSchedule}>
         <IconPlus width={18} height={18} /> {t('calendar.scheduleOnDay')}

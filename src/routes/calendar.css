@@ -63,6 +63,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.calendar-markers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 7px;
+}
+
 .calendar-dot {
   width: 7px;
   height: 7px;
@@ -109,6 +117,9 @@
 .calendar-dot--skipped {
   background: var(--c-muted);
 }
+.calendar-dot--aerobic {
+  background: var(--c-accent);
+}
 
 .calendar-session {
   display: flex;
@@ -135,4 +146,10 @@
 
 .calendar-session-open--static {
   cursor: default;
+}
+
+.calendar-aerobic {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }

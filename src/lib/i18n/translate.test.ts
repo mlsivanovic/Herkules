@@ -83,6 +83,8 @@ describe('t', () => {
     expect(t('aerobic.tableTennis', undefined, 'en')).toBe('Table tennis')
     expect(t('aerobic.tableTennis', undefined, 'sr')).toBe('Stoni tenis')
     expect(t('aerobic.logged', undefined, 'sr')).toBe('Zabeležene aktivnosti')
+    expect(t('calendar.aerobic', undefined, 'en')).toBe('Aerobic')
+    expect(t('calendar.aerobic', undefined, 'sr')).toBe('Aerobno')
   })
 
   it('labels stored aerobic activity types', () => {

@@ -229,6 +229,9 @@ export const sr: Messages = {
     endAfterStart: 'Krajnji datum mora biti posle početnog.',
     onceHint: 'Zakazuje samo {when}.',
     ruleEdits: 'Izmene pravila važe samo za buduće treninge — završena istorija ostaje.',
+    aerobic: 'Aerobno',
+    aerobicCount: '{count} aerobnih',
+    aerobicMinutes: '{minutes} min',
   },
   routines: {
     title: 'Rutine',

@@ -228,6 +228,9 @@ export const en = {
     endAfterStart: 'End date must be after the start date.',
     onceHint: 'Schedules {when} only.',
     ruleEdits: 'Rule edits affect only future workouts — completed history stays untouched.',
+    aerobic: 'Aerobic',
+    aerobicCount: '{count} aerobic',
+    aerobicMinutes: '{minutes} min',
   },
   routines: {
     title: 'Routines',

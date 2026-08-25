@@ -1,43 +1,195 @@
-/* Interval timer display */
-.interval-display {
+/* Interval timer setup and large active display */
+.interval-modal {
+  overflow-x: hidden;
+}
+
+.interval-setup,
+.interval-active,
+.interval-actions {
   display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  padding: 1rem 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 0.85rem;
+}
+
+.interval-stepper-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.timer-stepper {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--c-border);
   border-radius: var(--radius-s);
   background: var(--c-bg-raised);
 }
 
-.interval-display__phase {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.timer-stepper > label {
+  display: block;
+  margin-bottom: 0.45rem;
   color: var(--c-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.interval-display__time {
-  font-size: 2.6rem;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+.timer-stepper__controls {
+  display: grid;
+  grid-template-columns: var(--control-h) minmax(0, 1fr) var(--control-h);
+  align-items: center;
+  gap: 0.3rem;
 }
 
-.interval-display--work .interval-display__phase {
+.timer-stepper__controls .btn {
+  background: var(--c-card);
+}
+
+.timer-stepper__input {
+  min-width: 0;
+  padding-inline: 0.2rem;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.interval-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.1rem 0.15rem;
+  color: var(--c-muted);
+  font-size: 0.9rem;
+}
+
+.interval-total strong {
+  color: var(--c-text);
+  font-size: 1.05rem;
+}
+
+.interval-start,
+.interval-pause {
+  min-height: 52px;
+  font-size: 1rem;
+}
+
+.interval-display {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  min-height: 290px;
+  padding: 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--c-bg-raised);
+  color: var(--c-text);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.interval-display--work {
+  background: var(--c-primary-soft);
+  border-color: color-mix(in srgb, var(--c-primary) 30%, transparent);
   color: var(--c-primary);
 }
 
-.interval-display--work .interval-display__time {
-  color: var(--c-primary);
+.interval-display--rest {
+  background: var(--c-rest-bg);
+  border-color: var(--c-rest-border);
+  color: var(--c-rest-fg);
+  box-shadow: var(--c-rest-shadow);
 }
 
 .interval-display--done {
-  background: transparent;
-  border: 1px dashed var(--c-muted);
+  background: var(--c-success-soft);
+  border-color: color-mix(in srgb, var(--c-success) 35%, transparent);
+  color: var(--c-success);
 }
 
-.field-pair {
+.interval-display--paused {
+  background: var(--c-bg-raised);
+  border-color: var(--c-border);
+  color: var(--c-muted);
+  box-shadow: none;
+}
+
+.interval-display__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  align-self: start;
+  width: 100%;
+  gap: 0.75rem;
+}
+
+.interval-display__phase {
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.interval-display__next {
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.interval-display__time {
+  align-self: center;
+  font-size: clamp(4.4rem, 19vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.interval-display__round {
+  font-size: 0.95rem;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.interval-progress {
+  align-self: end;
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.interval-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width 220ms linear;
+}
+
+.interval-secondary-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.6rem;
+}
+
+.interval-stop-confirm {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--c-danger) 35%, var(--c-border));
+  border-radius: var(--radius-s);
+  background: var(--c-danger-soft);
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .interval-stepper-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .interval-modal {
+    max-height: 92vh;
+  }
 }

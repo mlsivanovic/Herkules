@@ -22,7 +22,7 @@ import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
-import { IntervalTimerModal } from '../components/IntervalTimer'
+import { IntervalTimerDock, IntervalTimerModal } from '../components/IntervalTimer'
 import { isBlockRoundComplete, isSetGroupComplete, progressionSuggestions } from '../lib/prescription'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
@@ -35,6 +35,7 @@ import {
   IconTrash,
 } from '../components/Icons'
 import { useRestTimer } from '../lib/restTimer'
+import { useIntervalTimer } from '../lib/intervalTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
@@ -68,7 +69,9 @@ export function Workout() {
     addSeconds: addRestSeconds,
     skip: skipRest,
   } = useRestTimer()
+  const intervalTimer = useIntervalTimer()
   const [intervalsOpen, setIntervalsOpen] = useState(false)
+  const [selectedIntervalBlockId, setSelectedIntervalBlockId] = useState<string | null>(null)
 
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true)
@@ -80,6 +83,9 @@ export function Workout() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
   const activeId = active?.id
   const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
+  const selectedIntervalBlock = active?.session_blocks?.find(
+    (block) => block.id === selectedIntervalBlockId && block.format === 'interval',
+  ) ?? intervalBlock
   const orderedExercises = useMemo(
     () => (active ? sortByPosition(active.session_exercises) : []),
     [active],
@@ -88,6 +94,10 @@ export function Workout() {
   useEffect(() => {
     if (activeId) setCollapsedIds(readCollapsed(activeId))
   }, [activeId])
+
+  useEffect(() => {
+    if (intervalTimer.active && restRemaining !== null) skipRest()
+  }, [intervalTimer.active, restRemaining, skipRest])
 
   const moveExercise = useCallback(
     (from: number, to: number) => {
@@ -193,7 +203,7 @@ export function Workout() {
             ) : null}
             <button
               type="button"
-              className="btn btn--icon btn--small"
+              className={`btn btn--icon btn--small ${intervalTimer.state.phase !== 'idle' ? 'btn--primary' : ''}`}
               aria-label={t('workout.intervalTimer')}
               title={t('workout.intervalTimer')}
               onClick={() => setIntervalsOpen(true)}
@@ -248,7 +258,17 @@ export function Workout() {
                     </small>
                   ) : null}
                   {block.format === 'interval' ? (
-                    <button type="button" className="btn btn--small" onClick={() => setIntervalsOpen(true)}>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => {
+                        if (!intervalTimer.active && intervalTimer.state.phase === 'done') {
+                          intervalTimer.reset()
+                        }
+                        setSelectedIntervalBlockId(block.id)
+                        setIntervalsOpen(true)
+                      }}
+                    >
                       {t('workout.openTimer', {
                         rounds: block.interval_rounds ?? 0,
                         work: block.interval_work_s ?? 0,
@@ -287,7 +307,9 @@ export function Workout() {
                 })
               }}
               onSwap={() => setSwapTarget(se.id)}
-              onRestStart={(seconds) => startRest(seconds)}
+              onRestStart={(seconds) => {
+                if (!intervalTimer.active) startRest(seconds)
+              }}
             />
             </Fragment>
           )})}
@@ -300,7 +322,15 @@ export function Workout() {
         {announce}
       </span>
 
-      {restRemaining !== null ? (
+      {intervalTimer.active && !intervalsOpen ? (
+        <IntervalTimerDock
+          state={intervalTimer.state}
+          onOpen={() => setIntervalsOpen(true)}
+          onPause={intervalTimer.pause}
+          onResume={intervalTimer.resume}
+          onSkipPhase={intervalTimer.skipPhase}
+        />
+      ) : restRemaining !== null ? (
         <RestChip
           remaining={restRemaining}
           onAdd15={() => addRestSeconds(15)}
@@ -310,12 +340,21 @@ export function Workout() {
 
       {intervalsOpen ? (
         <IntervalTimerModal
+          state={intervalTimer.state}
           onClose={() => setIntervalsOpen(false)}
-          initialConfig={intervalBlock ? {
-            prepare: intervalBlock.interval_prepare_s ?? 10,
-            work: intervalBlock.interval_work_s ?? 30,
-            rest: intervalBlock.interval_recovery_s ?? 60,
-            rounds: intervalBlock.interval_rounds ?? intervalBlock.rounds_initial,
+          onStart={(config) => {
+            if (restRemaining !== null) skipRest()
+            intervalTimer.start(config)
+          }}
+          onPause={intervalTimer.pause}
+          onResume={intervalTimer.resume}
+          onSkipPhase={intervalTimer.skipPhase}
+          onReset={intervalTimer.reset}
+          initialConfig={selectedIntervalBlock ? {
+            prepare: selectedIntervalBlock.interval_prepare_s ?? 10,
+            work: selectedIntervalBlock.interval_work_s ?? 30,
+            rest: selectedIntervalBlock.interval_recovery_s ?? 60,
+            rounds: selectedIntervalBlock.interval_rounds ?? selectedIntervalBlock.rounds_initial,
           } : undefined}
         />
       ) : null}
@@ -347,6 +386,8 @@ export function Workout() {
               className="btn btn--danger btn--block"
               onClick={() => {
                 setDiscardOpen(false)
+                intervalTimer.reset()
+                skipRest()
                 void store.discardSession(active.id).then(() => navigate('/'))
               }}
             >
@@ -373,6 +414,8 @@ export function Workout() {
             setFinishBusy(true)
             try {
               await store.finishSession(active.id, summary)
+              intervalTimer.reset()
+              skipRest()
               void navigate(`/history/${active.id}`)
             } catch (caught) {
               setFinishError(
@@ -406,6 +449,8 @@ export function Workout() {
                 void (async () => {
                   setStartError(null)
                   try {
+                    intervalTimer.reset()
+                    skipRest()
                     await store.discardSession(active.id)
                     setConflict(false)
                     await store.startSession({
@@ -1032,19 +1077,21 @@ function RestChip({
 
   return (
     <div
-      className="rest-chip"
+      className="timer-dock timer-dock--rest"
       role="status"
       aria-label={t('workout.rest', { time: formatDuration(remaining) })}
     >
-      <IconTimer width={22} height={22} />
-      <span className="rest-chip__copy">
-        <span className="rest-chip__label">{t('workout.restLabel')}</span>
-        <span className="rest-chip__time mono">{formatDuration(remaining)}</span>
+      <span className="timer-dock__main timer-dock__main--static">
+        <IconTimer width={22} height={22} />
+        <span className="timer-dock__copy">
+          <span className="timer-dock__label">{t('workout.restLabel')}</span>
+          <span className="timer-dock__time mono">{formatDuration(remaining)}</span>
+        </span>
       </span>
-      <button type="button" className="btn btn--small" onClick={onAdd15}>
+      <button type="button" className="btn" onClick={onAdd15}>
         {t('common.plus15')}
       </button>
-      <button type="button" className="btn btn--small btn--ghost" onClick={onSkip}>
+      <button type="button" className="btn btn--ghost" onClick={onSkip}>
         {t('common.skip')}
       </button>
     </div>

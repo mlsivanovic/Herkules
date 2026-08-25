@@ -144,27 +144,91 @@
   touch-action: auto;
 }
 
-.rest-chip {
+.timer-dock {
+  --timer-bg: var(--c-card);
+  --timer-fg: var(--c-text);
+  --timer-border: var(--c-border);
+  --timer-shadow: var(--shadow);
+  --timer-btn-bg: var(--c-bg-raised);
+  --timer-btn-fg: var(--c-text);
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
   bottom: calc(var(--bottom-nav-h) + 14px + env(safe-area-inset-bottom, 0px));
-  z-index: 70;
+  z-index: 50;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 0.7rem;
+  gap: 0.35rem;
   max-width: calc(100% - 1.5rem);
-  padding: 0.65rem 1rem 0.65rem 1.05rem;
+  padding: 0.45rem;
   border-radius: 999px;
-  background: var(--c-rest-bg);
-  color: var(--c-rest-fg);
-  border: 1px solid var(--c-rest-border);
-  box-shadow: var(--c-rest-shadow);
+  background: var(--timer-bg);
+  color: var(--timer-fg);
+  border: 1px solid var(--timer-border);
+  box-shadow: var(--timer-shadow);
   font-weight: 800;
 }
 
-.rest-chip__copy {
+.timer-dock--rest {
+  --timer-bg: var(--c-rest-bg);
+  --timer-fg: var(--c-rest-fg);
+  --timer-border: var(--c-rest-border);
+  --timer-shadow: var(--c-rest-shadow);
+  --timer-btn-bg: var(--c-rest-btn-bg);
+  --timer-btn-fg: var(--c-rest-btn-fg);
+}
+
+.timer-dock--work {
+  --timer-bg: var(--c-primary);
+  --timer-fg: var(--c-on-primary);
+  --timer-border: var(--c-primary);
+  --timer-shadow: 0 10px 28px color-mix(in srgb, var(--c-primary) 38%, transparent);
+  --timer-btn-bg: var(--c-card);
+  --timer-btn-fg: var(--c-primary);
+}
+
+.timer-dock--prepare {
+  --timer-bg: var(--c-card);
+  --timer-fg: var(--c-text);
+  --timer-border: var(--c-border);
+  --timer-btn-bg: var(--c-primary-soft);
+  --timer-btn-fg: var(--c-primary);
+}
+
+.timer-dock--paused {
+  --timer-bg: var(--c-bg-raised);
+  --timer-fg: var(--c-muted);
+  --timer-border: var(--c-border);
+  --timer-shadow: var(--shadow);
+  --timer-btn-bg: var(--c-card);
+  --timer-btn-fg: var(--c-text);
+}
+
+.timer-dock__main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  min-height: var(--control-h);
+  padding: 0.2rem 0.4rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timer-dock__main--static {
+  cursor: default;
+}
+
+.timer-dock__main > svg {
+  flex-shrink: 0;
+}
+
+.timer-dock__copy {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -172,7 +236,7 @@
   min-width: 0;
 }
 
-.rest-chip__label {
+.timer-dock__label {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -180,27 +244,38 @@
   opacity: 0.82;
 }
 
-.rest-chip__time {
+.timer-dock__time {
   font-size: 1.28rem;
   letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
 }
 
-.workout-page .rest-chip .btn {
-  min-height: 40px;
+.timer-dock__meta {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.workout-page .timer-dock .btn {
+  min-height: var(--control-h);
   padding: 0 0.8rem;
   font-size: 0.92rem;
   flex-shrink: 0;
   white-space: nowrap;
-  background: var(--c-rest-btn-bg);
-  border-color: var(--c-rest-btn-bg);
-  color: var(--c-rest-btn-fg);
+  background: var(--timer-btn-bg);
+  border-color: var(--timer-btn-bg);
+  color: var(--timer-btn-fg);
 }
 
-.workout-page .rest-chip .btn--ghost {
+.workout-page .timer-dock .btn--icon {
+  width: var(--control-h);
+  padding: 0;
+}
+
+.workout-page .timer-dock .btn--ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--c-rest-fg);
+  color: var(--timer-fg);
 }
 
 /* Plate / warm-up calculator output */

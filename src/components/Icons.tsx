@@ -89,6 +89,14 @@ export function IconPlus(props: IconProps) {
   )
 }
 
+export function IconMinus(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5 12h14" />
+    </svg>
+  )
+}
+
 export function IconTrash(props: IconProps) {
   return (
     <svg {...base(props)}>
@@ -190,6 +198,22 @@ export function IconPlay(props: IconProps) {
   return (
     <svg {...base(props)}>
       <path d="M7 5v14l12-7L7 5Z" />
+    </svg>
+  )
+}
+
+export function IconPause(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 5v14M15 5v14" />
+    </svg>
+  )
+}
+
+export function IconSkipForward(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="m6 5 9 7-9 7V5ZM18 5v14" />
     </svg>
   )
 }

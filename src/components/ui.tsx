@@ -51,10 +51,14 @@ export function Modal({
   title,
   onClose,
   children,
+  closeLabel,
+  className,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  closeLabel?: string
+  className?: string
 }) {
   const { t } = useT()
   useEffect(() => {
@@ -72,11 +76,11 @@ export function Modal({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`modal${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="row row--between" style={{ marginBottom: '0.75rem' }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
-          <button type="button" className="btn btn--small" onClick={onClose} aria-label={t('common.closeDialog')}>
-            {t('common.close')}
+          <button type="button" className="btn btn--small" onClick={onClose} aria-label={closeLabel ?? t('common.closeDialog')}>
+            {closeLabel ?? t('common.close')}
           </button>
         </div>
         {children}

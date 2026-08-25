@@ -322,11 +322,30 @@ export interface SessionDoc extends SessionRow {
   session_exercises: SessionExerciseDoc[]
 }
 
+export const AEROBIC_ACTIVITY_TYPES = [
+  'walking',
+  'cycling',
+  'rowing',
+  'basketball',
+  'table_tennis',
+  'tennis',
+  'swimming',
+  'football',
+  'volleyball',
+  'other',
+] as const
+
+export type AerobicActivityType = (typeof AEROBIC_ACTIVITY_TYPES)[number]
+
+export function isAerobicActivityType(value: string): value is AerobicActivityType {
+  return (AEROBIC_ACTIVITY_TYPES as readonly string[]).includes(value)
+}
+
 export interface AerobicActivityRow {
   id: string
   owner_id: string
   recorded_on: string
-  activity_type: 'walking' | 'cycling' | 'rowing' | 'other'
+  activity_type: AerobicActivityType
   duration_s: number
   moderate: boolean
   notes: string | null

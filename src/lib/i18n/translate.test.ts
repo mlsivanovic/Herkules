@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { aerobicActivityLabel } from './index'
 import { pickPlural, pluralForm, t } from './translate'
 
 describe('t', () => {
@@ -74,6 +75,21 @@ describe('t', () => {
   it('translates progress chart empty copy', () => {
     expect(t('progress.chartEmpty', undefined, 'en')).toBe('No data yet.')
     expect(t('progress.chartEmpty', undefined, 'sr')).toBe('Još nema podataka.')
+  })
+
+  it('translates aerobic sports', () => {
+    expect(t('aerobic.basketball', undefined, 'en')).toBe('Basketball')
+    expect(t('aerobic.basketball', undefined, 'sr')).toBe('Košarka')
+    expect(t('aerobic.tableTennis', undefined, 'en')).toBe('Table tennis')
+    expect(t('aerobic.tableTennis', undefined, 'sr')).toBe('Stoni tenis')
+    expect(t('aerobic.logged', undefined, 'sr')).toBe('Zabeležene aktivnosti')
+  })
+
+  it('labels stored aerobic activity types', () => {
+    expect(aerobicActivityLabel('basketball', 'sr')).toBe('Košarka')
+    expect(aerobicActivityLabel('table_tennis', 'en')).toBe('Table tennis')
+    expect(aerobicActivityLabel('football', 'sr')).toBe('Fudbal')
+    expect(aerobicActivityLabel('unknown_sport')).toBe('unknown_sport')
   })
 
   it('interpolates placeholders', () => {

@@ -1,5 +1,10 @@
 import { useCallback } from 'react'
-import type { ExerciseCategory } from '../../types/db'
+import {
+  AEROBIC_ACTIVITY_TYPES,
+  isAerobicActivityType,
+  type AerobicActivityType,
+  type ExerciseCategory,
+} from '../../types/db'
 import { useLocale, type Locale } from './locale'
 import { t, type MessageKey, type Vars } from './translate'
 
@@ -36,6 +41,28 @@ export function blockFormatLabel(value: string): string {
     return t(`blockFormat.${value as (typeof BLOCK_FORMATS)[number]}`)
   }
   return value
+}
+
+const AEROBIC_LABELS: Record<AerobicActivityType, MessageKey> = {
+  walking: 'aerobic.walking',
+  cycling: 'aerobic.cycling',
+  rowing: 'aerobic.rowing',
+  basketball: 'aerobic.basketball',
+  table_tennis: 'aerobic.tableTennis',
+  tennis: 'aerobic.tennis',
+  swimming: 'aerobic.swimming',
+  football: 'aerobic.football',
+  volleyball: 'aerobic.volleyball',
+  other: 'aerobic.other',
+}
+
+export function aerobicActivityTypes(): readonly AerobicActivityType[] {
+  return AEROBIC_ACTIVITY_TYPES
+}
+
+export function aerobicActivityLabel(type: string, locale?: Locale): string {
+  if (!isAerobicActivityType(type)) return type
+  return t(AEROBIC_LABELS[type], undefined, locale)
 }
 
 export {

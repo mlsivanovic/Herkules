@@ -581,6 +581,7 @@ export const en = {
     fromRoutine: 'Start from a routine',
     emptyWorkout: 'Empty workout',
     noRoutines: 'No routines yet — start empty or create one under Routines.',
+    noAssigned: 'No assigned workouts yet. Your coach will send a plan.',
     finishTitle: 'Finish workout',
     finishNotes: 'Workout notes',
     sessionRpe: 'Session RPE (1–10)',

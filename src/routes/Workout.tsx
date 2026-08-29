@@ -39,7 +39,7 @@ import { useIntervalTimer } from '../lib/intervalTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
-import { capabilitiesFor, programmingForAccount } from '../lib/capabilities'
+import { capabilitiesFor, startableProgrammingForAccount } from '../lib/capabilities'
 import './workout.css'
 
 interface StartState {
@@ -490,13 +490,9 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
   const [startError, setStartError] = useState<string | null>(null)
   const message = startError ?? error
   const caps = capabilitiesFor(store.profile)
-  const visibleTemplates = useMemo(
-    () => programmingForAccount(store.templates, store.profile),
-    [store.templates, store.profile],
-  )
-  const visiblePlans = useMemo(
-    () => programmingForAccount(store.plans, store.profile),
-    [store.plans, store.profile],
+  const { plans: visiblePlans, templates: visibleTemplates } = useMemo(
+    () => startableProgrammingForAccount(store.plans, store.templates, store.profile),
+    [store.plans, store.templates, store.profile],
   )
   const routineGroups = useMemo(
     () => templatesGroupedByPlan(visiblePlans, visibleTemplates),
@@ -545,7 +541,9 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
           <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
         </button>
         ) : null}
-        {routineGroups.length === 0 ? <p className="muted">{t('workout.noRoutines')}</p> : null}
+        {routineGroups.length === 0 ? (
+          <p className="muted">{caps.kind === 'light' ? t('workout.noAssigned') : t('workout.noRoutines')}</p>
+        ) : null}
       </div>
 
       {routineGroups.map((group) => (

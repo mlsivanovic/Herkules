@@ -1337,6 +1337,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : occurrencePlanId
             ? nextTemplateForPlan(occurrencePlanId, all.templates, all.sessions) ?? undefined
             : undefined
+        if (!caps.canStartEmptyWorkout) {
+          const planId = template?.plan_id
+          const plan = planId ? all.plans.find((row) => row.id === planId) : null
+          if (!template?.locked || !plan?.locked) {
+            throw new Error(t('errors.lightAssignedOnly'))
+          }
+        }
         const items = template
           ? all.templateItems
               .filter((i) => i.template_id === template.id)

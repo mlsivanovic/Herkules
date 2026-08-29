@@ -79,3 +79,22 @@ export function programmingForAccount<T extends { locked?: boolean }>(
   if (!isLightAccount(profile)) return rows
   return rows.filter((row) => row.locked === true)
 }
+
+/** Athletes start only locked routines that belong to an assigned plan. */
+export function startableProgrammingForAccount<
+  P extends { id: string; locked?: boolean },
+  T extends { plan_id: string | null; locked?: boolean },
+>(
+  plans: P[],
+  templates: T[],
+  profile: Pick<ProfileRow, 'account_kind'> | null | undefined,
+): { plans: P[]; templates: T[] } {
+  const visiblePlans = programmingForAccount(plans, profile)
+  const visibleTemplates = programmingForAccount(templates, profile)
+  if (!isLightAccount(profile)) return { plans: visiblePlans, templates: visibleTemplates }
+  const planIds = new Set(visiblePlans.map((plan) => plan.id))
+  return {
+    plans: visiblePlans,
+    templates: visibleTemplates.filter((row) => row.plan_id != null && planIds.has(row.plan_id)),
+  }
+}

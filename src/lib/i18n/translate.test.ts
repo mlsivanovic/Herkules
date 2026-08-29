@@ -105,6 +105,8 @@ describe('t', () => {
 
   it('interpolates placeholders', () => {
     expect(t('today.startWorkout', undefined, 'en')).toBe('Start workout')
+    expect(t('workout.noAssigned', undefined, 'en')).toMatch(/coach/i)
+    expect(t('workout.noAssigned', undefined, 'sr')).toMatch(/trener/i)
     expect(t('today.hi', { name: 'Ana' }, 'en')).toBe('Hi, Ana')
     expect(t('today.hi', { name: 'Ana' }, 'sr')).toBe('Zdravo, Ana')
   })

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { assertCapability, capabilitiesFor, isLightAccount, programmingForAccount } from './capabilities'
+import {
+  assertCapability,
+  capabilitiesFor,
+  isLightAccount,
+  programmingForAccount,
+  startableProgrammingForAccount,
+} from './capabilities'
 
 describe('capabilitiesFor', () => {
   it('treats a missing profile as a full account', () => {
@@ -41,6 +47,29 @@ describe('programmingForAccount', () => {
     const rows = [{ id: 'a', locked: true }, { id: 'b', locked: false }]
     expect(programmingForAccount(rows, { account_kind: 'light' }).map((row) => row.id)).toEqual(['a'])
     expect(programmingForAccount(rows, { account_kind: 'full' })).toHaveLength(2)
+  })
+})
+
+describe('startableProgrammingForAccount', () => {
+  const plans = [
+    { id: 'plan-a', locked: true },
+    { id: 'plan-b', locked: false },
+  ]
+  const templates = [
+    { id: 'day-a', plan_id: 'plan-a', locked: true },
+    { id: 'loose-locked', plan_id: null, locked: true },
+    { id: 'day-b', plan_id: 'plan-b', locked: false },
+  ]
+
+  it('lets full accounts start any routine, including unassigned', () => {
+    const result = startableProgrammingForAccount(plans, templates, { account_kind: 'full' })
+    expect(result.templates.map((row) => row.id)).toEqual(['day-a', 'loose-locked', 'day-b'])
+  })
+
+  it('lets athletes start only routines on assigned plans', () => {
+    const result = startableProgrammingForAccount(plans, templates, { account_kind: 'light' })
+    expect(result.plans.map((row) => row.id)).toEqual(['plan-a'])
+    expect(result.templates.map((row) => row.id)).toEqual(['day-a'])
   })
 })
 

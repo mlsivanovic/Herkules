@@ -582,6 +582,7 @@ export const sr: Messages = {
     fromRoutine: 'Kreni iz rutine',
     emptyWorkout: 'Prazan trening',
     noRoutines: 'Još nema rutina — kreni prazan ili napravi jednu pod Rutine.',
+    noAssigned: 'Još nema dodeljenih treninga. Trener će ti poslati plan.',
     finishTitle: 'Završi trening',
     finishNotes: 'Beleške treninga',
     sessionRpe: 'RPE sesije (1–10)',

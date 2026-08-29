@@ -105,7 +105,7 @@ export function Today() {
             <IconPlay width={22} height={22} />
           </span>
         </button>
-      ) : caps.canStartEmptyWorkout || plannedToday.length > 0 ? (
+      ) : caps.canStartEmptyWorkout || caps.kind === 'light' || plannedToday.length > 0 ? (
         <button
           type="button"
           className="btn btn--primary btn--block today-start"

@@ -27,11 +27,46 @@
   white-space: pre-line;
 }
 
+.starters-section {
+  margin-bottom: 1.25rem;
+}
+
+.starters-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: var(--control-h);
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.starters-toggle .section-title {
+  display: block;
+  margin: 0;
+}
+
+.starters-toggle__chevron {
+  flex-shrink: 0;
+  color: var(--c-muted);
+  transition: transform 0.15s ease;
+}
+
+.starters-toggle__chevron--open {
+  transform: rotate(180deg);
+}
+
 .starter-gallery {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0;
 }
 
 .starter-card {

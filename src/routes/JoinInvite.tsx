@@ -1,10 +1,11 @@
 // Public join page: peek an invite token, then sign in / accept.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useStore } from '../lib/store'
 import { peekCoachInvite } from '../lib/coachApi'
+import { rememberPendingJoinToken } from '../lib/coachInvite'
 import { backendConfigured, supabase } from '../lib/supabase'
 import { useTheme } from '../lib/theme'
 import { BrandLogo } from '../components/BrandLogo'
@@ -28,16 +29,37 @@ export function JoinInvite() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [accepted, setAccepted] = useState(false)
+  const autoAccept = useRef(false)
 
   useEffect(() => {
     if (!backendConfigured || !token) {
       setPeek({ valid: false })
       return
     }
+    rememberPendingJoinToken(token)
     void peekCoachInvite(supabase(), token)
       .then(setPeek)
       .catch(() => setPeek({ valid: false }))
   }, [token])
+
+  const acceptInvite = store.acceptInvite
+  const storeReady = store.ready
+
+  useEffect(() => {
+    if (!session || !storeReady || !peek?.valid || !token || accepted || autoAccept.current) return
+    autoAccept.current = true
+    setBusy(true)
+    setError(null)
+    void acceptInvite(token)
+      .then(() => {
+        setAccepted(true)
+        void navigate('/', { replace: true })
+      })
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : t('errors.joinAccept'))
+      })
+      .finally(() => setBusy(false))
+  }, [session, storeReady, acceptInvite, peek, token, accepted, navigate, t])
 
   if (loading || peek === null) return <Loader label={t('common.loading')} />
 
@@ -81,7 +103,7 @@ export function JoinInvite() {
                     .finally(() => setBusy(false))
                 }}
               >
-                {t('join.accept')}
+                {busy ? t('join.connecting') : t('join.accept')}
               </button>
             ) : (
               <div className="stack">

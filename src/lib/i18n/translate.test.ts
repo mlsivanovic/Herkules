@@ -36,6 +36,8 @@ describe('t', () => {
     expect(t('starters.viewNamed', { name: 'Foundations 3-day' }, 'en')).toBe(
       'View Foundations 3-day',
     )
+    expect(t('starters.count', { count: 8 }, 'en')).toBe('8 programs')
+    expect(t('starters.hide', undefined, 'sr')).toBe('Sakrij')
   })
 
   it('translates plan-delete routine prompt', () => {

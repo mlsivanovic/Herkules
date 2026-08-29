@@ -534,5 +534,78 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       })
       expect(bobComment).toBeTruthy()
     })
+
+    it('lets the client claim a pending invite by email after sign-up', async () => {
+      const email = `herkules-rls-erin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@gmail.com`
+      const token = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+      const { error: inviteError } = await alice.from('coach_invites').insert({
+        email,
+        display_name: 'Erin',
+        token_hash: await sha256Hex(token),
+        account_kind: 'light',
+        expires_at: new Date(Date.now() + 86400000).toISOString(),
+      })
+      expect(inviteError).toBeNull()
+
+      const erin = createClient(url!, anonKey!)
+      const { data: signed, error: signError } = await erin.auth.signUp({
+        email,
+        password: 'TestPassword123!',
+      })
+      expect(signError).toBeNull()
+      expect(signed.session).toBeTruthy()
+
+      const { data, error } = await erin.rpc('fn_claim_pending_coach_invite')
+      expect(error).toBeNull()
+      expect(data).toMatchObject({ claimed: true })
+
+      const { data: profile } = await erin.from('profiles').select('account_kind').single()
+      expect(profile?.account_kind).toBe('light')
+
+      const { data: again, error: againError } = await erin.rpc('fn_claim_pending_coach_invite')
+      expect(againError).toBeNull()
+      expect(again).toMatchObject({ claimed: false })
+    })
+
+    it('lets the coach complete a pending invite after the client signs up', async () => {
+      const email = `herkules-rls-frank-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@gmail.com`
+      const token = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+      const { error: inviteError } = await alice.from('coach_invites').insert({
+        email,
+        display_name: 'Frank',
+        token_hash: await sha256Hex(token),
+        account_kind: 'light',
+        expires_at: new Date(Date.now() + 86400000).toISOString(),
+      })
+      expect(inviteError).toBeNull()
+
+      const frank = createClient(url!, anonKey!)
+      const { data: signed, error: signError } = await frank.auth.signUp({
+        email,
+        password: 'TestPassword123!',
+      })
+      expect(signError).toBeNull()
+      expect(signed.session).toBeTruthy()
+      const frankId = signed.user?.id
+      expect(frankId).toBeTruthy()
+
+      const { data, error } = await alice.rpc('fn_complete_pending_coach_invites')
+      expect(error).toBeNull()
+      expect((data as { completed: number }).completed).toBeGreaterThanOrEqual(1)
+
+      const { data: rels } = await alice
+        .from('coaching_relationships')
+        .select('id, status')
+        .eq('client_id', frankId ?? '')
+        .eq('status', 'active')
+      expect(rels).toHaveLength(1)
+
+      const { data: profile } = await frank.from('profiles').select('account_kind').single()
+      expect(profile?.account_kind).toBe('light')
+    })
   })
 })

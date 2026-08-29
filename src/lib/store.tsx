@@ -68,7 +68,9 @@ import {
   acceptCoachInvite,
   addSessionComment,
   assignPlanToClient,
+  claimPendingCoachInvite,
   collectAssignablePlan,
+  completePendingCoachInvites,
   createCoachInvite,
   endRelationship,
   loadCoachClient,
@@ -76,11 +78,18 @@ import {
   markRelationshipViewed,
   peekCoachInvite,
   pushPlanToClient,
+  regenerateCoachInvite,
   revokeCoachInvite,
   type CoachClientSnapshot,
   type CoachRosterEntry,
 } from './coachApi'
-import { invitePath } from './coachInvite'
+import {
+  clearPendingJoinToken,
+  forgetInviteToken,
+  invitePath,
+  readPendingJoinToken,
+  rememberInviteToken,
+} from './coachInvite'
 import { youtubeProperFormUrl } from './video'
 import { starterBySourceKey } from './programs/catalog'
 import {
@@ -118,6 +127,25 @@ import {
 } from './prescription'
 
 const SYNC_DEBOUNCE_MS = 2500
+
+async function claimPendingInvitesQuietly(client: SupabaseClient): Promise<void> {
+  const token = readPendingJoinToken()
+  if (token) {
+    try {
+      await acceptCoachInvite(client, token)
+      clearPendingJoinToken()
+      return
+    } catch {
+      /* expired or email mismatch — still try matching by email */
+    }
+  }
+  try {
+    const result = await claimPendingCoachInvite(client)
+    if (result.claimed) clearPendingJoinToken()
+  } catch {
+    /* no pending invite, or the claim RPC is not deployed yet */
+  }
+}
 
 export function newId(): string {
   return crypto.randomUUID()
@@ -390,6 +418,7 @@ export interface StoreActions {
   acceptInvite(token: string): Promise<{ relationship_id: string; account_kind: string }>
   enableCoachMode(enabled: boolean): Promise<void>
   createClientInvite(input: { email: string; displayName: string }): Promise<{ token: string; path: string }>
+  regenerateInvite(id: string): Promise<{ token: string; path: string }>
   revokeInvite(id: string): Promise<void>
   refreshCoachRoster(): Promise<void>
   openCoachClient(clientId: string): Promise<void>
@@ -554,6 +583,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (cancelled) return
       await reloadFromDb()
+      const client = clientRef.current
+      if (client && navigator.onLine) {
+        await claimPendingInvitesQuietly(client)
+      }
+      if (cancelled) return
       await actionsRef.current?.ensureHybridV2()
       void performSync()
     })()
@@ -566,6 +600,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const goOnline = () => {
       setState((prev) => ({ ...prev, online: true }))
+      const client = clientRef.current
+      if (client) {
+        void claimPendingInvitesQuietly(client).then(() => performSync())
+        return
+      }
       void performSync()
     }
     const goOffline = () => setState((prev) => ({ ...prev, online: false }))
@@ -2240,6 +2279,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const supabaseClient = clientRef.current
         if (!supabaseClient) throw new Error(t('errors.coachOffline'))
         const result = await acceptCoachInvite(supabaseClient, token)
+        clearPendingJoinToken()
         await performSync()
         return result
       },
@@ -2254,9 +2294,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
         assertCapability(capabilitiesFor(await readProfile()).navCoach, t('errors.notACoach'))
         const { invite, token } = await createCoachInvite(supabaseClient, trainerId, input)
+        rememberInviteToken(invite.id, token)
         setState((prev) => ({
           ...prev,
           coachInvites: [invite, ...prev.coachInvites.filter((row) => row.id !== invite.id)],
+          lastInviteToken: token,
+        }))
+        return { token, path: invitePath(token) }
+      },
+
+      async regenerateInvite(id) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        const { invite, token } = await regenerateCoachInvite(supabaseClient, id)
+        rememberInviteToken(invite.id, token)
+        setState((prev) => ({
+          ...prev,
+          coachInvites: prev.coachInvites.map((row) => (row.id === invite.id ? invite : row)),
           lastInviteToken: token,
         }))
         return { token, path: invitePath(token) }
@@ -2266,6 +2320,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const supabaseClient = clientRef.current
         if (!supabaseClient) throw new Error(t('errors.coachOffline'))
         await revokeCoachInvite(supabaseClient, id)
+        forgetInviteToken(id)
         setState((prev) => ({
           ...prev,
           coachInvites: prev.coachInvites.filter((row) => row.id !== id),
@@ -2278,6 +2333,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
         setState((prev) => ({ ...prev, coachBusy: true, coachError: null }))
         try {
+          try {
+            await completePendingCoachInvites(supabaseClient)
+          } catch {
+            /* migration not applied yet */
+          }
           const { clients, invites } = await loadCoachRoster(supabaseClient, trainerId)
           setState((prev) => ({
             ...prev,

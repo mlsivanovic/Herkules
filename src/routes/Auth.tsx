@@ -1,9 +1,10 @@
 // Email/password auth screens: login, signup, password reset request and
 // the post-recovery password update.
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { backendConfigured } from '../lib/supabase'
+import { isJoinPath, rememberPendingJoinToken, tokenFromJoinPath } from '../lib/coachInvite'
 import { validateEmail, validatePassword } from '../lib/validation'
 import { useTheme } from '../lib/theme'
 import { BrandLogo } from '../components/BrandLogo'
@@ -29,8 +30,13 @@ function BackendWarning() {
 }
 
 function nextPath(raw: string | null): string {
-  if (raw && raw.startsWith('/join/')) return raw
+  if (isJoinPath(raw)) return raw
   return '/'
+}
+
+function rememberJoinNext(path: string): void {
+  const token = tokenFromJoinPath(path)
+  if (token) rememberPendingJoinToken(token)
 }
 
 export function Login() {
@@ -43,6 +49,10 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    rememberJoinNext(next)
+  }, [next])
 
   if (session) {
     void navigate(next, { replace: true })
@@ -118,6 +128,11 @@ export function Signup() {
   const [error, setError] = useState<string | null>(null)
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
   const [busy, setBusy] = useState(false)
+  const loginHref = next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`
+
+  useEffect(() => {
+    rememberJoinNext(next)
+  }, [next])
 
   if (session) {
     void navigate(next, { replace: true })
@@ -147,7 +162,7 @@ export function Signup() {
       <AuthCard>
         <h1>{t('auth.checkEmail')}</h1>
         <p>{t('auth.sentConfirm', { email })}</p>
-        <Link to="/login" className="btn btn--primary btn--block">
+        <Link to={loginHref} className="btn btn--primary btn--block">
           {t('auth.backToSignIn')}
         </Link>
       </AuthCard>
@@ -192,7 +207,7 @@ export function Signup() {
       </form>
       <div className="auth-links" style={{ marginTop: '1rem' }}>
         <span>
-          {t('auth.alreadyHave')} <Link to="/login">{t('auth.signIn')}</Link>
+          {t('auth.alreadyHave')} <Link to={loginHref}>{t('auth.signIn')}</Link>
         </span>
       </div>
     </AuthCard>

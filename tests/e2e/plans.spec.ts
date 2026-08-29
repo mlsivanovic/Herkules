@@ -30,6 +30,7 @@ test.describe('training plans', () => {
     await signUpFresh(page, 'starter-preview')
 
     await page.goto('/#/routines')
+    await page.getByRole('button', { name: 'Starter programs' }).click()
     await page.getByRole('link', { name: 'View Foundations 3-day' }).click()
     await expect(page.getByRole('heading', { name: 'Foundations 3-day' })).toBeVisible()
     await page.getByRole('button', { name: /Foundations A/ }).click()
@@ -41,6 +42,7 @@ test.describe('training plans', () => {
     await signUpFresh(page, 'home2-preview')
 
     await page.goto('/#/routines')
+    await page.getByRole('button', { name: 'Starter programs' }).click()
     await page.getByRole('link', { name: 'View Home 2-day' }).click()
     await expect(page.getByRole('heading', { name: 'Home 2-day' })).toBeVisible()
     await page.getByRole('button', { name: /Home A/ }).click()

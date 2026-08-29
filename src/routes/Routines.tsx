@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
-import { IconPlus } from '../components/Icons'
+import { IconChevronDown, IconPlus } from '../components/Icons'
 import { PlanRotationModal } from '../components/PlanRotationModal'
 import {
   downloadTextFile,
@@ -41,6 +41,7 @@ export function Routines() {
   const [ioBusy, setIoBusy] = useState(false)
   const [ioMessage, setIoMessage] = useState<string | null>(null)
   const [ioError, setIoError] = useState<string | null>(null)
+  const [startersOpen, setStartersOpen] = useState(false)
 
   const loose = useMemo(() => unassignedTemplates(templates), [templates])
   const orderedPlans = useMemo(() => sortPlansForDisplay(plans), [plans])
@@ -146,8 +147,31 @@ export function Routines() {
         </div>
       ) : null}
 
-      <div className="section-title">{t('starters.title')}</div>
-      <div className="starter-gallery">
+      <div className="starters-section">
+        <button
+          type="button"
+          className="starters-toggle"
+          aria-expanded={startersOpen}
+          aria-controls="starter-gallery"
+          aria-label={t('starters.title')}
+          onClick={() => setStartersOpen((open) => !open)}
+        >
+          <span>
+            <span className="section-title starters-toggle__title">{t('starters.title')}</span>
+            <small className="muted">
+              {startersOpen
+                ? t('starters.hide')
+                : t('starters.count', { count: STARTER_PROGRAMS.length })}
+            </small>
+          </span>
+          <IconChevronDown
+            className={`starters-toggle__chevron${startersOpen ? ' starters-toggle__chevron--open' : ''}`}
+            width={20}
+            height={20}
+          />
+        </button>
+      {startersOpen ? (
+      <div className="starter-gallery" id="starter-gallery">
         {STARTER_PROGRAMS.map((program) => {
           const installed = isStarterInstalled(program, plans, templates)
           const plan =
@@ -215,6 +239,8 @@ export function Routines() {
             </section>
           )
         })}
+      </div>
+      ) : null}
       </div>
       {error ? (
         <p className="field-error" role="alert">

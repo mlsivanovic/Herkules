@@ -117,6 +117,25 @@ export async function acceptCoachInvite(
   return data as { relationship_id: string; account_kind: string }
 }
 
+export async function claimPendingCoachInvite(
+  client: SupabaseClient,
+): Promise<{ claimed: boolean; relationship_id?: string; account_kind?: string }> {
+  const { data, error } = await client.rpc('fn_claim_pending_coach_invite')
+  throwIf(error, 'Could not accept invite')
+  if (!data || typeof data !== 'object') return { claimed: false }
+  return data as { claimed: boolean; relationship_id?: string; account_kind?: string }
+}
+
+export async function completePendingCoachInvites(
+  client: SupabaseClient,
+): Promise<{ completed: number }> {
+  const { data, error } = await client.rpc('fn_complete_pending_coach_invites')
+  throwIf(error, 'Could not load clients')
+  const completed =
+    data && typeof data === 'object' && 'completed' in data ? Number((data as { completed: unknown }).completed) : 0
+  return { completed: Number.isFinite(completed) ? completed : 0 }
+}
+
 export async function createCoachInvite(
   client: SupabaseClient,
   trainerId: string,
@@ -154,6 +173,24 @@ export async function listCoachInvites(client: SupabaseClient): Promise<CoachInv
 export async function revokeCoachInvite(client: SupabaseClient, id: string): Promise<void> {
   const { error } = await client.from('coach_invites').delete().eq('id', id)
   throwIf(error, 'Could not revoke invite')
+}
+
+export async function regenerateCoachInvite(
+  client: SupabaseClient,
+  inviteId: string,
+): Promise<{ invite: CoachInviteRow; token: string }> {
+  const token = newInviteToken()
+  const tokenHash = await hashInviteToken(token)
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await client
+    .from('coach_invites')
+    .update({ token_hash: tokenHash, expires_at: expires })
+    .eq('id', inviteId)
+    .is('accepted_at', null)
+    .select()
+    .single()
+  throwIf(error, 'Could not refresh the invite link')
+  return { invite: data as CoachInviteRow, token }
 }
 
 export async function listRelationships(client: SupabaseClient): Promise<CoachingRelationshipRow[]> {

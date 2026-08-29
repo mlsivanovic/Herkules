@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { invitePath } from '../lib/coachInvite'
+import { invitePath, readInviteToken } from '../lib/coachInvite'
 import { EmptyState, Loader, Modal } from '../components/ui'
 import { IconPlus } from '../components/Icons'
 import { validateEmail } from '../lib/validation'
@@ -19,6 +19,7 @@ export function Coach() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [regenBusy, setRegenBusy] = useState<string | null>(null)
 
   useEffect(() => {
     void store.refreshCoachRoster().catch(() => undefined)
@@ -75,6 +76,11 @@ export function Coach() {
           {store.coachError}
         </p>
       ) : null}
+      {inviteError && !inviteOpen ? (
+        <p className="field-error" role="alert">
+          {inviteError}
+        </p>
+      ) : null}
       {store.coachBusy && empty ? <Loader /> : null}
 
       {empty && !store.coachBusy ? (
@@ -85,7 +91,8 @@ export function Coach() {
         <div className="stack">
           <div className="section-title">{t('coach.pending')}</div>
           {invites.map((invite) => {
-            const path = store.lastInviteToken && copiedId === 'new' ? invitePath(store.lastInviteToken) : null
+            const token = readInviteToken(invite.id)
+            const path = token ? invitePath(token) : null
             return (
               <div key={invite.id} className="card stack">
                 <strong>{invite.display_name || invite.email}</strong>
@@ -100,7 +107,26 @@ export function Coach() {
                       {copiedId === invite.id ? t('coach.copied') : t('coach.copyLink')}
                     </button>
                   ) : (
-                    <small className="muted">{t('coach.inviteHint')}</small>
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      disabled={regenBusy === invite.id}
+                      onClick={() => {
+                        setRegenBusy(invite.id)
+                        setInviteError(null)
+                        void store
+                          .regenerateInvite(invite.id)
+                          .then((result) => copyInvite(result.path, invite.id))
+                          .catch((caught: unknown) => {
+                            setInviteError(
+                              caught instanceof Error ? caught.message : t('errors.coachRegenerate'),
+                            )
+                          })
+                          .finally(() => setRegenBusy(null))
+                      }}
+                    >
+                      {regenBusy === invite.id ? t('common.saving') : t('coach.regenerateLink')}
+                    </button>
                   )}
                   <button
                     type="button"

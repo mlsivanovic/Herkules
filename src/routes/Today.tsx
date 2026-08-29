@@ -196,9 +196,11 @@ export function Today() {
 
       <div className="section-title">{t('today.quickActions')}</div>
       <div className="row row--wrap">
-        <button type="button" className="btn" onClick={() => void navigate('/routines/new')}>
-          <IconPlus width={18} height={18} /> {t('today.newRoutine')}
-        </button>
+        {caps.canCreateRoutines ? (
+          <button type="button" className="btn" onClick={() => void navigate('/routines/new')}>
+            <IconPlus width={18} height={18} /> {t('today.newRoutine')}
+          </button>
+        ) : null}
         <button type="button" className="btn" onClick={() => void navigate('/calendar')}>
           {t('today.planCalendar')}
         </button>

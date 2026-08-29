@@ -269,6 +269,8 @@ export const sr: Messages = {
   },
   starters: {
     title: 'Početni programi',
+    count: '{count} programa',
+    hide: 'Sakrij',
     add: 'Dodaj plan',
     view: 'Pogledaj plan',
     viewNamed: 'Pogledaj {name}',
@@ -914,6 +916,7 @@ export const sr: Messages = {
     weight: 'Poslednja težina',
     copyLink: 'Kopiraj link pozivnice',
     copied: 'Kopirano',
+    regenerateLink: 'Novi link pozivnice',
     revoke: 'Povuci',
     email: 'Imejl klijenta',
     displayName: 'Ime',
@@ -956,6 +959,7 @@ export const sr: Messages = {
     signIn: 'Prijavi se da prihvatiš',
     signUp: 'Napravi nalog da prihvatiš',
     expired: 'Ova pozivnica više nije važeća.',
+    connecting: 'Povezujemo te sa trenerom…',
     accepted: 'Povezani ste. Trener ti sada može slati treninge.',
   },
   notFound: {
@@ -1033,6 +1037,7 @@ export const sr: Messages = {
     coachOffline: 'Trenerski deo zahteva vezu.',
     coachLoad: 'Nije moguće učitati trenerske podatke.',
     coachInvite: 'Nije moguće napraviti pozivnicu.',
+    coachRegenerate: 'Nije moguće osvežiti link pozivnice.',
     coachAssign: 'Nije moguće dodeliti taj plan.',
     coachComment: 'Nije moguće sačuvati komentar.',
     joinInvalid: 'Ova pozivnica nije važeća ili je istekla.',

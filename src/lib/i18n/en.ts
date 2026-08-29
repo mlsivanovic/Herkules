@@ -268,6 +268,8 @@ export const en = {
   },
   starters: {
     title: 'Starter programs',
+    count: '{count} programs',
+    hide: 'Hide',
     add: 'Add plan',
     view: 'View plan',
     viewNamed: 'View {name}',
@@ -916,6 +918,7 @@ export const en = {
     weight: 'Latest weight',
     copyLink: 'Copy invite link',
     copied: 'Copied',
+    regenerateLink: 'New invite link',
     revoke: 'Revoke',
     email: 'Client email',
     displayName: 'Name',
@@ -957,6 +960,7 @@ export const en = {
     signIn: 'Sign in to accept',
     signUp: 'Create account to accept',
     expired: 'This invite is no longer valid.',
+    connecting: 'Connecting you to your coach…',
     accepted: 'You are connected. Your coach can now send you workouts.',
   },
   notFound: {
@@ -1034,6 +1038,7 @@ export const en = {
     coachOffline: 'Coaching needs a connection.',
     coachLoad: 'Could not load coaching data.',
     coachInvite: 'Could not create the invite.',
+    coachRegenerate: 'Could not refresh the invite link.',
     coachAssign: 'Could not assign that plan.',
     coachComment: 'Could not save the comment.',
     joinInvalid: 'This invite is invalid or has expired.',

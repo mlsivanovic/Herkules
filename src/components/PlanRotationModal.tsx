@@ -37,8 +37,8 @@ export function PlanRotationModal({
   onClose: () => void
 }) {
   const { t } = useT()
-  const { templates, schedulePlanRotation } = useStore()
-  const days = sortPlanTemplates(templates, planId)
+  const { templates, planRoutines, schedulePlanRotation } = useStore()
+  const days = sortPlanTemplates(templates, planId, planRoutines)
   const defaultFreq = (asTrainingFrequency(Math.min(Math.max(days.length, 2), 4)) ?? 3) as TrainingFrequency
   const [frequency, setFrequency] = useState<TrainingFrequency>(defaultFreq)
   const [weekdays, setWeekdays] = useState<number[]>(DEFAULT_WEEKDAYS[defaultFreq])

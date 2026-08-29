@@ -23,7 +23,8 @@ test.describe('training plans', () => {
     await page.goto('/#/routines')
     await expect(page.getByText('E2E PPL')).toBeVisible()
     await expect(page.getByText('1 day')).toBeVisible()
-    await expect(page.getByText('Every routine is in a plan')).toBeVisible()
+    await expect(page.getByText('Routine library')).toBeVisible()
+    await expect(page.getByText('E2E Push')).toBeVisible()
   })
 
   test('view a starter plan and open a routine without adding it', async ({ page }) => {

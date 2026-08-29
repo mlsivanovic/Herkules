@@ -25,7 +25,8 @@ import {
   weightToKg,
   weightUnitLabel,
 } from '../lib/units'
-import { IconGrip, IconPlus, IconTrash } from '../components/Icons'
+import { IconChevronDown, IconCopy, IconGrip, IconPlus, IconTrash } from '../components/Icons'
+import { isPoolTemplate, templatePlanIds } from '../lib/programs/plans'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { formVideoUrl } from '../lib/video'
 import { downloadTextFile, routinesExportFilename } from '../lib/routinesIo'
@@ -91,6 +92,23 @@ function structuredTempo(
 
 const NEW_PLAN = '__new__'
 
+function hasAdvancedParams(item: TemplateItemInput): boolean {
+  return (
+    item.target_rpe_min != null ||
+    item.target_rpe_max != null ||
+    item.target_rir_min != null ||
+    item.target_rir_max != null ||
+    item.load_increment_kg != null ||
+    (item.side_mode != null && item.side_mode !== 'bilateral') ||
+    (item.directions != null && item.directions !== 1) ||
+    item.tempo_eccentric != null ||
+    item.tempo_stretch_pause != null ||
+    item.tempo_concentric != null ||
+    item.tempo_contracted_pause != null ||
+    (item.tempo_intent != null && item.tempo_intent !== 'controlled')
+  )
+}
+
 export function RoutineEditor() {
   const { t } = useT()
   const { id } = useParams()
@@ -98,9 +116,10 @@ export function RoutineEditor() {
   const navigate = useNavigate()
   const isNew = id === 'new'
   const store = useStore()
-  const { templates, templateItems, templateBlocks, exercises, plans, ready } = store
+  const { templates, templateItems, templateBlocks, exercises, plans, planRoutines, ready } = store
 
   const template = isNew ? null : templates.find((t) => t.id === id) ?? null
+  const pool = template ? isPoolTemplate(template) : true
   const locked = template?.locked === true
   const units = store.profile?.unit_system ?? 'metric'
   const queryPlan = searchParams.get('plan')
@@ -116,6 +135,8 @@ export function RoutineEditor() {
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const [openNotes, setOpenNotes] = useState<Record<number, boolean>>({})
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [openAdvanced, setOpenAdvanced] = useState<Record<number, boolean>>({})
+  const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>(queryPlan ? [queryPlan] : [])
   const [announce, setAnnounce] = useState('')
 
   useEffect(() => {
@@ -123,6 +144,7 @@ export function RoutineEditor() {
       setName(template.name)
       setNotes(template.notes ?? '')
       setPlanChoice(template.plan_id ?? '')
+      setSelectedPlanIds(templatePlanIds(template.id, planRoutines, template.plan_id))
       setItems(
         templateItems
           .filter((i) => i.template_id === template.id)
@@ -139,9 +161,10 @@ export function RoutineEditor() {
           }),
       )
       setExpanded(new Set())
+      setOpenAdvanced({})
       setLoadedFor(template.id)
     }
-  }, [template, templateItems, templateBlocks, loadedFor])
+  }, [template, templateItems, templateBlocks, planRoutines, loadedFor])
 
   const exerciseById = useMemo(
     () => new Map(exercises.map((e) => [e.id, e])),
@@ -151,6 +174,7 @@ export function RoutineEditor() {
   const moveTo = useCallback((from: number, to: number) => {
     setItems((prev) => moveIndex(prev, from, to))
     setOpenNotes({})
+    setOpenAdvanced({})
     setExpanded((prev) => {
       const next = new Set<number>()
       for (const index of prev) {
@@ -207,7 +231,7 @@ export function RoutineEditor() {
     setBusy(true)
     setError(null)
     try {
-      let assignedPlanId: string | null = null
+      let createdPlanId: string | null = null
       if (planChoice === NEW_PLAN) {
         const planValidation = validateRequiredName(newPlanName, t('editor.planName'))
         if (planValidation) {
@@ -216,17 +240,25 @@ export function RoutineEditor() {
           return
         }
         const createdPlan = await store.createPlan(newPlanName.trim(), null)
-        assignedPlanId = createdPlan.id
-      } else {
-        assignedPlanId = planChoice === '' ? null : planChoice
+        createdPlanId = createdPlan.id
       }
+
+      const targetPlanIds = pool
+        ? [
+            ...new Set([
+              ...selectedPlanIds.filter((value) => value !== '' && value !== NEW_PLAN),
+              ...(createdPlanId ? [createdPlanId] : []),
+              ...(isNew && planChoice !== '' && planChoice !== NEW_PLAN ? [planChoice] : []),
+            ]),
+          ]
+        : [createdPlanId ?? (planChoice === '' || planChoice === NEW_PLAN ? null : planChoice)]
 
       let templateId: string
       if (isNew) {
         const created = await store.createTemplate(
           name.trim(),
           notes.trim() === '' ? null : notes.trim(),
-          assignedPlanId,
+          null,
         )
         templateId = created.id
       } else if (template) {
@@ -235,17 +267,36 @@ export function RoutineEditor() {
           name: name.trim(),
           notes: notes.trim() === '' ? null : notes.trim(),
         })
-        if ((template.plan_id ?? null) !== assignedPlanId) {
-          await store.assignTemplateToPlan(templateId, assignedPlanId)
-        }
       } else {
         return
       }
+
+      if (pool) {
+        const current = new Set(templatePlanIds(templateId, store.planRoutines, template?.plan_id))
+        for (const planId of targetPlanIds) {
+          if (!planId || current.has(planId)) continue
+          await store.assignTemplateToPlan(templateId, planId)
+        }
+        for (const planId of current) {
+          if (!targetPlanIds.includes(planId)) {
+            await store.removeTemplateFromPlan(templateId, planId)
+          }
+        }
+      } else {
+        const assignedPlanId = targetPlanIds[0] ?? null
+        if ((template?.plan_id ?? null) !== assignedPlanId) {
+          await store.assignTemplateToPlan(templateId, assignedPlanId)
+        }
+      }
+
       await store.saveTemplateItems(
         templateId,
         items.map((item, index) => ({ ...item, position: index })),
       )
-      void navigate(assignedPlanId ? `/plans/${assignedPlanId}` : '/routines')
+      const goPlan = pool
+        ? (createdPlanId ?? selectedPlanIds[0] ?? (planChoice && planChoice !== NEW_PLAN ? planChoice : null))
+        : (targetPlanIds[0] ?? null)
+      void navigate(goPlan ? `/plans/${goPlan}` : '/routines')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('errors.saveRoutine'))
     } finally {
@@ -291,23 +342,58 @@ export function RoutineEditor() {
           onChange={(e) => setNotes(e.target.value)}
         />
       </div>
-      <div className="field">
-        <label htmlFor="routine-plan">{t('editor.trainingPlan')}</label>
-        <select
-          id="routine-plan"
-          className="input"
-          value={planChoice}
-          onChange={(e) => setPlanChoice(e.target.value)}
-        >
-          <option value="">{t('editor.noneUnassigned')}</option>
-          {plans.map((plan) => (
-            <option key={plan.id} value={plan.id}>
-              {plan.name}
-            </option>
-          ))}
-          <option value={NEW_PLAN}>{t('editor.newPlan')}</option>
-        </select>
-      </div>
+      {!isNew && pool ? (
+        <fieldset className="field">
+          <legend>{t('editor.usedInPlans')}</legend>
+          <p className="muted" style={{ margin: '0 0 0.45rem' }}>
+            {t('editor.poolPlansHint')}
+          </p>
+          <div className="stack">
+            {plans.map((plan) => (
+              <label key={plan.id} className="field field--check">
+                <input
+                  type="checkbox"
+                  checked={selectedPlanIds.includes(plan.id)}
+                  onChange={(event) => {
+                    setSelectedPlanIds((prev) =>
+                      event.target.checked
+                        ? [...prev, plan.id]
+                        : prev.filter((value) => value !== plan.id),
+                    )
+                  }}
+                />
+                <span>{plan.name}</span>
+              </label>
+            ))}
+            <label className="field field--check">
+              <input
+                type="checkbox"
+                checked={planChoice === NEW_PLAN}
+                onChange={(event) => setPlanChoice(event.target.checked ? NEW_PLAN : '')}
+              />
+              <span>{t('editor.newPlan')}</span>
+            </label>
+          </div>
+        </fieldset>
+      ) : (
+        <div className="field">
+          <label htmlFor="routine-plan">{t('editor.trainingPlan')}</label>
+          <select
+            id="routine-plan"
+            className="input"
+            value={planChoice}
+            onChange={(e) => setPlanChoice(e.target.value)}
+          >
+            <option value="">{t('editor.noneUnassigned')}</option>
+            {plans.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name}
+              </option>
+            ))}
+            <option value={NEW_PLAN}>{t('editor.newPlan')}</option>
+          </select>
+        </div>
+      )}
       {planChoice === NEW_PLAN ? (
         <div className="field">
           <label htmlFor="routine-new-plan">{t('editor.newPlanName')}</label>
@@ -744,6 +830,27 @@ export function RoutineEditor() {
                       }
                     />
                   </label>
+                </div>
+
+                <div className={`advanced-block${hasAdvancedParams(item) ? ' advanced-block--filled' : ''}`}>
+                  <button
+                    type="button"
+                    className="advanced-toggle"
+                    data-no-drag
+                    aria-expanded={Boolean(openAdvanced[index])}
+                    aria-controls={`routine-advanced-${item.id ?? index}`}
+                    onClick={() =>
+                      setOpenAdvanced((prev) => ({ ...prev, [index]: !prev[index] }))
+                    }
+                  >
+                    <span className="advanced-toggle__label">
+                      {openAdvanced[index] ? t('editor.hideAdvanced') : t('editor.showAdvanced')}
+                    </span>
+                    <span className="muted advanced-toggle__hint">{t('editor.advancedHint')}</span>
+                    <IconChevronDown className="advanced-toggle__chevron" width={14} height={14} />
+                  </button>
+                  {openAdvanced[index] ? (
+                    <div className="routine-grid" id={`routine-advanced-${item.id ?? index}`}>
                   {([
                     ['tempo_eccentric', 'editor.eccentric'],
                     ['tempo_stretch_pause', 'editor.stretchPause'],
@@ -807,6 +914,8 @@ export function RoutineEditor() {
                       <option value="explosive">{t('editor.explosive')}</option>
                     </select>
                   </label>
+                    </div>
+                  ) : null}
                 </div>
 
                 <NotesDisclosure
@@ -873,6 +982,25 @@ export function RoutineEditor() {
         </button>
         {!isNew && template ? (
           <>
+            {locked ? null : (
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  void store
+                    .cloneTemplate(template.id)
+                    .then((copy) => {
+                      void navigate(`/routines/${copy.id}`)
+                    })
+                    .catch((caught: unknown) => {
+                      setError(caught instanceof Error ? caught.message : t('errors.copyRoutine'))
+                    })
+                }}
+              >
+                <IconCopy width={16} height={16} /> {t('editor.copyRoutine')}
+              </button>
+            )}
             <button
               type="button"
               className="btn"

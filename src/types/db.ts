@@ -126,13 +126,24 @@ export interface TemplateRow {
   owner_id: string
   name: string
   notes: string | null
-  /** null = unassigned; a routine belongs to at most one plan */
+  /** Exclusive membership for starter days; pool routines keep this null. */
   plan_id: string | null
   plan_position: number
   source_slot?: 'A' | 'B' | 'C' | 'D' | null
   assigned_by?: string | null
   source_template_id?: string | null
   locked?: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Ordered plan ↔ routine membership. Pool routines may appear on many plans. */
+export interface PlanRoutineRow {
+  id: string
+  owner_id: string
+  plan_id: string
+  template_id: string
+  position: number
   created_at: string
   updated_at: string
 }
@@ -407,6 +418,7 @@ export type SyncTable =
   | 'exercises'
   | 'training_plans'
   | 'workout_templates'
+  | 'plan_routines'
   | 'template_blocks'
   | 'template_items'
   | 'recurrence_rules'

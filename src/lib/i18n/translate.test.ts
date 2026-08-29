@@ -69,6 +69,15 @@ describe('t', () => {
     expect(t('editor.addNotes', undefined, 'sr')).toBe('Dodaj beleške')
   })
 
+  it('translates routine library and copy copy', () => {
+    expect(t('routines.library', undefined, 'en')).toBe('Routine library')
+    expect(t('routines.library', undefined, 'sr')).toBe('Biblioteka rutina')
+    expect(t('routines.copyName', { name: 'Push' }, 'en')).toBe('Push (copy)')
+    expect(t('routines.copyName', { name: 'Push' }, 'sr')).toBe('Push (kopija)')
+    expect(t('editor.advanced', undefined, 'en')).toBe('Advanced')
+    expect(t('editor.advanced', undefined, 'sr')).toBe('Napredno')
+  })
+
   it('translates automatic YouTube form-video copy', () => {
     expect(t('exercises.videoHint', undefined, 'en')).toMatch(/proper form/)
     expect(t('exercises.videoHint', undefined, 'sr')).toMatch(/proper form/)

@@ -26,7 +26,8 @@ import './calendar.css'
 export function Calendar() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { schedules, rules, templates, sessions, aerobicActivities, profile, ready } = useStore()
+  const { schedules, rules, templates, planRoutines, sessions, aerobicActivities, profile, ready } =
+    useStore()
   const weekStart = profile?.week_start ?? 'monday'
   const today = todayKey()
 
@@ -215,7 +216,7 @@ export function Calendar() {
               template: o.templateId
                 ? templateById.get(o.templateId)
                 : o.planId
-                  ? nextTemplateForPlan(o.planId, templates, sessions) ?? undefined
+                  ? nextTemplateForPlan(o.planId, templates, sessions, planRoutines) ?? undefined
                   : undefined,
             }))}
             sessions={selectedSessions}
@@ -433,15 +434,15 @@ function DayDetail({
 
 function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }) {
   const { t } = useT()
-  const { plans, templates, scheduleSingleDate, scheduleWeekly, profile } = useStore()
+  const { plans, templates, planRoutines, scheduleSingleDate, scheduleWeekly, profile } = useStore()
   const visiblePlans = useMemo(() => programmingForAccount(plans, profile), [plans, profile])
   const visibleTemplates = useMemo(
     () => programmingForAccount(templates, profile),
     [templates, profile],
   )
   const routineGroups = useMemo(
-    () => templatesGroupedByPlan(visiblePlans, visibleTemplates),
-    [visiblePlans, visibleTemplates],
+    () => templatesGroupedByPlan(visiblePlans, visibleTemplates, planRoutines),
+    [visiblePlans, visibleTemplates, planRoutines],
   )
   const [templateId, setTemplateId] = useState(
     () => routineGroups[0]?.templates[0]?.id ?? templates[0]?.id ?? '',

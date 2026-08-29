@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
-import { IconChevronDown, IconPlus } from '../components/Icons'
+import { IconChevronDown, IconCopy, IconPlus } from '../components/Icons'
 import { PlanRotationModal } from '../components/PlanRotationModal'
 import {
   downloadTextFile,
@@ -17,7 +17,13 @@ import {
   STARTER_PROGRAMS,
   type StarterProgram,
 } from '../lib/programs/catalog'
-import { hybridPlanFrom, planBySourceKey, sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import {
+  hybridPlanFrom,
+  planBySourceKey,
+  poolTemplates,
+  sortPlanTemplates,
+  templatePlanIds,
+} from '../lib/programs/plans'
 import { HYBRID_SOURCE_KEY } from '../lib/programs/hybrid4day'
 import { useT } from '../lib/i18n'
 import './routines.css'
@@ -28,10 +34,12 @@ export function Routines() {
     plans,
     templates,
     templateItems,
+    planRoutines,
     ready,
     installStarterProgram,
     exportRoutines,
     importRoutines,
+    cloneTemplate,
   } = useStore()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -43,7 +51,7 @@ export function Routines() {
   const [ioError, setIoError] = useState<string | null>(null)
   const [startersOpen, setStartersOpen] = useState(false)
 
-  const loose = useMemo(() => unassignedTemplates(templates), [templates])
+  const library = useMemo(() => poolTemplates(templates), [templates])
   const orderedPlans = useMemo(() => sortPlansForDisplay(plans), [plans])
 
   async function addProgram(program: StarterProgram) {
@@ -262,7 +270,7 @@ export function Routines() {
       ) : (
         <ul className="exercise-list">
           {orderedPlans.map((plan) => {
-            const days = sortPlanTemplates(templates, plan.id)
+            const days = sortPlanTemplates(templates, plan.id, planRoutines)
             return (
               <li key={plan.id}>
                 <button
@@ -295,29 +303,33 @@ export function Routines() {
         </ul>
       )}
 
-      <div className="section-title">{t('routines.unassigned')}</div>
-      {loose.length === 0 ? (
+      <div className="section-title">{t('routines.library')}</div>
+      <p className="muted" style={{ marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
+        {t('routines.libraryHint')}
+      </p>
+      {library.length === 0 ? (
         <EmptyState
-          title={templates.length === 0 ? t('routines.noRoutinesTitle') : t('routines.allInPlan')}
-          hint={t('routines.routineHint')}
+          title={t('routines.libraryEmptyTitle')}
+          hint={t('routines.libraryEmptyHint')}
           action={
-            templates.length === 0 ? (
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => void navigate('/routines/new')}
-              >
-                {t('routines.createFirst')}
-              </button>
-            ) : undefined
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void navigate('/routines/new')}
+            >
+              {t('routines.createFirst')}
+            </button>
           }
         />
       ) : (
         <ul className="exercise-list">
-          {loose.map((template) => {
+          {library.map((template) => {
             const items = templateItems.filter((i) => i.template_id === template.id)
+            const planNames = templatePlanIds(template.id, planRoutines, template.plan_id)
+              .map((planId) => plans.find((plan) => plan.id === planId)?.name)
+              .filter((value): value is string => Boolean(value))
             return (
-              <li key={template.id}>
+              <li key={template.id} className="routine-library-item">
                 <button
                   type="button"
                   className="card exercise-card"
@@ -329,9 +341,28 @@ export function Routines() {
                       {t('routines.exerciseCount', { count: items.length })}
                     </span>
                   </span>
+                  <small className="muted">
+                    {planNames.length > 0
+                      ? t('routines.inPlans', { names: planNames.join(', ') })
+                      : t('routines.inNoPlan')}
+                  </small>
                   {template.notes ? (
                     <small className="muted">{previewNotes(template.notes)}</small>
                   ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--icon"
+                  aria-label={t('routines.copyNamed', { name: template.name })}
+                  onClick={() => {
+                    void cloneTemplate(template.id)
+                      .then((copy) => navigate(`/routines/${copy.id}`))
+                      .catch((caught: unknown) => {
+                        setError(caught instanceof Error ? caught.message : t('errors.copyRoutine'))
+                      })
+                  }}
+                >
+                  <IconCopy width={18} height={18} />
                 </button>
               </li>
             )

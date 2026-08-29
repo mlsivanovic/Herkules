@@ -15,11 +15,12 @@ import type {
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
+  PlanRoutineRow,
 } from '../types/db'
 import { t } from './i18n'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 4
+export const BACKUP_VERSION = 5
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT
@@ -32,6 +33,7 @@ export interface BackupFile {
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  planRoutines: PlanRoutineRow[]
   templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -43,8 +45,14 @@ export interface BackupFile {
 
 type BackupInput = Omit<
   BackupFile,
-  'format' | 'version' | 'exported_at' | 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures'
-> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures'>>
+  | 'format'
+  | 'version'
+  | 'exported_at'
+  | 'templateBlocks'
+  | 'aerobicActivities'
+  | 'bodyMeasures'
+  | 'planRoutines'
+> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures' | 'planRoutines'>>
 
 export function serializeBackup(input: BackupInput): string {
   const file: BackupFile = {
@@ -55,6 +63,7 @@ export function serializeBackup(input: BackupInput): string {
     templateBlocks: input.templateBlocks ?? [],
     aerobicActivities: input.aerobicActivities ?? [],
     bodyMeasures: input.bodyMeasures ?? [],
+    planRoutines: input.planRoutines ?? [],
   }
   return JSON.stringify(file, null, 2)
 }
@@ -121,14 +130,33 @@ export function parseBackup(text: string): BackupFile {
   if (bodyMeasures === null) {
     throw new Error(t('errors.backupMissing', { key: 'bodyMeasures' }))
   }
+  const templates = (file.templates as TemplateRow[]).map(normalizeTemplate)
+  const planRoutines = Array.isArray(file.planRoutines)
+    ? file.planRoutines
+    : membershipsFromTemplates(templates)
   return {
     ...(file as BackupFile),
     plans,
     templateBlocks,
     aerobicActivities,
     bodyMeasures,
-    templates: (file.templates as TemplateRow[]).map(normalizeTemplate),
+    templates,
+    planRoutines,
   }
+}
+
+function membershipsFromTemplates(templates: TemplateRow[]): PlanRoutineRow[] {
+  return templates
+    .filter((row): row is TemplateRow & { plan_id: string } => Boolean(row.plan_id))
+    .map((row) => ({
+      id: row.id,
+      owner_id: row.owner_id,
+      plan_id: row.plan_id,
+      template_id: row.id,
+      position: row.plan_position,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
 }
 
 function normalizeTemplate(row: TemplateRow): TemplateRow {

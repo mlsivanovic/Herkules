@@ -35,6 +35,7 @@ import type {
   BodyWeightRow,
   TendonCheckinRow,
   TrainingPlanRow,
+  PlanRoutineRow,
 } from '../types/db'
 import { backendConfigured, supabase } from './supabase'
 import { useAuth } from './auth'
@@ -101,16 +102,20 @@ import {
   requiresHybridLegacyUpgrade,
 } from './programs/hybrid4day'
 import {
+  compactMemberships,
   compactPlanPositions,
   extraDuplicateSlotTemplates,
   hybridPlanFrom,
   HYBRID_PLAN_NAME,
   HYBRID_PLAN_NOTES,
+  isPoolTemplate,
+  missingPlanMemberships,
   nextTemplateForPlan,
   nextPlanPosition,
   planBySourceKey,
   sortPlanTemplates,
 } from './programs/plans'
+import { cloneRoutine } from './cloneRoutine'
 import { buildProgramUpgrade } from './programs/recipe'
 import { normalizeBlockRole } from './blockRole'
 import { firstInvalidBodyGirth } from './bodyComposition'
@@ -157,6 +162,26 @@ function nowIso(): string {
 
 function upsert(table: SyncTable, row: object): OutboxOp {
   return { kind: 'upsert', table, row: row as Record<string, unknown> }
+}
+
+function membershipRow(input: {
+  id?: string
+  ownerId: string
+  planId: string
+  templateId: string
+  position: number
+  now: string
+  createdAt?: string
+}): PlanRoutineRow {
+  return {
+    id: input.id ?? newId(),
+    owner_id: input.ownerId,
+    plan_id: input.planId,
+    template_id: input.templateId,
+    position: input.position,
+    created_at: input.createdAt ?? input.now,
+    updated_at: input.now,
+  }
 }
 
 async function dropLocalSchedule(schedule: ScheduleItemRow, ops: OutboxOp[]): Promise<void> {
@@ -243,6 +268,7 @@ export interface StoreData {
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  planRoutines: PlanRoutineRow[]
   templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -274,10 +300,12 @@ export interface StoreActions {
   updatePlan(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
   deletePlan(id: string, options?: { deleteRoutines?: boolean }): Promise<void>
   assignTemplateToPlan(templateId: string, planId: string | null): Promise<void>
+  removeTemplateFromPlan(templateId: string, planId: string): Promise<void>
   reorderPlanDays(planId: string, orderedTemplateIds: string[]): Promise<void>
 
   // templates
   createTemplate(name: string, notes: string | null, planId?: string | null): Promise<TemplateRow>
+  cloneTemplate(templateId: string, options?: { planId?: string | null }): Promise<TemplateRow>
   updateTemplate(id: string, patch: { name?: string; notes?: string | null }): Promise<void>
   deleteTemplate(id: string): Promise<void>
   saveTemplateItems(templateId: string, items: TemplateItemInput[]): Promise<void>
@@ -287,6 +315,7 @@ export interface StoreActions {
   ensureHybridV2(): Promise<void>
   ensureHybridBlockRoles(): Promise<void>
   ensureHybridPlan(): Promise<void>
+  ensurePlanMemberships(): Promise<void>
 
   // scheduling
   scheduleSingleDate(templateId: string, date: string): Promise<void>
@@ -466,6 +495,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     exercises: [] as ExerciseRow[],
     plans: [] as TrainingPlanRow[],
     templates: [] as TemplateRow[],
+    planRoutines: [] as PlanRoutineRow[],
     templateBlocks: [] as TemplateBlockRow[],
     templateItems: [] as TemplateItemRow[],
     rules: [] as RecurrenceRuleRow[],
@@ -508,6 +538,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, syncing: true }))
     try {
       await actionsRef.current?.repairDuplicatePlanSlots()
+      await actionsRef.current?.ensurePlanMemberships()
       await flushOutbox(client)
       await clearDirtyFlags()
       await clearProfileDirty()
@@ -517,6 +548,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('exercises', snapshot.exercises),
         reconcileStore('plans', snapshot.plans),
         reconcileStore('templates', snapshot.templates),
+        reconcileStore('planRoutines', snapshot.planRoutines),
         reconcileStore('templateBlocks', snapshot.templateBlocks),
         reconcileStore('templateItems', snapshot.templateItems),
         reconcileStore('rules', snapshot.rules),
@@ -559,6 +591,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         exercises: [],
         plans: [],
         templates: [],
+        planRoutines: [],
         templateBlocks: [],
         templateItems: [],
         rules: [],
@@ -588,6 +621,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await claimPendingInvitesQuietly(client)
       }
       if (cancelled) return
+      await actionsRef.current?.ensurePlanMemberships()
       await actionsRef.current?.ensureHybridV2()
       void performSync()
     })()
@@ -734,14 +768,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           t('errors.lightNoRoutines'),
         )
         const all = await readAll()
-        const members = sortPlanTemplates(all.templates, id)
+        const members = sortPlanTemplates(all.templates, id, all.planRoutines)
         const memberIds = new Set(members.map((row) => row.id))
+        const planMemberships = all.planRoutines.filter((row) => row.plan_id === id)
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
 
+        const dropMembership = async (row: PlanRoutineRow) => {
+          await removeMatchingOps(
+            (op) => op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === row.id,
+          )
+          await removeFrom('planRoutines', row.id)
+          ops.push({ kind: 'delete', table: 'plan_routines', id: row.id })
+        }
+
         if (options?.deleteRoutines) {
           for (const template of members) {
+            const stillOnOtherPlans = all.planRoutines.some(
+              (row) => row.template_id === template.id && row.plan_id !== id,
+            )
+            if (isPoolTemplate(template) && stillOnOtherPlans) continue
             const items = all.templateItems.filter((item) => item.template_id === template.id)
             const blocks = all.templateBlocks.filter((block) => block.template_id === template.id)
             const itemIds = new Set(items.map((item) => item.id))
@@ -761,16 +808,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               await removeFrom('templateBlocks', block.id)
               ops.push({ kind: 'delete', table: 'template_blocks', id: block.id })
             }
+            for (const membership of all.planRoutines.filter((row) => row.template_id === template.id)) {
+              await dropMembership(membership)
+            }
             await removeFrom('templates', template.id)
             ops.push({ kind: 'delete', table: 'workout_templates', id: template.id })
           }
           for (const schedule of all.schedules) {
             if (schedule.template_id && memberIds.has(schedule.template_id)) {
+              const leftover = all.templates.find((row) => row.id === schedule.template_id)
+              if (leftover && isPoolTemplate(leftover)) {
+                const stillOnOtherPlans = all.planRoutines.some(
+                  (row) => row.template_id === leftover.id && row.plan_id !== id,
+                )
+                if (stillOnOtherPlans) continue
+              }
               await dropLocalSchedule(schedule, ops)
             }
           }
         } else {
           for (const template of members) {
+            if (template.plan_id !== id) continue
             const row: TemplateRow = {
               ...template,
               plan_id: null,
@@ -780,6 +838,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             writes.push({ store: 'templates', row })
             ops.push(upsert('workout_templates', row))
           }
+        }
+
+        for (const membership of planMemberships) {
+          await dropMembership(membership)
         }
 
         for (const schedule of all.schedules) {
@@ -808,37 +870,161 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (!plan) throw new Error(t('errors.planNotFound'))
         }
         const stamp = nowIso()
+        const owner = userIdRef.current ?? ''
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
-        const previousPlanId = existing.plan_id
-        const row: TemplateRow = {
-          ...existing,
-          plan_id: planId,
-          plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
-          source_slot: null,
-          updated_at: stamp,
-        }
-        writes.push({ store: 'templates', row })
-        ops.push(upsert('workout_templates', row))
+        const pool = isPoolTemplate(existing)
+        const current = all.planRoutines.filter((row) => row.template_id === templateId)
 
-        if (previousPlanId && previousPlanId !== planId) {
-          const remaining = all.templates.map((item) => (item.id === templateId ? row : item))
-          for (const compacted of compactPlanPositions(remaining, previousPlanId)) {
-            if (compacted.plan_position === remaining.find((item) => item.id === compacted.id)?.plan_position) {
-              continue
-            }
+        const compactPlan = (planToCompact: string, exceptTemplateId?: string) => {
+          const remaining = all.planRoutines.filter(
+            (row) => row.plan_id === planToCompact && row.template_id !== exceptTemplateId,
+          )
+          for (const compacted of compactMemberships(remaining, planToCompact)) {
+            const previous = remaining.find((row) => row.id === compacted.id)
+            if (!previous || previous.position === compacted.position) continue
+            const next: PlanRoutineRow = { ...compacted, updated_at: stamp }
+            writes.push({ store: 'planRoutines', row: next })
+            ops.push(upsert('plan_routines', next))
+          }
+          const remainingTemplates = all.templates.filter(
+            (row) => row.plan_id === planToCompact && row.id !== exceptTemplateId,
+          )
+          for (const compacted of compactPlanPositions(remainingTemplates, planToCompact)) {
+            const previous = remainingTemplates.find((row) => row.id === compacted.id)
+            if (!previous || previous.plan_position === compacted.plan_position) continue
             const next: TemplateRow = { ...compacted, updated_at: stamp }
             writes.push({ store: 'templates', row: next })
             ops.push(upsert('workout_templates', next))
           }
         }
 
+        if (!planId) {
+          for (const membership of current) {
+            await removeMatchingOps(
+              (op) =>
+                op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === membership.id,
+            )
+            await removeFrom('planRoutines', membership.id)
+            ops.push({ kind: 'delete', table: 'plan_routines', id: membership.id })
+            compactPlan(membership.plan_id, templateId)
+          }
+          if (existing.plan_id || existing.plan_position !== 0) {
+            const row: TemplateRow = { ...existing, plan_id: null, plan_position: 0, updated_at: stamp }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+          }
+          await commit(writes, ops)
+          return
+        }
+
+        const already = current.find((row) => row.plan_id === planId)
+        if (already) {
+          if (!pool && existing.plan_id !== planId) {
+            const row: TemplateRow = {
+              ...existing,
+              plan_id: planId,
+              plan_position: already.position,
+              updated_at: stamp,
+            }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+            await commit(writes, ops)
+          }
+          return
+        }
+
+        const position = nextPlanPosition(all.templates, planId, all.planRoutines)
+        const membership = membershipRow({
+          ownerId: owner,
+          planId,
+          templateId,
+          position,
+          now: stamp,
+        })
+        writes.push({ store: 'planRoutines', row: membership })
+        ops.push(upsert('plan_routines', membership))
+
+        if (pool) {
+          if (existing.plan_id === planId) {
+            const row: TemplateRow = { ...existing, plan_id: null, plan_position: 0, updated_at: stamp }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+          }
+        } else {
+          const previousPlanId = existing.plan_id
+          const row: TemplateRow = {
+            ...existing,
+            plan_id: planId,
+            plan_position: position,
+            updated_at: stamp,
+          }
+          writes.push({ store: 'templates', row })
+          ops.push(upsert('workout_templates', row))
+          for (const extra of current.filter((item) => item.plan_id !== planId)) {
+            await removeMatchingOps(
+              (op) =>
+                op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === extra.id,
+            )
+            await removeFrom('planRoutines', extra.id)
+            ops.push({ kind: 'delete', table: 'plan_routines', id: extra.id })
+            compactPlan(extra.plan_id, templateId)
+          }
+          if (previousPlanId && previousPlanId !== planId) compactPlan(previousPlanId, templateId)
+        }
+
+        await commit(writes, ops)
+      },
+
+      async removeTemplateFromPlan(templateId, planId) {
+        const all = await readAll()
+        const existing = all.templates.find((row) => row.id === templateId)
+        if (!existing) throw new Error(t('errors.routineNotFound'))
+        const stamp = nowIso()
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        const memberships = all.planRoutines.filter(
+          (row) => row.template_id === templateId && row.plan_id === planId,
+        )
+        for (const membership of memberships) {
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === membership.id,
+          )
+          await removeFrom('planRoutines', membership.id)
+          ops.push({ kind: 'delete', table: 'plan_routines', id: membership.id })
+        }
+        const remaining = all.planRoutines.filter(
+          (row) => row.plan_id === planId && row.template_id !== templateId,
+        )
+        for (const compacted of compactMemberships(remaining, planId)) {
+          const previous = remaining.find((row) => row.id === compacted.id)
+          if (!previous || previous.position === compacted.position) continue
+          const next: PlanRoutineRow = { ...compacted, updated_at: stamp }
+          writes.push({ store: 'planRoutines', row: next })
+          ops.push(upsert('plan_routines', next))
+        }
+        if (existing.plan_id === planId) {
+          const row: TemplateRow = { ...existing, plan_id: null, plan_position: 0, updated_at: stamp }
+          writes.push({ store: 'templates', row })
+          ops.push(upsert('workout_templates', row))
+          const remainingTemplates = all.templates.filter(
+            (row) => row.plan_id === planId && row.id !== templateId,
+          )
+          for (const compacted of compactPlanPositions(remainingTemplates, planId)) {
+            const previous = remainingTemplates.find((row) => row.id === compacted.id)
+            if (!previous || previous.plan_position === compacted.plan_position) continue
+            const next: TemplateRow = { ...compacted, updated_at: stamp }
+            writes.push({ store: 'templates', row: next })
+            ops.push(upsert('workout_templates', next))
+          }
+        }
         await commit(writes, ops)
       },
 
       async reorderPlanDays(planId, orderedTemplateIds) {
         const all = await readAll()
-        const members = sortPlanTemplates(all.templates, planId)
+        const members = sortPlanTemplates(all.templates, planId, all.planRoutines)
         const memberIds = new Set(members.map((row) => row.id))
         if (orderedTemplateIds.some((id) => !memberIds.has(id))) {
           throw new Error(t('errors.routinesNotInPlan'))
@@ -846,12 +1032,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const stamp = nowIso()
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
+        const byTemplate = new Map(
+          all.planRoutines.filter((row) => row.plan_id === planId).map((row) => [row.template_id, row]),
+        )
         orderedTemplateIds.forEach((id, index) => {
+          const membership = byTemplate.get(id)
+          if (membership && membership.position !== index) {
+            const row: PlanRoutineRow = { ...membership, position: index, updated_at: stamp }
+            writes.push({ store: 'planRoutines', row })
+            ops.push(upsert('plan_routines', row))
+          }
           const existing = members.find((row) => row.id === id)
-          if (!existing || existing.plan_position === index) return
-          const row: TemplateRow = { ...existing, plan_position: index, updated_at: stamp }
-          writes.push({ store: 'templates', row })
-          ops.push(upsert('workout_templates', row))
+          if (existing?.plan_id === planId && existing.plan_position !== index) {
+            const row: TemplateRow = { ...existing, plan_position: index, updated_at: stamp }
+            writes.push({ store: 'templates', row })
+            ops.push(upsert('workout_templates', row))
+          }
         })
         if (writes.length === 0) return
         await commit(writes, ops)
@@ -868,21 +1064,85 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (planId && !all.plans.some((row) => row.id === planId)) {
           throw new Error(t('errors.planNotFound'))
         }
+        const stamp = nowIso()
+        const owner = userIdRef.current ?? ''
         const row: TemplateRow = {
           id: newId(),
-          owner_id: userIdRef.current ?? '',
+          owner_id: owner,
           name,
           notes,
-          plan_id: planId,
-          plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
+          plan_id: null,
+          plan_position: 0,
+          source_slot: null,
           assigned_by: null,
           source_template_id: null,
           locked: false,
-          created_at: nowIso(),
-          updated_at: nowIso(),
+          created_at: stamp,
+          updated_at: stamp,
         }
-        await commit([{ store: 'templates', row }], [upsert('workout_templates', row)])
+        const writes: { store: StoreName; row: object }[] = [{ store: 'templates', row }]
+        const ops: OutboxOp[] = [upsert('workout_templates', row)]
+        if (planId) {
+          const membership = membershipRow({
+            ownerId: owner,
+            planId,
+            templateId: row.id,
+            position: nextPlanPosition(all.templates, planId, all.planRoutines),
+            now: stamp,
+          })
+          writes.push({ store: 'planRoutines', row: membership })
+          ops.push(upsert('plan_routines', membership))
+        }
+        await commit(writes, ops)
         return row
+      },
+
+      async cloneTemplate(templateId, options) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
+        const all = await readAll()
+        const existing = all.templates.find((row) => row.id === templateId)
+        if (!existing) throw new Error(t('errors.routineNotFound'))
+        const planId = options?.planId ?? null
+        if (planId && !all.plans.some((row) => row.id === planId)) {
+          throw new Error(t('errors.planNotFound'))
+        }
+        const stamp = nowIso()
+        const owner = userIdRef.current ?? ''
+        const copy = cloneRoutine({
+          template: existing,
+          items: all.templateItems,
+          blocks: all.templateBlocks,
+          ownerId: owner,
+          now: stamp,
+          newId,
+          name: t('routines.copyName', { name: existing.name }),
+        })
+        const writes: { store: StoreName; row: object }[] = [{ store: 'templates', row: copy.template }]
+        const ops: OutboxOp[] = [upsert('workout_templates', copy.template)]
+        for (const block of copy.blocks) {
+          writes.push({ store: 'templateBlocks', row: block })
+          ops.push(upsert('template_blocks', block))
+        }
+        for (const item of copy.items) {
+          writes.push({ store: 'templateItems', row: item })
+          ops.push(upsert('template_items', item))
+        }
+        if (planId) {
+          const membership = membershipRow({
+            ownerId: owner,
+            planId,
+            templateId: copy.template.id,
+            position: nextPlanPosition(all.templates, planId, all.planRoutines),
+            now: stamp,
+          })
+          writes.push({ store: 'planRoutines', row: membership })
+          ops.push(upsert('plan_routines', membership))
+        }
+        await commit(writes, ops)
+        return copy.template
       },
 
       async updateTemplate(id, patch) {
@@ -915,9 +1175,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         for (const blockId of blockIds) await removeFrom('templateBlocks', blockId)
         await removeFrom('templates', id)
         const ops: OutboxOp[] = [{ kind: 'delete', table: 'workout_templates', id }]
+        const stamp = nowIso()
+        const affectedPlans = new Set<string>()
+        for (const membership of all.planRoutines.filter((row) => row.template_id === id)) {
+          affectedPlans.add(membership.plan_id)
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === membership.id,
+          )
+          await removeFrom('planRoutines', membership.id)
+          ops.push({ kind: 'delete', table: 'plan_routines', id: membership.id })
+        }
+        for (const planId of affectedPlans) {
+          const remaining = all.planRoutines.filter(
+            (row) => row.plan_id === planId && row.template_id !== id,
+          )
+          for (const compacted of compactMemberships(remaining, planId)) {
+            const previous = remaining.find((row) => row.id === compacted.id)
+            if (!previous || previous.position === compacted.position) continue
+            const row: PlanRoutineRow = { ...compacted, updated_at: stamp }
+            await putDirty('planRoutines', row)
+            ops.push(upsert('plan_routines', row))
+          }
+        }
         if (existing?.plan_id) {
           const remaining = all.templates.filter((row) => row.id !== id)
-          const stamp = nowIso()
           for (const compacted of compactPlanPositions(remaining, existing.plan_id)) {
             const previous = remaining.find((row) => row.id === compacted.id)
             if (!previous || previous.plan_position === compacted.plan_position) continue
@@ -1014,6 +1296,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
         for (const extra of extras) {
+          for (const membership of all.planRoutines.filter((row) => row.template_id === extra.id)) {
+            await removeMatchingOps(
+              (op) =>
+                op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === membership.id,
+            )
+            await removeFrom('planRoutines', membership.id)
+            ops.push({ kind: 'delete', table: 'plan_routines', id: membership.id })
+          }
           if (referenced.has(extra.id)) {
             const row: TemplateRow = {
               ...extra,
@@ -1079,6 +1369,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const template = upgrade.templates[definition.slot]
           writes.push({ store: 'templates', row: template })
           ops.push(upsert('workout_templates', template))
+          const previousMembership = all.planRoutines.find(
+            (row) => row.plan_id === plan.id && row.template_id === template.id,
+          )
+          const membership = membershipRow({
+            id: previousMembership?.id,
+            ownerId: owner,
+            planId: plan.id,
+            templateId: template.id,
+            position: template.plan_position,
+            now: stamp,
+            createdAt: previousMembership?.created_at,
+          })
+          writes.push({ store: 'planRoutines', row: membership })
+          ops.push(upsert('plan_routines', membership))
         }
 
         if (installed) {
@@ -1155,6 +1459,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const template = upgrade.templates[definition.slot]
           writes.push({ store: 'templates', row: template })
           ops.push(upsert('workout_templates', template))
+          const previousMembership = all.planRoutines.find(
+            (row) => row.plan_id === upgrade.plan.id && row.template_id === template.id,
+          )
+          const membership = membershipRow({
+            id: previousMembership?.id,
+            ownerId: owner,
+            planId: upgrade.plan.id,
+            templateId: template.id,
+            position: template.plan_position,
+            now: stamp,
+            createdAt: previousMembership?.created_at,
+          })
+          writes.push({ store: 'planRoutines', row: membership })
+          ops.push(upsert('plan_routines', membership))
         }
         for (const block of upgrade.blocks) {
           writes.push({ store: 'templateBlocks', row: block })
@@ -1191,6 +1509,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await actionsRef.current?.ensureHybridV2()
       },
 
+      async ensurePlanMemberships() {
+        const all = await readAll()
+        const missing = missingPlanMemberships(all.templates, all.planRoutines)
+        if (missing.length === 0) return
+        const stamp = nowIso()
+        const owner = userIdRef.current ?? ''
+        const writes: { store: StoreName; row: object }[] = []
+        const ops: OutboxOp[] = []
+        for (const row of missing) {
+          const membership = membershipRow({
+            ownerId: owner,
+            planId: row.plan_id,
+            templateId: row.template_id,
+            position: row.position,
+            now: stamp,
+          })
+          writes.push({ store: 'planRoutines', row: membership })
+          ops.push(upsert('plan_routines', membership))
+        }
+        await commit(writes, ops)
+      },
+
       // ------------------------------------------------------------ scheduling
 
       async scheduleSingleDate(templateId, date) {
@@ -1214,7 +1554,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async schedulePlanRotation(planId, input) {
         const all = await readAll()
-        const days = sortPlanTemplates(all.templates, planId)
+        const days = sortPlanTemplates(all.templates, planId, all.planRoutines)
         if (days.length === 0) throw new Error(t('errors.addRoutineFirst'))
 
         const occurrences = rotationOccurrences({
@@ -1335,7 +1675,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const template = input.templateId
           ? all.templates.find((t) => t.id === input.templateId)
           : occurrencePlanId
-            ? nextTemplateForPlan(occurrencePlanId, all.templates, all.sessions) ?? undefined
+            ? nextTemplateForPlan(occurrencePlanId, all.templates, all.sessions, all.planRoutines) ?? undefined
             : undefined
         if (!caps.canStartEmptyWorkout) {
           const planId = template?.plan_id
@@ -1524,7 +1864,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? schedule.template_id
             ? all.templates.find((t) => t.id === schedule.template_id)
             : schedule.plan_id
-              ? nextTemplateForPlan(schedule.plan_id, all.templates, all.sessions) ?? undefined
+              ? nextTemplateForPlan(schedule.plan_id, all.templates, all.sessions, all.planRoutines) ?? undefined
               : undefined
           : undefined
         const stamp = nowIso()
@@ -1579,6 +1919,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           exercises: all.exercises.filter((e) => e.owner_id !== null),
           plans: all.plans,
           templates: all.templates,
+          planRoutines: all.planRoutines,
           templateBlocks: all.templateBlocks,
           templateItems: all.templateItems,
           rules: all.rules,
@@ -1652,6 +1993,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const next = { ...row, owner_id: owner, updated_at: stamp }
           writes.push({ store: 'templates', row: next })
           ops.push(upsert('workout_templates', next))
+        }
+        for (const row of file.planRoutines) {
+          const next = { ...row, owner_id: owner, updated_at: stamp }
+          writes.push({ store: 'planRoutines', row: next })
+          ops.push(upsert('plan_routines', next))
         }
         for (const row of file.templateBlocks) {
           const next = { ...row, updated_at: stamp }

@@ -19,8 +19,17 @@ import { capabilitiesFor } from '../lib/capabilities'
 export function Today() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { sessions, schedules, rules, templates, profile, ready, skipOccurrence, unskipOccurrence } =
-    useStore()
+  const {
+    sessions,
+    schedules,
+    rules,
+    templates,
+    planRoutines,
+    profile,
+    ready,
+    skipOccurrence,
+    unskipOccurrence,
+  } = useStore()
   const caps = capabilitiesFor(profile)
   const today = todayKey()
   const weekStartDay = profile?.week_start ?? 'monday'
@@ -39,10 +48,10 @@ export function Today() {
       template: o.templateId
         ? templates.find((t) => t.id === o.templateId)
         : o.planId
-          ? nextTemplateForPlan(o.planId, templates, sessions) ?? undefined
+          ? nextTemplateForPlan(o.planId, templates, sessions, planRoutines) ?? undefined
           : undefined,
     }))
-  }, [schedules, rules, templates, sessions, today])
+  }, [schedules, rules, templates, sessions, planRoutines, today])
 
   const doneToday = sessions.filter(
     (s) => s.status === 'completed' && (s.planned_date ?? s.started_at.slice(0, 10)) === today,

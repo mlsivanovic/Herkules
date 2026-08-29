@@ -8,7 +8,7 @@ import { PlanRotationModal } from '../components/PlanRotationModal'
 import { validateRequiredName } from '../lib/validation'
 import { moveIndex } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
-import { sortPlanTemplates, unassignedTemplates } from '../lib/programs/plans'
+import { isPoolTemplate, sortPlanTemplates, templatePlanIds } from '../lib/programs/plans'
 import { useT } from '../lib/i18n'
 import './planEditor.css'
 import './routineEditor.css'
@@ -19,12 +19,12 @@ export function PlanEditor() {
   const navigate = useNavigate()
   const isNew = id === 'new'
   const store = useStore()
-  const { plans, templates, templateItems, ready, reorderPlanDays } = store
+  const { plans, templates, templateItems, planRoutines, ready, reorderPlanDays } = store
 
   const plan = isNew ? null : plans.find((row) => row.id === id) ?? null
   const members = useMemo(
-    () => (plan ? sortPlanTemplates(templates, plan.id) : []),
-    [plan, templates],
+    () => (plan ? sortPlanTemplates(templates, plan.id, planRoutines) : []),
+    [plan, templates, planRoutines],
   )
 
   const [name, setName] = useState('')
@@ -62,8 +62,9 @@ export function PlanEditor() {
 
   const addable = useMemo(() => {
     if (!plan) return templates
-    return templates.filter((row) => row.plan_id !== plan.id)
-  }, [templates, plan])
+    const memberIds = new Set(members.map((row) => row.id))
+    return templates.filter((row) => !memberIds.has(row.id))
+  }, [templates, plan, members])
 
   if (ready && !isNew && !plan) {
     return <EmptyState title={t('errors.planNotFound')} hint={t('common.mayHaveDeleted')} />
@@ -110,19 +111,23 @@ export function PlanEditor() {
 
   async function addRoutine(templateId: string) {
     const other = templates.find((row) => row.id === templateId)
-    if (other?.plan_id && other.plan_id !== plan?.id) {
-      const current = plans.find((row) => row.id === other.plan_id)
-      if (
-        !window.confirm(
-          current
-            ? t('editor.moveHere', { name: other.name, plan: current.name })
-            : t('editor.moveHereUnknown', { name: other.name }),
-        )
-      ) {
-        return
+    if (!plan) return
+    if (other && !isPoolTemplate(other)) {
+      const currentIds = templatePlanIds(other.id, planRoutines, other.plan_id)
+      const otherPlanId = currentIds.find((value) => value !== plan.id)
+      if (otherPlanId) {
+        const current = plans.find((row) => row.id === otherPlanId)
+        if (
+          !window.confirm(
+            current
+              ? t('editor.moveHere', { name: other.name, plan: current.name })
+              : t('editor.moveHereUnknown', { name: other.name }),
+          )
+        ) {
+          return
+        }
       }
     }
-    if (!plan) return
     try {
       await store.assignTemplateToPlan(templateId, plan.id)
       setPickerOpen(false)
@@ -132,8 +137,9 @@ export function PlanEditor() {
   }
 
   async function removeRoutine(templateId: string) {
+    if (!plan) return
     try {
-      await store.assignTemplateToPlan(templateId, null)
+      await store.removeTemplateFromPlan(templateId, plan.id)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('errors.removeRoutine'))
     }
@@ -293,39 +299,34 @@ export function PlanEditor() {
             />
           ) : (
             <ul className="plan-picker">
-              {unassignedTemplates(addable).map((template) => (
-                <li key={template.id}>
-                  <button
-                    type="button"
-                    className="card exercise-card"
-                    onClick={() => void addRoutine(template.id)}
-                  >
-                    <strong>{template.name}</strong>
-                    <small className="muted">{t('editor.unassignedBadge')}</small>
-                  </button>
-                </li>
-              ))}
-              {addable
-                .filter((row) => row.plan_id)
-                .map((template) => {
-                  const other = plans.find((row) => row.id === template.plan_id)
-                  return (
-                    <li key={template.id}>
-                      <button
-                        type="button"
-                        className="card exercise-card"
-                        onClick={() => void addRoutine(template.id)}
-                      >
-                        <strong>{template.name}</strong>
-                        <small className="muted">
-                          {other
-                            ? t('editor.inOtherPlan', { name: other.name })
+              {addable.map((template) => {
+                const planNames = templatePlanIds(template.id, planRoutines, template.plan_id)
+                  .map((planId) => plans.find((row) => row.id === planId)?.name)
+                  .filter((value): value is string => Boolean(value))
+                const pool = isPoolTemplate(template)
+                return (
+                  <li key={template.id}>
+                    <button
+                      type="button"
+                      className="card exercise-card"
+                      onClick={() => void addRoutine(template.id)}
+                    >
+                      <strong>{template.name}</strong>
+                      <small className="muted">
+                        {pool
+                          ? `${t('editor.poolBadge')} · ${
+                              planNames.length > 0
+                                ? t('editor.inOtherPlan', { name: planNames.join(', ') })
+                                : t('editor.unassignedBadge')
+                            }`
+                          : planNames.length > 0
+                            ? t('editor.inOtherPlan', { name: planNames.join(', ') })
                             : t('editor.inAnotherPlan')}
-                        </small>
-                      </button>
-                    </li>
-                  )
-                })}
+                      </small>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Modal>

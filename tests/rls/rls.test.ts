@@ -93,6 +93,13 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(tplError).toBeNull()
       aliceIds.template = template.id
 
+      const { error: membershipError } = await alice.from('plan_routines').insert({
+        plan_id: plan.id,
+        template_id: template.id,
+        position: 0,
+      })
+      expect(membershipError).toBeNull()
+
       const { data: templateBlock, error: templateBlockError } = await alice
         .from('template_blocks')
         .insert({
@@ -418,6 +425,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'coaching_relationships',
         'coach_invites',
         'training_plans',
+        'plan_routines',
         'aerobic_activities',
         'body_measure_entries',
       ]
@@ -457,6 +465,21 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         .single()
       expect(error).toBeTruthy()
       expect(template).toBeNull()
+    })
+
+    it('cannot put a Bob routine on Alice plan via membership', async () => {
+      const { data: template, error: tplError } = await bob
+        .from('workout_templates')
+        .insert({ name: 'Bob Pool Routine' })
+        .select()
+        .single()
+      expect(tplError).toBeNull()
+      const { error } = await bob.from('plan_routines').insert({
+        plan_id: aliceIds.plan,
+        template_id: template.id,
+        position: 0,
+      })
+      expect(error).toBeTruthy()
     })
   })
 

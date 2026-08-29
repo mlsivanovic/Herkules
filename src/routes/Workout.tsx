@@ -495,8 +495,8 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
     [store.plans, store.templates, store.profile],
   )
   const routineGroups = useMemo(
-    () => templatesGroupedByPlan(visiblePlans, visibleTemplates),
-    [visiblePlans, visibleTemplates],
+    () => templatesGroupedByPlan(visiblePlans, visibleTemplates, store.planRoutines),
+    [visiblePlans, visibleTemplates, store.planRoutines],
   )
 
   function start(input: Parameters<typeof store.startSession>[0]) {

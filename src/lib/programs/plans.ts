@@ -1,8 +1,10 @@
 // Pure helpers for training-plan membership. Store I/O lives in store.tsx.
 
-import type { SessionDoc, TemplateRow, TrainingPlanRow } from '../../types/db'
+import type { PlanRoutineRow, SessionDoc, TemplateRow, TrainingPlanRow } from '../../types/db'
 import { hybridSlotFromTemplate } from './hybrid4day'
 import type { HybridSlot } from './rotate'
+
+export type PlanMembership = Pick<PlanRoutineRow, 'plan_id' | 'template_id' | 'position'>
 
 export const HYBRID_PLAN_NAME = 'Hybrid 4-day'
 
@@ -12,7 +14,25 @@ export const HYBRID_PLAN_NOTES =
 export function sortPlanTemplates<T extends { id: string; plan_id: string | null; plan_position: number }>(
   templates: T[],
   planId: string,
+  memberships?: PlanMembership[],
 ): T[] {
+  if (memberships) {
+    const forPlan = memberships
+      .filter((row) => row.plan_id === planId)
+      .sort((a, b) => a.position - b.position || a.template_id.localeCompare(b.template_id))
+    if (forPlan.length > 0) {
+      const byId = new Map(templates.map((row) => [row.id, row]))
+      const result: T[] = []
+      const seen = new Set<string>()
+      for (const member of forPlan) {
+        const template = byId.get(member.template_id)
+        if (!template || seen.has(template.id)) continue
+        result.push(template)
+        seen.add(template.id)
+      }
+      return result
+    }
+  }
   return templates
     .filter((row) => row.plan_id === planId)
     .sort((a, b) => a.plan_position - b.plan_position || a.id.localeCompare(b.id))
@@ -21,7 +41,18 @@ export function sortPlanTemplates<T extends { id: string; plan_id: string | null
 export function nextPlanPosition(
   templates: { plan_id: string | null; plan_position: number }[],
   planId: string,
+  memberships?: PlanMembership[],
 ): number {
+  if (memberships) {
+    let max = -1
+    let found = false
+    for (const row of memberships) {
+      if (row.plan_id !== planId) continue
+      found = true
+      if (row.position > max) max = row.position
+    }
+    if (found) return max + 1
+  }
   let max = -1
   for (const row of templates) {
     if (row.plan_id === planId && row.plan_position > max) max = row.plan_position
@@ -32,14 +63,61 @@ export function nextPlanPosition(
 export function compactPlanPositions<T extends { id: string; plan_id: string | null; plan_position: number }>(
   templates: T[],
   planId: string,
+  memberships?: PlanMembership[],
 ): T[] {
-  return sortPlanTemplates(templates, planId).map((row, index) =>
+  return sortPlanTemplates(templates, planId, memberships).map((row, index) =>
     row.plan_position === index ? row : { ...row, plan_position: index },
   )
 }
 
-export function unassignedTemplates<T extends { plan_id: string | null }>(templates: T[]): T[] {
-  return templates.filter((row) => !row.plan_id)
+export function compactMemberships<T extends PlanMembership>(memberships: T[], planId: string): T[] {
+  return memberships
+    .filter((row) => row.plan_id === planId)
+    .sort((a, b) => a.position - b.position || a.template_id.localeCompare(b.template_id))
+    .map((row, index) => (row.position === index ? row : { ...row, position: index }))
+}
+
+export function unassignedTemplates<T extends { id: string; plan_id: string | null }>(
+  templates: T[],
+  memberships?: PlanMembership[],
+): T[] {
+  if (!memberships) return templates.filter((row) => !row.plan_id)
+  const assigned = new Set(memberships.map((row) => row.template_id))
+  return templates.filter((row) => !assigned.has(row.id) && !row.plan_id)
+}
+
+/** Trainer-created routines (not starter days, not locked coach copies). */
+export function isPoolTemplate(template: { source_slot?: string | null; locked?: boolean }): boolean {
+  return template.locked !== true && !template.source_slot
+}
+
+export function poolTemplates<T extends { source_slot?: string | null; locked?: boolean }>(templates: T[]): T[] {
+  return templates.filter(isPoolTemplate)
+}
+
+export function templatePlanIds(
+  templateId: string,
+  memberships: PlanMembership[],
+  fallbackPlanId?: string | null,
+): string[] {
+  const ids = [...new Set(memberships.filter((row) => row.template_id === templateId).map((row) => row.plan_id))]
+  if (ids.length > 0) return ids
+  return fallbackPlanId ? [fallbackPlanId] : []
+}
+
+export function missingPlanMemberships(
+  templates: { id: string; plan_id: string | null; plan_position: number }[],
+  memberships: PlanMembership[],
+): PlanMembership[] {
+  const have = new Set(memberships.map((row) => `${row.plan_id}:${row.template_id}`))
+  const missing: PlanMembership[] = []
+  for (const row of templates) {
+    if (!row.plan_id) continue
+    const key = `${row.plan_id}:${row.id}`
+    if (have.has(key)) continue
+    missing.push({ plan_id: row.plan_id, template_id: row.id, position: row.plan_position })
+  }
+  return missing
 }
 
 /** Newer extras that share a plan + source_slot with an older keeper. */
@@ -114,8 +192,9 @@ export function nextTemplateForPlan(
   planId: string,
   templates: TemplateRow[],
   sessions: SessionDoc[],
+  memberships?: PlanMembership[],
 ): TemplateRow | null {
-  const days = sortPlanTemplates(templates, planId)
+  const days = sortPlanTemplates(templates, planId, memberships)
   if (days.length === 0) return null
   const completed = sessions.filter(
     (session) => session.plan_id === planId && session.status === 'completed',

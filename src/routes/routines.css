@@ -19,6 +19,17 @@
   font: inherit;
 }
 
+.routine-library-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.routine-library-item .exercise-card {
+  flex: 1;
+  min-width: 0;
+}
+
 .exercise-card small {
   display: -webkit-box;
   -webkit-line-clamp: 2;

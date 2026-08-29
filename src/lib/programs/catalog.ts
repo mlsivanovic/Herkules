@@ -9,6 +9,7 @@ import {
   HYBRID_PLAN_NOTES,
   planBySourceKey,
   sortPlanTemplates,
+  type PlanMembership,
 } from './plans'
 import {
   HYBRID_SOURCE_KEY,
@@ -166,11 +167,11 @@ export interface TemplatePlanGroup<T> {
 /** Routines grouped by plan (catalog order, days by plan_position), then unassigned. */
 export function templatesGroupedByPlan<
   T extends { id: string; name: string; plan_id: string | null; plan_position: number },
->(plans: TrainingPlanRow[], templates: T[]): TemplatePlanGroup<T>[] {
+>(plans: TrainingPlanRow[], templates: T[], memberships?: PlanMembership[]): TemplatePlanGroup<T>[] {
   const groups: TemplatePlanGroup<T>[] = []
   const seen = new Set<string>()
   for (const plan of sortPlansForDisplay(plans)) {
-    const days = sortPlanTemplates(templates, plan.id)
+    const days = sortPlanTemplates(templates, plan.id, memberships)
     if (days.length === 0) continue
     groups.push({ plan, templates: days })
     for (const row of days) seen.add(row.id)
@@ -184,8 +185,8 @@ export function templatesGroupedByPlan<
 
 export function sortTemplatesForDisplay<
   T extends { id: string; name: string; plan_id: string | null; plan_position: number },
->(plans: TrainingPlanRow[], templates: T[]): T[] {
-  return templatesGroupedByPlan(plans, templates).flatMap((group) => group.templates)
+>(plans: TrainingPlanRow[], templates: T[], memberships?: PlanMembership[]): T[] {
+  return templatesGroupedByPlan(plans, templates, memberships).flatMap((group) => group.templates)
 }
 
 export function starterSlots(program: StarterProgram): DaySlot[] {

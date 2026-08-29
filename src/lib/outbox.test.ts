@@ -92,12 +92,18 @@ describe('flush plan', () => {
       }),
       op({
         kind: 'upsert',
+        table: 'plan_routines',
+        row: { id: 'pr-1', plan_id: 'plan-1', template_id: 'tpl-1' },
+      }),
+      op({
+        kind: 'upsert',
         table: 'training_plans',
         row: { id: 'plan-1', name: 'PPL' },
       }),
     ])
     const tableOrder = plan.map((b) => b.table)
     expect(tableOrder.indexOf('training_plans')).toBeLessThan(tableOrder.indexOf('workout_templates'))
+    expect(tableOrder.indexOf('workout_templates')).toBeLessThan(tableOrder.indexOf('plan_routines'))
   })
 
   it('deduplicates rows edited many times into one batch entry', () => {

@@ -68,3 +68,78 @@
   letter-spacing: 0;
   color: var(--c-text);
 }
+
+.advanced-block {
+  min-width: 0;
+  border: 1px dashed var(--c-border);
+  border-radius: var(--radius-s);
+  background: var(--c-card);
+}
+
+.advanced-block--filled {
+  border-style: solid;
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: var(--control-h);
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.advanced-toggle__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.advanced-toggle__hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advanced-toggle__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.85;
+  transition: transform 0.15s ease;
+}
+
+.advanced-toggle[aria-expanded='true'] .advanced-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+.advanced-block .routine-grid {
+  padding: 0.35rem 0.55rem 0.55rem;
+  border-top: 1px solid var(--c-border);
+}
+
+fieldset.field {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+fieldset.field legend {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 0.25rem;
+}

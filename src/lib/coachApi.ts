@@ -21,8 +21,10 @@ import type {
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
+  PlanRoutineRow,
 } from '../types/db'
 import { copyPlanToClient, type AssignablePlan } from './coachAssign'
+import { sortPlanTemplates } from './programs/plans'
 import { hashInviteToken, newInviteToken } from './coachInvite'
 import { applyPlanPushUpdate } from './planPushUpdate'
 import { rotationOccurrences, type TrainingFrequency } from './programs/rotate'
@@ -619,13 +621,12 @@ export function collectAssignablePlan(
     templateBlocks: TemplateBlockRow[]
     templateItems: TemplateItemRow[]
     exercises: ExerciseRow[]
+    planRoutines?: PlanRoutineRow[]
   },
 ): AssignablePlan | null {
   const plan = data.plans.find((row) => row.id === planId)
   if (!plan) return null
-  const templates = data.templates
-    .filter((row) => row.plan_id === planId)
-    .sort((a, b) => a.plan_position - b.plan_position || a.id.localeCompare(b.id))
+  const templates = sortPlanTemplates(data.templates, planId, data.planRoutines)
   const templateIds = new Set(templates.map((row) => row.id))
   const blocks = data.templateBlocks.filter((row) => templateIds.has(row.template_id))
   const items = data.templateItems.filter((row) => templateIds.has(row.template_id))

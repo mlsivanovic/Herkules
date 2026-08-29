@@ -3,13 +3,18 @@ import type { TemplateRow, TrainingPlanRow } from '../../types/db'
 import { HYBRID_TEMPLATES } from './hybrid4day'
 import {
   applyHybridPlanMembership,
+  compactMemberships,
   compactPlanPositions,
   extraDuplicateSlotTemplates,
   hybridPlanFrom,
+  isPoolTemplate,
+  missingPlanMemberships,
   nextPlanPosition,
   nextTemplateForPlan,
   orphanHybridTemplates,
+  poolTemplates,
   sortPlanTemplates,
+  templatePlanIds,
   unassignedTemplates,
 } from './plans'
 
@@ -73,6 +78,45 @@ describe('plan membership', () => {
       template('b', { name: 'B' }),
     ]
     expect(unassignedTemplates(rows).map((row) => row.id)).toEqual(['b'])
+  })
+
+  it('prefers memberships so a pool routine can sit on two plans', () => {
+    const rows = [
+      template('starter', { name: 'Hybrid A', plan_id: 'p1', plan_position: 0, source_slot: 'A' }),
+      template('pool', { name: 'Push' }),
+    ]
+    const memberships = [
+      { plan_id: 'p1', template_id: 'starter', position: 0 },
+      { plan_id: 'p1', template_id: 'pool', position: 1 },
+      { plan_id: 'p2', template_id: 'pool', position: 0 },
+    ]
+    expect(sortPlanTemplates(rows, 'p1', memberships).map((row) => row.id)).toEqual(['starter', 'pool'])
+    expect(sortPlanTemplates(rows, 'p2', memberships).map((row) => row.id)).toEqual(['pool'])
+    expect(unassignedTemplates(rows, memberships)).toEqual([])
+    expect(nextPlanPosition(rows, 'p2', memberships)).toBe(1)
+    expect(compactMemberships(memberships, 'p1').map((row) => row.position)).toEqual([0, 1])
+    expect(templatePlanIds('pool', memberships)).toEqual(['p1', 'p2'])
+  })
+
+  it('treats trainer-created unlocked routines as pool, not starter days', () => {
+    expect(isPoolTemplate(template('a', { name: 'Push' }))).toBe(true)
+    expect(isPoolTemplate(template('b', { name: 'Hybrid A', source_slot: 'A' }))).toBe(false)
+    expect(isPoolTemplate(template('c', { name: 'Assigned', locked: true }))).toBe(false)
+    expect(poolTemplates([
+      template('a', { name: 'Push' }),
+      template('b', { name: 'Hybrid A', source_slot: 'A' }),
+    ]).map((row) => row.id)).toEqual(['a'])
+  })
+
+  it('synthesizes missing memberships from exclusive plan_id rows', () => {
+    const rows = [
+      template('a', { name: 'A', plan_id: 'p1', plan_position: 2 }),
+      template('b', { name: 'B' }),
+    ]
+    expect(missingPlanMemberships(rows, [])).toEqual([
+      { plan_id: 'p1', template_id: 'a', position: 2 },
+    ])
+    expect(missingPlanMemberships(rows, [{ plan_id: 'p1', template_id: 'a', position: 2 }])).toEqual([])
   })
 })
 

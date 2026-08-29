@@ -10,6 +10,7 @@ const UPSERT_ORDER: SyncTable[] = [
   'exercises',
   'training_plans',
   'workout_templates',
+  'plan_routines',
   'template_blocks',
   'template_items',
   'recurrence_rules',

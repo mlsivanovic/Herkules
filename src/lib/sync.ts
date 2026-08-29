@@ -20,6 +20,7 @@ import type {
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
+  PlanRoutineRow,
 } from '../types/db'
 import { listOps, removeOps } from './db'
 import { planFlush } from './outbox'
@@ -32,7 +33,7 @@ function isMissingRelation(error: { message: string; code?: string } | null): bo
   return (
     error.code === '42P01' ||
     error.code === 'PGRST205' ||
-    /session_comments|schema cache/i.test(error.message)
+    /session_comments|plan_routines|schema cache/i.test(error.message)
   )
 }
 
@@ -75,11 +76,13 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
         { onConflict: 'id' },
       )
       if (error) {
+        if (batch.table === 'plan_routines' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     } else {
       const { error } = await client.from(batch.table).delete().in('id', batch.ids)
       if (error) {
+        if (batch.table === 'plan_routines' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     }
@@ -98,6 +101,7 @@ export interface ServerSnapshot {
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  planRoutines: PlanRoutineRow[]
   templateItems: TemplateItemRow[]
   templateBlocks: TemplateBlockRow[]
   rules: RecurrenceRuleRow[]
@@ -178,7 +182,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   const sessions = (sessionsRes.data as NestedSession[] | null) ?? []
   const sessionIds = sessions.map((row) => row.id)
 
-  const [blocksRes, itemsRes, commentsRes] = await Promise.all([
+  const [blocksRes, itemsRes, commentsRes, planRoutinesRes] = await Promise.all([
     templateIds.length > 0
       ? client.from('template_blocks').select('*').in('template_id', templateIds)
       : Promise.resolve({ data: [], error: null }),
@@ -188,6 +192,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     sessionIds.length > 0
       ? client.from('session_comments').select('*').in('session_id', sessionIds).order('created_at')
       : Promise.resolve({ data: [], error: null }),
+    client.from('plan_routines').select('*').eq(owned(), uid).order('position'),
   ])
 
   const firstError =
@@ -204,7 +209,8 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     aerobicRes.error ??
     blocksRes.error ??
     itemsRes.error ??
-    (isMissingRelation(commentsRes.error) ? null : commentsRes.error)
+    (isMissingRelation(commentsRes.error) ? null : commentsRes.error) ??
+    (isMissingRelation(planRoutinesRes.error) ? null : planRoutinesRes.error)
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {
@@ -212,6 +218,9 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     exercises: (exercisesRes.data as ExerciseRow[]) ?? [],
     plans: (plansRes.data as TrainingPlanRow[]) ?? [],
     templates,
+    planRoutines: isMissingRelation(planRoutinesRes.error)
+      ? []
+      : ((planRoutinesRes.data as PlanRoutineRow[]) ?? []),
     templateBlocks: (blocksRes.data as TemplateBlockRow[]) ?? [],
     templateItems: (itemsRes.data as TemplateItemRow[]) ?? [],
     rules: (rulesRes.data as RecurrenceRuleRow[]) ?? [],

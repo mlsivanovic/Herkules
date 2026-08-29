@@ -21,6 +21,7 @@ import type {
   TemplateRow,
   TendonCheckinRow,
   TrainingPlanRow,
+  PlanRoutineRow,
 } from '../types/db'
 
 export type StoreName =
@@ -28,6 +29,7 @@ export type StoreName =
   | 'exercises'
   | 'plans'
   | 'templates'
+  | 'planRoutines'
   | 'templateBlocks'
   | 'templateItems'
   | 'rules'
@@ -50,6 +52,7 @@ interface HerkulesDB extends DBSchema {
   exercises: { key: string; value: DirtyRow }
   plans: { key: string; value: DirtyRow }
   templates: { key: string; value: DirtyRow }
+  planRoutines: { key: string; value: DirtyRow }
   templateBlocks: { key: string; value: DirtyRow }
   templateItems: { key: string; value: DirtyRow }
   rules: { key: string; value: DirtyRow }
@@ -64,7 +67,7 @@ interface HerkulesDB extends DBSchema {
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 8
+const DB_VERSION = 9
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -108,6 +111,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         if (oldVersion < 8 && !db.objectStoreNames.contains('sessionComments')) {
           db.createObjectStore('sessionComments', { keyPath: 'value.id' })
         }
+        if (oldVersion < 9 && !db.objectStoreNames.contains('planRoutines')) {
+          db.createObjectStore('planRoutines', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -136,6 +142,7 @@ export async function readAll(): Promise<{
   exercises: ExerciseRow[]
   plans: TrainingPlanRow[]
   templates: TemplateRow[]
+  planRoutines: PlanRoutineRow[]
   templateBlocks: TemplateBlockRow[]
   templateItems: TemplateItemRow[]
   rules: RecurrenceRuleRow[]
@@ -152,6 +159,7 @@ export async function readAll(): Promise<{
     exercises,
     plans,
     templates,
+    planRoutines,
     templateBlocks,
     templateItems,
     rules,
@@ -166,6 +174,7 @@ export async function readAll(): Promise<{
     db.getAll('exercises'),
     db.getAll('plans'),
     db.getAll('templates'),
+    db.getAll('planRoutines'),
     db.getAll('templateBlocks'),
     db.getAll('templateItems'),
     db.getAll('rules'),
@@ -182,6 +191,7 @@ export async function readAll(): Promise<{
     exercises: pick<ExerciseRow>(exercises).map(normalizeExercise),
     plans: pick<TrainingPlanRow>(plans).map(normalizePlan),
     templates: pick<TemplateRow>(templates).map(normalizeTemplate),
+    planRoutines: pick<PlanRoutineRow>(planRoutines),
     templateBlocks: pick(templateBlocks),
     templateItems: pick<TemplateItemRow>(templateItems).map(normalizeTemplateItem),
     rules: pick(rules),
@@ -396,6 +406,7 @@ export async function clearDirtyFlags(): Promise<void> {
     'exercises',
     'plans',
     'templates',
+    'planRoutines',
     'templateBlocks',
     'templateItems',
     'rules',
@@ -481,6 +492,7 @@ export async function wipeLocalData(): Promise<void> {
     'exercises',
     'plans',
     'templates',
+    'planRoutines',
     'templateBlocks',
     'templateItems',
     'rules',

@@ -89,6 +89,15 @@ export function IconPlus(props: IconProps) {
   )
 }
 
+export function IconCopy(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+    </svg>
+  )
+}
+
 export function IconMinus(props: IconProps) {
   return (
     <svg {...base(props)}>

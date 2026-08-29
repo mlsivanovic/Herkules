@@ -920,7 +920,7 @@ export const en = {
     email: 'Client email',
     displayName: 'Name',
     sendInvite: 'Create invite',
-    inviteHint: 'Share the link. They create their own password. New accounts become light clients.',
+    inviteHint: 'Share the link. They create their own password. New accounts become athletes.',
     inviteReady: 'Invite link for {email}',
     needsConnection: 'Coaching needs a connection.',
     back: 'All clients',
@@ -946,7 +946,7 @@ export const en = {
     startDate: 'Start date',
     weeks: 'Weeks',
     assignedBadge: 'Assigned',
-    lightAccount: 'Light',
+    athleteAccount: 'Athlete',
     fullAccount: 'Full',
   },
   join: {

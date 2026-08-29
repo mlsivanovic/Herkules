@@ -103,7 +103,7 @@ export function CoachClient() {
           </button>
           <h1>{snapshot.profile.display_name || snapshot.profile.id.slice(0, 8)}</h1>
           <small className="muted">
-            {snapshot.profile.account_kind === 'light' ? t('coach.lightAccount') : t('coach.fullAccount')}
+            {snapshot.profile.account_kind === 'light' ? t('coach.athleteAccount') : t('coach.fullAccount')}
           </small>
         </div>
         <button type="button" className="btn btn--danger" onClick={() => setEndOpen(true)}>

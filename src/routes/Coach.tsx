@@ -132,7 +132,7 @@ export function Coach() {
                     <strong>{entry.profile.display_name || t('coach.title')}</strong>{' '}
                     <span className="badge badge--neutral">
                       {entry.profile.account_kind === 'light'
-                        ? t('coach.lightAccount')
+                        ? t('coach.athleteAccount')
                         : t('coach.fullAccount')}
                     </span>
                     {entry.finishedSinceViewed ? (

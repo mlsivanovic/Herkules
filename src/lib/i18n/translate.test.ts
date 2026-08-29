@@ -8,6 +8,13 @@ describe('t', () => {
     expect(t('nav.today', undefined, 'sr')).toBe('Danas')
   })
 
+  it('labels invited accounts as athletes, not light', () => {
+    expect(t('coach.athleteAccount', undefined, 'en')).toBe('Athlete')
+    expect(t('coach.athleteAccount', undefined, 'sr')).toBe('Vežbač')
+    expect(t('coach.inviteHint', undefined, 'en')).not.toMatch(/light/i)
+    expect(t('coach.inviteHint', undefined, 'sr')).not.toMatch(/light/i)
+  })
+
   it('translates routine and plan editor chrome', () => {
     expect(t('editor.newTitle', undefined, 'en')).toBe('New routine')
     expect(t('editor.newTitle', undefined, 'sr')).toBe('Nova rutina')

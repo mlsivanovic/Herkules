@@ -19,7 +19,7 @@ Live: https://mlsivanovic.github.io/Herkules/
 - **Offline-first** — every change is saved to IndexedDB immediately and synced through an idempotent operation queue when connectivity returns (`Pending sync` indicator); workouts can be finished fully offline
 - **Data portability** — workout CSV export/import, **routine JSON v2** export/import, **full backup v3** restore, plus backward-compatible routine v1 and backup v1/v2 imports and **Strong** / **Hevy** workout CSV imports
 - **Progress** — workout totals, day streak, plan adherence, average duration, weekly volume, sets per muscle group, personal records and per-exercise trends (volume, Epley e1RM); warm-up sets are excluded from statistics
-- **Coach** — a full account can enable coach mode, invite clients (new accounts become **light**), assign a plan by copying it into their library, push updates, and leave notes on logged sessions. Light clients only log assigned workouts, weigh-ins, aerobic activity and calendar dates — no routine editor, custom exercises, or import/export
+- **Coach** — a full account can enable coach mode, invite clients (new accounts become **athletes**), assign a plan by copying it into their library, push updates, and leave notes on logged sessions. Athletes only log assigned workouts, weigh-ins, aerobic activity and calendar dates — no routine editor, custom exercises, or import/export
 - **PWA** — installable, offline app shell, "Update available" / "Ready offline" prompts
 - Units: stored canonically in kg / meters / seconds; displayed in metric or imperial per user preference. Mobile-first from 360 px; desktop gets a sidebar.
 

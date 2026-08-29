@@ -919,7 +919,7 @@ export const sr: Messages = {
     displayName: 'Ime',
     sendInvite: 'Napravi pozivnicu',
     inviteHint:
-      'Podeli link. Lozinku sami postavljaju. Novi nalozi postaju light klijenti.',
+      'Podeli link. Lozinku sami postavljaju. Novi nalozi postaju vežbači.',
     inviteReady: 'Link pozivnice za {email}',
     needsConnection: 'Trenerski deo zahteva vezu.',
     back: 'Svi klijenti',
@@ -945,7 +945,7 @@ export const sr: Messages = {
     startDate: 'Datum početka',
     weeks: 'Nedelje',
     assignedBadge: 'Dodeljeno',
-    lightAccount: 'Light',
+    athleteAccount: 'Vežbač',
     fullAccount: 'Pun',
   },
   join: {

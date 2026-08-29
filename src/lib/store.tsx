@@ -81,6 +81,7 @@ import {
   pushPlanToClient,
   regenerateCoachInvite,
   revokeCoachInvite,
+  setClientAerobicGoal as writeClientAerobicGoal,
   type CoachClientSnapshot,
   type CoachRosterEntry,
 } from './coachApi'
@@ -91,6 +92,7 @@ import {
   readPendingJoinToken,
   rememberInviteToken,
 } from './coachInvite'
+import { DEFAULT_AEROBIC_GOAL_MINUTES, resolveAerobicGoalMinutes } from './aerobicGoal'
 import { youtubeProperFormUrl } from './video'
 import { starterBySourceKey } from './programs/catalog'
 import {
@@ -461,6 +463,7 @@ export interface StoreActions {
   }): Promise<void>
   pushAssignedPlan(clientId: string, masterPlanId: string): Promise<'updated' | 'replace'>
   commentOnSession(sessionId: string, body: string): Promise<void>
+  setClientAerobicGoal(clientId: string, minutes: number): Promise<void>
   endCoaching(relationshipId: string): Promise<void>
 }
 
@@ -478,6 +481,7 @@ const DEFAULT_PROFILE = {
   birth_date: null as string | null,
   account_kind: 'full' as const,
   is_coach: false,
+  aerobic_goal_minutes: DEFAULT_AEROBIC_GOAL_MINUTES,
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -1967,6 +1971,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ...file.profile,
             account_kind: current?.account_kind ?? 'full',
             is_coach: current?.is_coach ?? false,
+            aerobic_goal_minutes: resolveAerobicGoalMinutes(file.profile.aerobic_goal_minutes),
             updated_at: stamp,
           }
           writes.push({ store: 'profiles', row })
@@ -2484,7 +2489,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (patch.is_coach === true && base.account_kind === 'light') {
           throw new Error(t('errors.lightNoCoach'))
         }
-        const row: ProfileRow = { ...base, ...patch, updated_at: nowIso() }
+        const row: ProfileRow = {
+          ...base,
+          ...patch,
+          aerobic_goal_minutes: resolveAerobicGoalMinutes(base.aerobic_goal_minutes),
+          updated_at: nowIso(),
+        }
         await putDirty('profiles', row)
         await appendOps([upsert('profiles', row)])
         await reloadFromDb()
@@ -2820,6 +2830,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return {
             ...prev,
             coachClient: { ...prev.coachClient, comments: [...prev.coachClient.comments, row] },
+          }
+        })
+      },
+
+      async setClientAerobicGoal(clientId, minutes) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        const next = await writeClientAerobicGoal(
+          supabaseClient,
+          clientId,
+          resolveAerobicGoalMinutes(minutes),
+        )
+        setState((prev) => {
+          if (!prev.coachClient || prev.coachClient.profile.id !== clientId) return prev
+          return {
+            ...prev,
+            coachClient: {
+              ...prev.coachClient,
+              profile: { ...prev.coachClient.profile, aerobic_goal_minutes: next },
+            },
           }
         })
       },

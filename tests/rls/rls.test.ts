@@ -630,5 +630,24 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       const { data: profile } = await frank.from('profiles').select('account_kind').single()
       expect(profile?.account_kind).toBe('light')
     })
+
+    it('lets the coach set weekly aerobic minutes and blocks a stranger', async () => {
+      const carolId = (await carol.auth.getUser()).data.user?.id
+      expect(carolId).toBeTruthy()
+      const { data, error } = await alice.rpc('fn_set_client_aerobic_goal', {
+        p_client_id: carolId,
+        p_minutes: 180,
+      })
+      expect(error).toBeNull()
+      expect(data).toBe(180)
+      const { data: profile } = await carol.from('profiles').select('aerobic_goal_minutes').single()
+      expect(profile?.aerobic_goal_minutes).toBe(180)
+
+      const { error: stranger } = await bob.rpc('fn_set_client_aerobic_goal', {
+        p_client_id: carolId,
+        p_minutes: 90,
+      })
+      expect(stranger).toBeTruthy()
+    })
   })
 })

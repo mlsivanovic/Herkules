@@ -95,6 +95,16 @@ describe('t', () => {
     expect(t('progress.chartEmpty', undefined, 'sr')).toBe('Još nema podataka.')
   })
 
+  it('interpolates weekly aerobic minutes against the assigned goal', () => {
+    expect(t('aerobic.minutes', { done: 40, goal: 180 }, 'en')).toBe(
+      '40 / 180 moderate minutes this week',
+    )
+    expect(t('aerobic.minutes', { done: 40, goal: 180 }, 'sr')).toBe(
+      '40 / 180 umerenih minuta ove nedelje',
+    )
+    expect(t('coach.aerobicGoalMinutes', undefined, 'sr')).toBe('Minuta nedeljno')
+  })
+
   it('translates aerobic sports', () => {
     expect(t('aerobic.basketball', undefined, 'en')).toBe('Basketball')
     expect(t('aerobic.basketball', undefined, 'sr')).toBe('Košarka')

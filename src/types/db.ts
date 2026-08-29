@@ -41,6 +41,8 @@ export interface ProfileRow {
   birth_date: string | null
   account_kind: AccountKind
   is_coach: boolean
+  /** Weekly moderate aerobic minutes. Coaches may assign this for a client. */
+  aerobic_goal_minutes: number
   created_at: string
   updated_at: string
 }

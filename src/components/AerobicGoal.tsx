@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { addDays, formatDateShort, startOfWeek, todayKey } from '../lib/dates'
+import { aerobicGoalSeconds, resolveAerobicGoalMinutes } from '../lib/aerobicGoal'
 import { aerobicSecondsInWeek } from '../lib/prescription'
 import { aerobicActivityLabel, aerobicActivityTypes, useT } from '../lib/i18n'
 import { isAerobicActivityType, type AerobicActivityType } from '../types/db'
 import { IconTrash } from './Icons'
 import './tendonCheckin.css'
-
-const TARGET_SECONDS = 150 * 60
 
 export function AerobicGoal() {
   const { t } = useT()
@@ -32,8 +31,10 @@ export function AerobicGoal() {
   const [date, setDate] = useState(today)
   const [type, setType] = useState<AerobicActivityType>('walking')
   const [minutes, setMinutes] = useState('30')
-  const percent = Math.min(100, Math.round((seconds / TARGET_SECONDS) * 100))
-  const weekHint = t('aerobic.minutes', { done: Math.round(seconds / 60) })
+  const goalMinutes = resolveAerobicGoalMinutes(store.profile?.aerobic_goal_minutes)
+  const targetSeconds = aerobicGoalSeconds(goalMinutes)
+  const percent = Math.min(100, Math.round((seconds / targetSeconds) * 100))
+  const weekHint = t('aerobic.minutes', { done: Math.round(seconds / 60), goal: goalMinutes })
 
   return (
     <section className={`card stack checkin-card${open ? '' : ' checkin-card--collapsed'}`}>

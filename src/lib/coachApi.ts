@@ -23,6 +23,7 @@ import type {
   TrainingPlanRow,
   PlanRoutineRow,
 } from '../types/db'
+import { resolveAerobicGoalMinutes } from './aerobicGoal'
 import { copyPlanToClient, type AssignablePlan } from './coachAssign'
 import { sortPlanTemplates } from './programs/plans'
 import { hashInviteToken, newInviteToken } from './coachInvite'
@@ -394,7 +395,12 @@ export async function loadCoachClient(
 
   return {
     relationship: relationship as CoachingRelationshipRow,
-    profile: profileRes.data as ProfileRow,
+    profile: {
+      ...(profileRes.data as ProfileRow),
+      aerobic_goal_minutes: resolveAerobicGoalMinutes(
+        (profileRes.data as ProfileRow).aerobic_goal_minutes,
+      ),
+    },
     plans: (plansRes.data as TrainingPlanRow[]) ?? [],
     templates,
     templateBlocks: (blocksRes.data as TemplateBlockRow[]) ?? [],
@@ -594,6 +600,21 @@ export async function pushPlanToClient(
     throwIf(error, 'Could not remove old routines')
   }
   return { kind: 'updated' }
+}
+
+export async function setClientAerobicGoal(
+  client: SupabaseClient,
+  clientId: string,
+  minutes: number,
+): Promise<number> {
+  const { data, error } = await client.rpc('fn_set_client_aerobic_goal', {
+    p_client_id: clientId,
+    p_minutes: minutes,
+  })
+  throwIf(error, 'Could not save aerobic goal')
+  const value = Number(data)
+  if (!Number.isFinite(value)) throw new CoachError('Could not save aerobic goal')
+  return value
 }
 
 export async function addSessionComment(

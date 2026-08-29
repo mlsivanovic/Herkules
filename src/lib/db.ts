@@ -3,6 +3,7 @@
 // Store values are kept as loose records internally; typed rows are restored
 // at the read boundary (readOne/readAll).
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { resolveAerobicGoalMinutes } from './aerobicGoal'
 import { collapseOps, uniqueOpCount } from './outbox'
 import { sortByPosition } from './reorder'
 import type {
@@ -332,6 +333,7 @@ export async function readProfile(): Promise<ProfileRow | null> {
     ...row,
     account_kind: row.account_kind === 'light' ? 'light' : 'full',
     is_coach: row.is_coach === true,
+    aerobic_goal_minutes: resolveAerobicGoalMinutes(row.aerobic_goal_minutes),
   }
 }
 

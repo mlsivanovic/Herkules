@@ -37,6 +37,15 @@ function isMissingRelation(error: { message: string; code?: string } | null): bo
   )
 }
 
+function uniquePlanRoutineRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const best = new Map<string, Record<string, unknown>>()
+  for (const row of rows) {
+    const key = `${String(row.plan_id)}:${String(row.template_id)}`
+    best.set(key, row)
+  }
+  return [...best.values()]
+}
+
 /** Drop client-only / nested fields that PostgREST would reject. */
 function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
   const {
@@ -71,18 +80,19 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
         }
       }
     } else if (batch.kind === 'upsert') {
+      const onConflict = batch.table === 'plan_routines' ? 'plan_id,template_id' : 'id'
+      const rows = batch.rows.map(sanitizeRow)
+      const payload = batch.table === 'plan_routines' ? uniquePlanRoutineRows(rows) : rows
       const { error } = await client.from(batch.table).upsert(
-        batch.rows.map(sanitizeRow),
-        { onConflict: 'id' },
+        payload,
+        { onConflict },
       )
       if (error) {
-        if (batch.table === 'plan_routines' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     } else {
       const { error } = await client.from(batch.table).delete().in('id', batch.ids)
       if (error) {
-        if (batch.table === 'plan_routines' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     }

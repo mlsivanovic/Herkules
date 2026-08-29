@@ -104,6 +104,7 @@ import {
 import {
   compactMemberships,
   compactPlanPositions,
+  extraDuplicateMemberships,
   extraDuplicateSlotTemplates,
   hybridPlanFrom,
   HYBRID_PLAN_NAME,
@@ -1511,13 +1512,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async ensurePlanMemberships() {
         const all = await readAll()
+        const extras = extraDuplicateMemberships(all.planRoutines)
         const missing = missingPlanMemberships(all.templates, all.planRoutines)
-        if (missing.length === 0) return
+        if (extras.length === 0 && missing.length === 0) return
         const stamp = nowIso()
         const owner = userIdRef.current ?? ''
         const writes: { store: StoreName; row: object }[] = []
         const ops: OutboxOp[] = []
-        for (const row of missing) {
+        for (const extra of extras) {
+          await removeMatchingOps(
+            (op) =>
+              op.kind === 'upsert' && op.table === 'plan_routines' && String(op.row.id) === extra.id,
+          )
+          await removeFrom('planRoutines', extra.id)
+          ops.push({ kind: 'delete', table: 'plan_routines', id: extra.id })
+        }
+        const remaining = all.planRoutines.filter((row) => extras.every((extra) => extra.id !== row.id))
+        for (const row of missingPlanMemberships(all.templates, remaining)) {
           const membership = membershipRow({
             ownerId: owner,
             planId: row.plan_id,
@@ -1528,7 +1539,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           writes.push({ store: 'planRoutines', row: membership })
           ops.push(upsert('plan_routines', membership))
         }
-        await commit(writes, ops)
+        if (writes.length > 0) {
+          await commit(writes, ops)
+          return
+        }
+        if (ops.length === 0) return
+        await appendOps(ops)
+        await reloadFromDb()
+        scheduleDebouncedSync()
       },
 
       // ------------------------------------------------------------ scheduling

@@ -120,6 +120,23 @@ export function missingPlanMemberships(
   return missing
 }
 
+/** Keep one membership per plan+routine so sync cannot unique-conflict. */
+export function extraDuplicateMemberships<T extends PlanMembership & { id: string }>(
+  memberships: T[],
+): T[] {
+  const keep = new Set<string>()
+  const extras: T[] = []
+  const ranked = [...memberships].sort(
+    (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+  )
+  for (const row of ranked) {
+    const key = `${row.plan_id}:${row.template_id}`
+    if (keep.has(key)) extras.push(row)
+    else keep.add(key)
+  }
+  return extras
+}
+
 /** Newer extras that share a plan + source_slot with an older keeper. */
 export function extraDuplicateSlotTemplates<T extends {
   id: string

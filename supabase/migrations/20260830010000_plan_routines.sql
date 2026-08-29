@@ -52,8 +52,5 @@ create policy plan_routines_all on public.plan_routines
     )
   );
 
-insert into public.plan_routines (owner_id, plan_id, template_id, position, created_at, updated_at)
-select t.owner_id, t.plan_id, t.id, t.plan_position, t.created_at, t.updated_at
-from public.workout_templates t
-where t.plan_id is not null
-on conflict (plan_id, template_id) do nothing;
+-- Do not backfill here. The client writes memberships (including a repair
+-- pass from workout_templates.plan_id) so row ids stay stable across sync.

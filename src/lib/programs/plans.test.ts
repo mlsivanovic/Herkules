@@ -5,6 +5,7 @@ import {
   applyHybridPlanMembership,
   compactMemberships,
   compactPlanPositions,
+  extraDuplicateMemberships,
   extraDuplicateSlotTemplates,
   hybridPlanFrom,
   isPoolTemplate,
@@ -117,6 +118,16 @@ describe('plan membership', () => {
       { plan_id: 'p1', template_id: 'a', position: 2 },
     ])
     expect(missingPlanMemberships(rows, [{ plan_id: 'p1', template_id: 'a', position: 2 }])).toEqual([])
+  })
+
+  it('drops extra memberships that share a plan and template', () => {
+    expect(
+      extraDuplicateMemberships([
+        { id: 'keep', plan_id: 'p1', template_id: 'a', position: 0 },
+        { id: 'drop', plan_id: 'p1', template_id: 'a', position: 1 },
+        { id: 'other', plan_id: 'p2', template_id: 'a', position: 0 },
+      ]).map((row) => row.id),
+    ).toEqual(['drop'])
   })
 })
 

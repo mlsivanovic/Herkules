@@ -15,11 +15,13 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   AerobicActivityRow,
+  CoachInviteRow,
   ExerciseRow,
   OutboxOp,
   ProfileRow,
   RecurrenceRuleRow,
   ScheduleItemRow,
+  SessionCommentRow,
   SessionDoc,
   SessionExerciseRow,
   SessionBlockRow,
@@ -61,6 +63,24 @@ import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
 import { parseRoutines, planRoutineImport, serializeRoutines } from './routinesIo'
 import { t } from './i18n'
+import { assertCapability, capabilitiesFor, isLightAccount } from './capabilities'
+import {
+  acceptCoachInvite,
+  addSessionComment,
+  assignPlanToClient,
+  collectAssignablePlan,
+  createCoachInvite,
+  endRelationship,
+  loadCoachClient,
+  loadCoachRoster,
+  markRelationshipViewed,
+  peekCoachInvite,
+  pushPlanToClient,
+  revokeCoachInvite,
+  type CoachClientSnapshot,
+  type CoachRosterEntry,
+} from './coachApi'
+import { invitePath } from './coachInvite'
 import { youtubeProperFormUrl } from './video'
 import { starterBySourceKey } from './programs/catalog'
 import {
@@ -204,6 +224,13 @@ export interface StoreData {
   bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
+  sessionComments: SessionCommentRow[]
+  coachRoster: CoachRosterEntry[] | null
+  coachInvites: CoachInviteRow[]
+  coachClient: CoachClientSnapshot | null
+  coachBusy: boolean
+  coachError: string | null
+  lastInviteToken: string | null
 }
 
 export interface StoreActions {
@@ -311,6 +338,7 @@ export interface StoreActions {
         | 'height_cm'
         | 'sex'
         | 'birth_date'
+        | 'is_coach'
       >
     >,
   ): Promise<void>
@@ -350,6 +378,31 @@ export interface StoreActions {
   // auth-related
   attemptSync(): Promise<boolean>
   forceWipeAndSignOut(): Promise<void>
+
+  // coaching (online-only except reading own session comments)
+  peekInvite(token: string): Promise<{
+    valid: boolean
+    email?: string
+    display_name?: string
+    trainer_name?: string
+    expires_at?: string
+  }>
+  acceptInvite(token: string): Promise<{ relationship_id: string; account_kind: string }>
+  enableCoachMode(enabled: boolean): Promise<void>
+  createClientInvite(input: { email: string; displayName: string }): Promise<{ token: string; path: string }>
+  revokeInvite(id: string): Promise<void>
+  refreshCoachRoster(): Promise<void>
+  openCoachClient(clientId: string): Promise<void>
+  clearCoachClient(): void
+  assignPlan(clientId: string, planId: string, schedule?: {
+    frequency: TrainingFrequency
+    weekdays: number[]
+    startDate: string
+    weeks: number
+  }): Promise<void>
+  pushAssignedPlan(clientId: string, masterPlanId: string): Promise<'updated' | 'replace'>
+  commentOnSession(sessionId: string, body: string): Promise<void>
+  endCoaching(relationshipId: string): Promise<void>
 }
 
 export type StoreState = StoreData & StoreActions
@@ -364,6 +417,8 @@ const DEFAULT_PROFILE = {
   height_cm: null as number | null,
   sex: null as Sex | null,
   birth_date: null as string | null,
+  account_kind: 'full' as const,
+  is_coach: false,
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -391,6 +446,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     bodyMeasures: [] as BodyMeasureRow[],
     checkins: [] as TendonCheckinRow[],
     aerobicActivities: [] as AerobicActivityRow[],
+    sessionComments: [] as SessionCommentRow[],
+    coachRoster: null as CoachRosterEntry[] | null,
+    coachInvites: [] as CoachInviteRow[],
+    coachClient: null as CoachClientSnapshot | null,
+    coachBusy: false,
+    coachError: null as string | null,
+    lastInviteToken: null as string | null,
   })
 
   const syncingRef = useRef(false)
@@ -435,6 +497,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('bodyMeasures', snapshot.bodyMeasures),
         reconcileStore('checkins', snapshot.checkins),
         reconcileStore('aerobicActivities', snapshot.aerobicActivities),
+        reconcileStore('sessionComments', snapshot.sessionComments),
       ])
       await reloadFromDb()
       await actionsRef.current?.ensureHybridV2()
@@ -545,6 +608,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ------------------------------------------------------------ exercises
 
       async createExercise(input) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateExercises,
+          t('errors.lightNoExercises'),
+        )
         const row: ExerciseRow = {
           id: newId(),
           owner_id: userIdRef.current,
@@ -559,6 +626,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           source_provider: null,
           source_url: null,
           source_verified_at: null,
+          assigned_by: null,
+          source_exercise_id: null,
+          locked: false,
           is_archived: false,
           created_at: nowIso(),
           updated_at: nowIso(),
@@ -584,6 +654,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ------------------------------------------------------------ training plans
 
       async createPlan(name, notes) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
         const row: TrainingPlanRow = {
           id: newId(),
           owner_id: userIdRef.current ?? '',
@@ -591,6 +665,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           notes,
           source_key: null,
           source_version: 0,
+          assigned_by: null,
+          source_plan_id: null,
+          locked: false,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -601,11 +678,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async updatePlan(id, patch) {
         const existing = await readOne<TrainingPlanRow>('plans', id)
         if (!existing) throw new Error(t('errors.planNotFound'))
+        if (existing.locked) throw new Error(t('errors.assignedReadOnly'))
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
         const row: TrainingPlanRow = { ...existing, ...patch, updated_at: nowIso() }
         await commit([{ store: 'plans', row }], [upsert('training_plans', row)])
       },
 
       async deletePlan(id, options) {
+        const existing = await readOne<TrainingPlanRow>('plans', id)
+        if (existing?.locked) throw new Error(t('errors.assignedReadOnly'))
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
         const all = await readAll()
         const members = sortPlanTemplates(all.templates, id)
         const memberIds = new Set(members.map((row) => row.id))
@@ -733,6 +821,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ------------------------------------------------------------ templates
 
       async createTemplate(name, notes, planId = null) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
         const all = await readAll()
         if (planId && !all.plans.some((row) => row.id === planId)) {
           throw new Error(t('errors.planNotFound'))
@@ -744,6 +836,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           notes,
           plan_id: planId,
           plan_position: planId ? nextPlanPosition(all.templates, planId) : 0,
+          assigned_by: null,
+          source_template_id: null,
+          locked: false,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -754,11 +849,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async updateTemplate(id, patch) {
         const existing = await readOne<TemplateRow>('templates', id)
         if (!existing) throw new Error(t('errors.routineNotFound'))
+        if (existing.locked) throw new Error(t('errors.assignedReadOnly'))
         const row: TemplateRow = { ...existing, ...patch, updated_at: nowIso() }
         await commit([{ store: 'templates', row }], [upsert('workout_templates', row)])
       },
 
       async deleteTemplate(id) {
+        const locked = await readOne<TemplateRow>('templates', id)
+        if (locked?.locked) throw new Error(t('errors.assignedReadOnly'))
         // Items cascade server-side; drop their queued upserts so nothing
         // recreates rows whose parent is being deleted.
         const all = await readAll()
@@ -795,6 +893,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async saveTemplateItems(templateId, items) {
+        const template = await readOne<TemplateRow>('templates', templateId)
+        if (template?.locked) throw new Error(t('errors.assignedReadOnly'))
         const existing = (await readAll()).templateItems.filter((i) => i.template_id === templateId)
         const existingById = new Map(existing.map((i) => [i.id, i]))
         const keptIds = new Set(items.map((i) => i.id).filter((id): id is string => Boolean(id)))
@@ -976,6 +1076,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async installStarterProgram(sourceKey) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canCreateRoutines,
+          t('errors.lightNoRoutines'),
+        )
         const program = starterBySourceKey(sourceKey)
         if (!program) throw new Error(t('errors.addProgram'))
         if (program.sourceKey === HYBRID_SOURCE_KEY) {
@@ -1051,6 +1155,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ------------------------------------------------------------ scheduling
 
       async scheduleSingleDate(templateId, date) {
+        const caps = capabilitiesFor(await readProfile())
+        const template = await readOne<TemplateRow>('templates', templateId)
+        if (!template) throw new Error(t('errors.routineNotFound'))
+        if (caps.kind === 'light' && !template.locked) throw new Error(t('errors.lightAssignedOnly'))
         const row: ScheduleItemRow = {
           id: newId(),
           owner_id: userIdRef.current ?? '',
@@ -1058,6 +1166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           plan_id: null,
           scheduled_date: date,
           recurrence_rule_id: null,
+          assigned_by: null,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -1090,6 +1199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             plan_id: planId,
             scheduled_date: occurrence.date,
             recurrence_rule_id: null,
+            assigned_by: null,
             created_at: stamp,
             updated_at: stamp,
           }
@@ -1132,6 +1242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           plan_id: null,
             scheduled_date: null,
             recurrence_rule_id: rule.id,
+            assigned_by: null,
             created_at: nowIso(),
             updated_at: nowIso(),
           }
@@ -1147,6 +1258,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       async deleteSchedule(id) {
         const schedule = await readOne<ScheduleItemRow>('schedules', id)
+        if (schedule?.assigned_by && isLightAccount(await readProfile())) {
+          throw new Error(t('errors.coachScheduleLocked'))
+        }
         const ops: OutboxOp[] = [{ kind: 'delete', table: 'schedule_items', id }]
         if (schedule?.recurrence_rule_id) {
           await removeMatchingOps(
@@ -1170,6 +1284,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // ------------------------------------------------------------ sessions
 
       async startSession(input) {
+        const caps = capabilitiesFor(await readProfile())
+        if (!caps.canStartEmptyWorkout && !input.templateId && !input.scheduleItemId) {
+          throw new Error(t('errors.lightAssignedOnly'))
+        }
         const all = await readAll()
         const schedule = input.scheduleItemId
           ? all.schedules.find((row) => row.id === input.scheduleItemId)
@@ -1394,10 +1512,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async exportWorkoutsCsv() {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         return serializeWorkoutCsv((await readAll()).sessions)
       },
 
       async exportBackup() {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         const all = await readAll()
         const profile = await readProfile()
         return serializeBackup({
@@ -1418,6 +1544,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async restoreBackup(text) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         const file = parseBackup(text)
         const owner = userIdRef.current ?? ''
         const stamp = nowIso()
@@ -1427,7 +1557,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         // The profile is restored only when it belongs to this account.
         if (file.profile && file.profile.id === owner) {
-          const row = { ...file.profile, updated_at: stamp }
+          const current = await readProfile()
+          const row = {
+            ...file.profile,
+            account_kind: current?.account_kind ?? 'full',
+            is_coach: current?.is_coach ?? false,
+            updated_at: stamp,
+          }
           writes.push({ store: 'profiles', row })
           ops.push(upsert('profiles', row))
         }
@@ -1516,6 +1652,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async exportRoutines(templateIds) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         const all = await readAll()
         const selected =
           templateIds && templateIds.length > 0
@@ -1526,6 +1666,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async importRoutines(text) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         const file = parseRoutines(text)
         if (file.routines.length === 0) throw new Error(t('errors.noRoutinesInFile'))
         const all = await readAll()
@@ -1596,6 +1740,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async importWorkouts(parsed: ParsedWorkoutImport[]) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
         const catalog = [...(await readAll()).exercises]
         let createdExercises = 0
         let setCount = 0
@@ -1707,6 +1855,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async addSessionExercise(sessionId, exerciseId) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canRestructureWorkout,
+          t('errors.lightAssignedOnly'),
+        )
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
         if (!doc || !exercise) throw new Error(t('errors.sessionOrExercise'))
@@ -1741,6 +1893,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async removeSessionExercise(sessionId, sessionExerciseId) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canRestructureWorkout,
+          t('errors.lightAssignedOnly'),
+        )
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         if (!doc) throw new Error(t('errors.sessionNotFound'))
         const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
@@ -1763,6 +1919,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async swapSessionExercise(sessionId, sessionExerciseId, exerciseId) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canRestructureWorkout,
+          t('errors.lightAssignedOnly'),
+        )
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
         if (!doc || !exercise) throw new Error(t('errors.sessionOrExercise'))
@@ -1801,6 +1961,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async reorderSessionExercises(sessionId, orderedIds) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canRestructureWorkout,
+          t('errors.lightAssignedOnly'),
+        )
         const doc = await readOne<SessionDoc>('sessions', sessionId)
         if (!doc) throw new Error(t('errors.sessionNotFound'))
         const oldPositions = new Map(doc.session_exercises.map((se) => [se.id, se.position]))
@@ -1906,6 +2070,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...DEFAULT_PROFILE,
           created_at: nowIso(),
           updated_at: nowIso(),
+        }
+        if (patch.is_coach === true && base.account_kind === 'light') {
+          throw new Error(t('errors.lightNoCoach'))
         }
         const row: ProfileRow = { ...base, ...patch, updated_at: nowIso() }
         await putDirty('profiles', row)
@@ -2059,6 +2226,182 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await appendOps([{ kind: 'delete', table: 'aerobic_activities', id }])
         await reloadFromDb()
         scheduleDebouncedSync()
+      },
+
+      // ------------------------------------------------------------ coaching
+
+      async peekInvite(token) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        return peekCoachInvite(supabaseClient, token)
+      },
+
+      async acceptInvite(token) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        const result = await acceptCoachInvite(supabaseClient, token)
+        await performSync()
+        return result
+      },
+
+      async enableCoachMode(enabled) {
+        await actionsRef.current?.updateProfile({ is_coach: enabled })
+      },
+
+      async createClientInvite(input) {
+        const supabaseClient = clientRef.current
+        const trainerId = userIdRef.current
+        if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
+        assertCapability(capabilitiesFor(await readProfile()).navCoach, t('errors.notACoach'))
+        const { invite, token } = await createCoachInvite(supabaseClient, trainerId, input)
+        setState((prev) => ({
+          ...prev,
+          coachInvites: [invite, ...prev.coachInvites.filter((row) => row.id !== invite.id)],
+          lastInviteToken: token,
+        }))
+        return { token, path: invitePath(token) }
+      },
+
+      async revokeInvite(id) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        await revokeCoachInvite(supabaseClient, id)
+        setState((prev) => ({
+          ...prev,
+          coachInvites: prev.coachInvites.filter((row) => row.id !== id),
+        }))
+      },
+
+      async refreshCoachRoster() {
+        const supabaseClient = clientRef.current
+        const trainerId = userIdRef.current
+        if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
+        setState((prev) => ({ ...prev, coachBusy: true, coachError: null }))
+        try {
+          const { clients, invites } = await loadCoachRoster(supabaseClient, trainerId)
+          setState((prev) => ({
+            ...prev,
+            coachRoster: clients,
+            coachInvites: invites,
+            coachBusy: false,
+          }))
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : t('errors.coachLoad')
+          setState((prev) => ({ ...prev, coachBusy: false, coachError: message }))
+          throw caught
+        }
+      },
+
+      async openCoachClient(clientId) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        setState((prev) => ({ ...prev, coachBusy: true, coachError: null }))
+        try {
+          const snapshot = await loadCoachClient(supabaseClient, clientId)
+          await markRelationshipViewed(supabaseClient, snapshot.relationship.id)
+          setState((prev) => ({
+            ...prev,
+            coachClient: {
+              ...snapshot,
+              relationship: { ...snapshot.relationship, last_viewed_at: nowIso() },
+            },
+            coachBusy: false,
+          }))
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : t('errors.coachLoad')
+          setState((prev) => ({ ...prev, coachBusy: false, coachError: message }))
+          throw caught
+        }
+      },
+
+      clearCoachClient() {
+        setState((prev) => ({ ...prev, coachClient: null }))
+      },
+
+      async assignPlan(clientId, planId, schedule) {
+        const supabaseClient = clientRef.current
+        const trainerId = userIdRef.current
+        if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
+        const all = await readAll()
+        const source = collectAssignablePlan(planId, all)
+        if (!source || source.templates.length === 0) throw new Error(t('errors.planNotFound'))
+        const snapshot = await loadCoachClient(supabaseClient, clientId)
+        await assignPlanToClient(supabaseClient, {
+          trainerId,
+          clientId,
+          source,
+          now: nowIso(),
+          newId,
+          schedule,
+          existing: {
+            plans: snapshot.plans,
+            templates: snapshot.templates,
+            schedules: snapshot.schedules,
+            rules: snapshot.rules,
+          },
+        })
+        await actionsRef.current?.openCoachClient(clientId)
+      },
+
+      async pushAssignedPlan(clientId, masterPlanId) {
+        const supabaseClient = clientRef.current
+        const trainerId = userIdRef.current
+        if (!supabaseClient || !trainerId) throw new Error(t('errors.coachOffline'))
+        const all = await readAll()
+        const master = collectAssignablePlan(masterPlanId, all)
+        if (!master) throw new Error(t('errors.planNotFound'))
+        const snapshot = await loadCoachClient(supabaseClient, clientId)
+        const copyPlan = snapshot.plans.find(
+          (row) => row.locked && row.assigned_by === trainerId && row.source_plan_id === masterPlanId,
+        )
+        if (!copyPlan) return 'replace'
+        const copy = collectAssignablePlan(copyPlan.id, snapshot)
+        if (!copy) return 'replace'
+        const inProgress = snapshot.sessions
+          .filter((session) => session.status === 'in_progress' && session.template_id)
+          .map((session) => session.template_id as string)
+        const result = await pushPlanToClient(supabaseClient, {
+          trainerId,
+          clientId,
+          master,
+          copy,
+          now: nowIso(),
+          newId,
+          inProgressTemplateIds: inProgress,
+        })
+        await actionsRef.current?.openCoachClient(clientId)
+        return result.kind
+      },
+
+      async commentOnSession(sessionId, body) {
+        const supabaseClient = clientRef.current
+        const authorId = userIdRef.current
+        if (!supabaseClient || !authorId) throw new Error(t('errors.coachOffline'))
+        const row = await addSessionComment(supabaseClient, {
+          sessionId,
+          authorId,
+          body,
+          now: nowIso(),
+          newId,
+        })
+        setState((prev) => {
+          if (!prev.coachClient) return prev
+          return {
+            ...prev,
+            coachClient: { ...prev.coachClient, comments: [...prev.coachClient.comments, row] },
+          }
+        })
+      },
+
+      async endCoaching(relationshipId) {
+        const supabaseClient = clientRef.current
+        if (!supabaseClient) throw new Error(t('errors.coachOffline'))
+        await endRelationship(supabaseClient, relationshipId)
+        setState((prev) => ({
+          ...prev,
+          coachClient: prev.coachClient?.relationship.id === relationshipId ? null : prev.coachClient,
+          coachRoster: (prev.coachRoster ?? []).filter((row) => row.relationship.id !== relationshipId),
+        }))
       },
 
       // ------------------------------------------------------------ auth-related

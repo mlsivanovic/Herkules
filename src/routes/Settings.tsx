@@ -27,6 +27,7 @@ import { setSoundEnabled, setVibrationEnabled, soundEnabled, vibrationEnabled } 
 import { useTheme, type ThemePreference } from '../lib/theme'
 import { bcp47, useLocale, useT, type LocalePreference } from '../lib/i18n'
 import type { Sex } from '../types/db'
+import { capabilitiesFor } from '../lib/capabilities'
 import { latestBodyFatPercent } from '../lib/bodyComposition'
 import { LineChart } from '../components/Chart'
 import { IconChevronDown } from '../components/Icons'
@@ -148,6 +149,7 @@ export function Settings() {
   const [routinesMessage, setRoutinesMessage] = useState<string | null>(null)
   const [routinesError, setRoutinesError] = useState<string | null>(null)
   const units = profile?.unit_system ?? 'metric'
+  const caps = capabilitiesFor(profile)
   const weights = useMemo(
     () => [...store.bodyWeights].sort((a, b) => (a.recorded_on < b.recorded_on ? 1 : -1)),
     [store.bodyWeights],
@@ -655,6 +657,7 @@ export function Settings() {
         </button>
       </SettingsSection>
 
+      {caps.canImportExport ? (
       <SettingsSection
         id="data"
         title={t('settings.data')}
@@ -921,6 +924,7 @@ export function Settings() {
           ) : null}
         </div>
       </SettingsSection>
+      ) : null}
 
       <SettingsSection
         id="account"
@@ -929,6 +933,25 @@ export function Settings() {
         open={openPane === 'account'}
         onToggle={() => togglePane('account')}
       >
+        {caps.canEnableCoach ? (
+          <div className="stack">
+            <p className="muted" style={{ margin: 0 }}>
+              {t('settings.coachModeHint')}
+            </p>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void store.enableCoachMode(!caps.isCoach)}
+            >
+              {caps.isCoach ? t('settings.coachModeOn') : t('settings.coachModeOff')}
+            </button>
+            {caps.navCoach ? (
+              <button type="button" className="btn btn--primary" onClick={() => void navigate('/coach')}>
+                {t('settings.openCoach')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           className="btn"

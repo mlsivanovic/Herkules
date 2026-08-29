@@ -14,12 +14,14 @@ import { AerobicGoal } from '../components/AerobicGoal'
 import './today.css'
 import { nextTemplateForPlan } from '../lib/programs/plans'
 import { bcp47, useT } from '../lib/i18n'
+import { capabilitiesFor } from '../lib/capabilities'
 
 export function Today() {
   const { t } = useT()
   const navigate = useNavigate()
   const { sessions, schedules, rules, templates, profile, ready, skipOccurrence, unskipOccurrence } =
     useStore()
+  const caps = capabilitiesFor(profile)
   const today = todayKey()
   const weekStartDay = profile?.week_start ?? 'monday'
 
@@ -103,7 +105,7 @@ export function Today() {
             <IconPlay width={22} height={22} />
           </span>
         </button>
-      ) : (
+      ) : caps.canStartEmptyWorkout || plannedToday.length > 0 ? (
         <button
           type="button"
           className="btn btn--primary btn--block today-start"
@@ -111,7 +113,7 @@ export function Today() {
         >
           <IconPlay width={18} height={18} /> {t('today.startWorkout')}
         </button>
-      )}
+      ) : null}
 
       <div className="section-title">{t('today.plannedToday')}</div>
       {plannedToday.length === 0 && doneToday.length === 0 && skippedToday.length === 0 ? (

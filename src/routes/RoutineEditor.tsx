@@ -101,6 +101,7 @@ export function RoutineEditor() {
   const { templates, templateItems, templateBlocks, exercises, plans, ready } = store
 
   const template = isNew ? null : templates.find((t) => t.id === id) ?? null
+  const locked = template?.locked === true
   const units = store.profile?.unit_system ?? 'metric'
   const queryPlan = searchParams.get('plan')
 
@@ -866,7 +867,8 @@ export function RoutineEditor() {
       ) : null}
 
       <div className="row row--wrap" style={{ marginTop: '1rem' }}>
-        <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={busy}>
+        {locked ? <p className="muted">{t('errors.assignedReadOnly')}</p> : null}
+        <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={busy || locked}>
           {busy ? t('common.saving') : t('editor.saveRoutine')}
         </button>
         {!isNew && template ? (

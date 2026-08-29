@@ -24,7 +24,8 @@ supabase db push
 This creates the whole schema (`profiles`, `exercises`, `training_plans`,
 `workout_templates`, `template_items`, `recurrence_rules`, `schedule_items`,
 `workout_sessions`, `session_exercises`, `workout_sets`, `body_weight_entries`,
-`tendon_checkins`),
+`tendon_checkins`, plus coaching tables `coaching_relationships`,
+`coach_invites`, `session_comments`),
 enables deny-by-default RLS on every table and seeds the system exercise catalog.
 
 Verify the RLS posture (anonymous access must be denied):

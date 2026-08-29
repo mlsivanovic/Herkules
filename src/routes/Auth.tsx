@@ -1,7 +1,7 @@
 // Email/password auth screens: login, signup, password reset request and
 // the post-recovery password update.
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { backendConfigured } from '../lib/supabase'
 import { validateEmail, validatePassword } from '../lib/validation'
@@ -28,17 +28,24 @@ function BackendWarning() {
   return <p className="auth-notice">{t('auth.backendMissing')}</p>
 }
 
+function nextPath(raw: string | null): string {
+  if (raw && raw.startsWith('/join/')) return raw
+  return '/'
+}
+
 export function Login() {
   const { t } = useT()
   const { signIn, session } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const next = nextPath(params.get('next'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   if (session) {
-    void navigate('/', { replace: true })
+    void navigate(next, { replace: true })
     return null
   }
 
@@ -91,7 +98,9 @@ export function Login() {
         </button>
       </form>
       <div className="auth-links" style={{ marginTop: '1rem' }}>
-        <Link to="/signup">{t('auth.createLink')}</Link>
+        <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`}>
+          {t('auth.createLink')}
+        </Link>
         <Link to="/reset-password">{t('auth.forgot')}</Link>
       </div>
     </AuthCard>
@@ -102,6 +111,8 @@ export function Signup() {
   const { t } = useT()
   const { signUp, session } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const next = nextPath(params.get('next'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +120,7 @@ export function Signup() {
   const [busy, setBusy] = useState(false)
 
   if (session) {
-    void navigate('/', { replace: true })
+    void navigate(next, { replace: true })
     return null
   }
 

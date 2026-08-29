@@ -10,6 +10,7 @@ import type {
   ProfileRow,
   RecurrenceRuleRow,
   ScheduleItemRow,
+  SessionCommentRow,
   SessionDoc,
   SessionExerciseDoc,
   SessionBlockRow,
@@ -25,6 +26,15 @@ import { planFlush } from './outbox'
 import { sortByPosition } from './reorder'
 
 export class SyncError extends Error {}
+
+function isMissingRelation(error: { message: string; code?: string } | null): boolean {
+  if (!error) return false
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    /session_comments|schema cache/i.test(error.message)
+  )
+}
 
 /** Drop client-only / nested fields that PostgREST would reject. */
 function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
@@ -97,6 +107,7 @@ export interface ServerSnapshot {
   bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
+  sessionComments: SessionCommentRow[]
 }
 
 interface NestedSession
@@ -121,13 +132,17 @@ function normalizeSession(row: NestedSession): SessionDoc {
 }
 
 export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnapshot> {
+  const { data: sessionData } = await client.auth.getSession()
+  const uid = sessionData.session?.user.id
+  if (!uid) throw new SyncError('Pull failed: not signed in')
+
+  const owned = (column = 'owner_id') => column
+
   const [
     profileRes,
     exercisesRes,
     plansRes,
     templatesRes,
-    blocksRes,
-    itemsRes,
     rulesRes,
     schedulesRes,
     sessionsRes,
@@ -136,26 +151,43 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     checkinsRes,
     aerobicRes,
   ] = await Promise.all([
-    client.from('profiles').select('*').maybeSingle(),
-    client.from('exercises').select('*').order('name'),
-    client.from('training_plans').select('*').order('created_at'),
-    client.from('workout_templates').select('*').order('created_at'),
-    client.from('template_blocks').select('*'),
-    client.from('template_items').select('*'),
-    client.from('recurrence_rules').select('*'),
-    client.from('schedule_items').select('*'),
+    client.from('profiles').select('*').eq('id', uid).maybeSingle(),
+    client.from('exercises').select('*').or(`owner_id.is.null,owner_id.eq.${uid}`).order('name'),
+    client.from('training_plans').select('*').eq(owned(), uid).order('created_at'),
+    client.from('workout_templates').select('*').eq(owned(), uid).order('created_at'),
+    client.from('recurrence_rules').select('*').eq(owned(), uid),
+    client.from('schedule_items').select('*').eq(owned(), uid),
     client
       .from('workout_sessions')
       .select('*, session_blocks(*), session_exercises(*, workout_sets(*))')
+      .eq(owned(), uid)
       .order('started_at', { ascending: false }),
-    client.from('body_weight_entries').select('*').order('recorded_on', { ascending: false }),
-    client.from('body_measure_entries').select('*').order('recorded_on', { ascending: false }),
+    client.from('body_weight_entries').select('*').eq(owned(), uid).order('recorded_on', { ascending: false }),
+    client.from('body_measure_entries').select('*').eq(owned(), uid).order('recorded_on', { ascending: false }),
     client
       .from('tendon_checkins')
       .select('*')
+      .eq(owned(), uid)
       .order('recorded_on', { ascending: false })
       .order('site'),
-    client.from('aerobic_activities').select('*').order('recorded_on', { ascending: false }),
+    client.from('aerobic_activities').select('*').eq(owned(), uid).order('recorded_on', { ascending: false }),
+  ])
+
+  const templates = (templatesRes.data as TemplateRow[]) ?? []
+  const templateIds = templates.map((row) => row.id)
+  const sessions = (sessionsRes.data as NestedSession[] | null) ?? []
+  const sessionIds = sessions.map((row) => row.id)
+
+  const [blocksRes, itemsRes, commentsRes] = await Promise.all([
+    templateIds.length > 0
+      ? client.from('template_blocks').select('*').in('template_id', templateIds)
+      : Promise.resolve({ data: [], error: null }),
+    templateIds.length > 0
+      ? client.from('template_items').select('*').in('template_id', templateIds)
+      : Promise.resolve({ data: [], error: null }),
+    sessionIds.length > 0
+      ? client.from('session_comments').select('*').in('session_id', sessionIds).order('created_at')
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   const firstError =
@@ -163,30 +195,32 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     exercisesRes.error ??
     plansRes.error ??
     templatesRes.error ??
-    blocksRes.error ??
-    itemsRes.error ??
     rulesRes.error ??
     schedulesRes.error ??
     sessionsRes.error ??
     weightsRes.error ??
     measuresRes.error ??
     checkinsRes.error ??
-    aerobicRes.error
+    aerobicRes.error ??
+    blocksRes.error ??
+    itemsRes.error ??
+    (isMissingRelation(commentsRes.error) ? null : commentsRes.error)
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {
     profile: (profileRes.data as ProfileRow | null) ?? null,
-    exercises: exercisesRes.data as ExerciseRow[],
+    exercises: (exercisesRes.data as ExerciseRow[]) ?? [],
     plans: (plansRes.data as TrainingPlanRow[]) ?? [],
-    templates: templatesRes.data as TemplateRow[],
+    templates,
     templateBlocks: (blocksRes.data as TemplateBlockRow[]) ?? [],
-    templateItems: itemsRes.data as TemplateItemRow[],
-    rules: rulesRes.data as RecurrenceRuleRow[],
-    schedules: schedulesRes.data as ScheduleItemRow[],
-    sessions: (sessionsRes.data as NestedSession[] | null)?.map(normalizeSession) ?? [],
+    templateItems: (itemsRes.data as TemplateItemRow[]) ?? [],
+    rules: (rulesRes.data as RecurrenceRuleRow[]) ?? [],
+    schedules: (schedulesRes.data as ScheduleItemRow[]) ?? [],
+    sessions: sessions.map(normalizeSession),
     bodyWeights: (weightsRes.data as BodyWeightRow[]) ?? [],
     bodyMeasures: (measuresRes.data as BodyMeasureRow[]) ?? [],
     checkins: (checkinsRes.data as TendonCheckinRow[]) ?? [],
     aerobicActivities: (aerobicRes.data as AerobicActivityRow[]) ?? [],
+    sessionComments: (commentsRes.data as SessionCommentRow[]) ?? [],
   }
 }

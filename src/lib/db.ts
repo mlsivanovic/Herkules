@@ -14,6 +14,7 @@ import type {
   ProfileRow,
   RecurrenceRuleRow,
   ScheduleItemRow,
+  SessionCommentRow,
   SessionDoc,
   TemplateItemRow,
   TemplateBlockRow,
@@ -36,6 +37,7 @@ export type StoreName =
   | 'bodyMeasures'
   | 'checkins'
   | 'aerobicActivities'
+  | 'sessionComments'
 
 interface DirtyRow {
   value: Record<string, unknown>
@@ -57,11 +59,12 @@ interface HerkulesDB extends DBSchema {
   bodyMeasures: { key: string; value: DirtyRow }
   checkins: { key: string; value: DirtyRow }
   aerobicActivities: { key: string; value: DirtyRow }
+  sessionComments: { key: string; value: DirtyRow }
   outbox: { key: number; value: OutboxOp & { seq: number }; autoIncrement: true }
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 7
+const DB_VERSION = 8
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -102,6 +105,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
         if (oldVersion < 7 && !db.objectStoreNames.contains('bodyMeasures')) {
           db.createObjectStore('bodyMeasures', { keyPath: 'value.id' })
         }
+        if (oldVersion < 8 && !db.objectStoreNames.contains('sessionComments')) {
+          db.createObjectStore('sessionComments', { keyPath: 'value.id' })
+        }
       },
     })
   }
@@ -139,6 +145,7 @@ export async function readAll(): Promise<{
   bodyMeasures: BodyMeasureRow[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
+  sessionComments: SessionCommentRow[]
 }> {
   const db = await getDb()
   const [
@@ -154,6 +161,7 @@ export async function readAll(): Promise<{
     bodyMeasures,
     checkins,
     aerobicActivities,
+    sessionComments,
   ] = await Promise.all([
     db.getAll('exercises'),
     db.getAll('plans'),
@@ -167,6 +175,7 @@ export async function readAll(): Promise<{
     db.getAll('bodyMeasures'),
     db.getAll('checkins'),
     db.getAll('aerobicActivities'),
+    db.getAll('sessionComments'),
   ])
   const pick = <T>(rows: DirtyRow[]): T[] => rows.map((r) => r.value as unknown as T)
   return {
@@ -182,6 +191,7 @@ export async function readAll(): Promise<{
     bodyMeasures: pick(bodyMeasures),
     checkins: pick(checkins),
     aerobicActivities: pick(aerobicActivities),
+    sessionComments: pick(sessionComments),
   }
 }
 
@@ -192,11 +202,21 @@ function normalizeTemplate(row: TemplateRow): TemplateRow {
     plan_id: row.plan_id ?? null,
     plan_position: Number.isFinite(row.plan_position) ? row.plan_position : 0,
     source_slot: row.source_slot ?? null,
+    assigned_by: row.assigned_by ?? null,
+    source_template_id: row.source_template_id ?? null,
+    locked: row.locked === true,
   }
 }
 
 function normalizePlan(row: TrainingPlanRow): TrainingPlanRow {
-  return { ...row, source_key: row.source_key ?? null, source_version: row.source_version ?? 0 }
+  return {
+    ...row,
+    source_key: row.source_key ?? null,
+    source_version: row.source_version ?? 0,
+    assigned_by: row.assigned_by ?? null,
+    source_plan_id: row.source_plan_id ?? null,
+    locked: row.locked === true,
+  }
 }
 
 function normalizeExercise(row: ExerciseRow): ExerciseRow {
@@ -206,6 +226,9 @@ function normalizeExercise(row: ExerciseRow): ExerciseRow {
     source_provider: row.source_provider ?? null,
     source_url: row.source_url ?? row.video_url ?? null,
     source_verified_at: row.source_verified_at ?? null,
+    assigned_by: row.assigned_by ?? null,
+    source_exercise_id: row.source_exercise_id ?? null,
+    locked: row.locked === true,
   }
 }
 
@@ -237,7 +260,12 @@ function normalizeTemplateItem(row: TemplateItemRow): TemplateItemRow {
 }
 
 function normalizeSchedule(row: ScheduleItemRow): ScheduleItemRow {
-  return { ...row, template_id: row.template_id ?? null, plan_id: row.plan_id ?? null }
+  return {
+    ...row,
+    template_id: row.template_id ?? null,
+    plan_id: row.plan_id ?? null,
+    assigned_by: row.assigned_by ?? null,
+  }
 }
 
 function normalizeSession(row: SessionDoc): SessionDoc {
@@ -288,7 +316,13 @@ function normalizeSession(row: SessionDoc): SessionDoc {
 export async function readProfile(): Promise<ProfileRow | null> {
   const db = await getDb()
   const all = await db.getAll('profiles')
-  return all.length > 0 ? (all[0].value as unknown as ProfileRow) : null
+  if (all.length === 0) return null
+  const row = all[0].value as unknown as ProfileRow
+  return {
+    ...row,
+    account_kind: row.account_kind === 'light' ? 'light' : 'full',
+    is_coach: row.is_coach === true,
+  }
 }
 
 // ---------------------------------------------------------------- mirror writes
@@ -371,6 +405,7 @@ export async function clearDirtyFlags(): Promise<void> {
     'bodyMeasures',
     'checkins',
     'aerobicActivities',
+    'sessionComments',
   ]
   const tx = db.transaction(stores, 'readwrite')
   for (const store of stores) {
@@ -455,6 +490,7 @@ export async function wipeLocalData(): Promise<void> {
     'bodyMeasures',
     'checkins',
     'aerobicActivities',
+    'sessionComments',
     'outbox',
   ] as const
   const tx = db.transaction(stores, 'readwrite')

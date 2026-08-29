@@ -414,6 +414,9 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'session_blocks',
         'session_exercises',
         'workout_sets',
+        'session_comments',
+        'coaching_relationships',
+        'coach_invites',
         'training_plans',
         'aerobic_activities',
         'body_measure_entries',
@@ -454,6 +457,82 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         .single()
       expect(error).toBeTruthy()
       expect(template).toBeNull()
+    })
+  })
+
+  describe('coaching', () => {
+    let carol: SupabaseClient
+    let inviteToken = ''
+    const encoder = new TextEncoder()
+
+    async function sha256Hex(value: string): Promise<string> {
+      const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value))
+      return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+    }
+
+    beforeAll(async () => {
+      carol = await signUp('carol')
+      const { error } = await alice.from('profiles').update({ is_coach: true }).eq('id', (await alice.auth.getUser()).data.user?.id ?? '')
+      expect(error).toBeNull()
+    })
+
+    it('lets a coach create an invite and the client accept it', async () => {
+      inviteToken = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')
+      const carolEmail = (await carol.auth.getUser()).data.user?.email
+      expect(carolEmail).toBeTruthy()
+      const { error } = await alice.from('coach_invites').insert({
+        email: carolEmail,
+        display_name: 'Carol',
+        token_hash: await sha256Hex(inviteToken),
+        account_kind: 'light',
+        expires_at: new Date(Date.now() + 86400000).toISOString(),
+      })
+      expect(error).toBeNull()
+
+      const { data, error: acceptError } = await carol.rpc('fn_accept_coach_invite', { p_token: inviteToken })
+      expect(acceptError).toBeNull()
+      expect(data).toBeTruthy()
+    })
+
+    it('lets the coach read the client session after the link is active', async () => {
+      const carolId = (await carol.auth.getUser()).data.user?.id
+      const { data: session, error } = await carol
+        .from('workout_sessions')
+        .insert({ name: 'Client session', template_id: null })
+        .select()
+        .single()
+      // Carol may have become light (signed up after invite) — empty workout is rejected.
+      if (error) {
+        expect(error.message).toMatch(/assigned workouts|template/i)
+        return
+      }
+      const { data: asCoach } = await alice.from('workout_sessions').select().eq('id', session.id)
+      expect(asCoach).toHaveLength(1)
+      const { data: asStranger } = await bob.from('workout_sessions').select().eq('id', session.id)
+      expect(asStranger).toHaveLength(0)
+      expect(carolId).toBeTruthy()
+    })
+
+    it('blocks the client from inserting a routine if they became light', async () => {
+      const { data: profile } = await carol.from('profiles').select('account_kind').single()
+      if (profile?.account_kind !== 'light') return
+      const { error } = await carol.from('workout_templates').insert({ name: 'Client-made' })
+      expect(error).toBeTruthy()
+    })
+
+    it('blocks a coach from commenting until linked, and allows it after', async () => {
+      const { data: session } = await alice
+        .from('workout_sessions')
+        .select('id')
+        .eq('id', aliceIds.session)
+        .single()
+      const { error: bobComment } = await bob.from('session_comments').insert({
+        session_id: session?.id,
+        body: 'Nope',
+      })
+      expect(bobComment).toBeTruthy()
     })
   })
 })

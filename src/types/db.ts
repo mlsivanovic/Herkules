@@ -27,6 +27,8 @@ export type UnitSystem = 'metric' | 'imperial'
 export type WeekStart = 'monday' | 'sunday'
 export type SessionStatus = 'in_progress' | 'completed' | 'skipped'
 export type Sex = 'male' | 'female' | 'other'
+export type AccountKind = 'full' | 'light'
+export type CoachingStatus = 'pending' | 'active' | 'ended'
 
 export interface ProfileRow {
   id: string
@@ -37,6 +39,8 @@ export interface ProfileRow {
   height_cm: number | null
   sex: Sex | null
   birth_date: string | null
+  account_kind: AccountKind
+  is_coach: boolean
   created_at: string
   updated_at: string
 }
@@ -95,6 +99,9 @@ export interface ExerciseRow {
   source_provider?: string | null
   source_url?: string | null
   source_verified_at?: string | null
+  assigned_by?: string | null
+  source_exercise_id?: string | null
+  locked?: boolean
   is_archived: boolean
   created_at: string
   updated_at: string
@@ -107,6 +114,9 @@ export interface TrainingPlanRow {
   notes: string | null
   source_key?: string | null
   source_version?: number
+  assigned_by?: string | null
+  source_plan_id?: string | null
+  locked?: boolean
   created_at: string
   updated_at: string
 }
@@ -120,6 +130,9 @@ export interface TemplateRow {
   plan_id: string | null
   plan_position: number
   source_slot?: 'A' | 'B' | 'C' | 'D' | null
+  assigned_by?: string | null
+  source_template_id?: string | null
+  locked?: boolean
   created_at: string
   updated_at: string
 }
@@ -205,6 +218,41 @@ export interface ScheduleItemRow {
   plan_id?: string | null
   scheduled_date: string | null
   recurrence_rule_id: string | null
+  assigned_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CoachingRelationshipRow {
+  id: string
+  trainer_id: string
+  client_id: string
+  status: CoachingStatus
+  created_at: string
+  accepted_at: string | null
+  ended_at: string | null
+  last_viewed_at: string | null
+}
+
+export interface CoachInviteRow {
+  id: string
+  trainer_id: string
+  email: string
+  display_name: string
+  token_hash: string
+  account_kind: AccountKind
+  expires_at: string
+  accepted_at: string | null
+  accepted_by: string | null
+  relationship_id: string | null
+  created_at: string
+}
+
+export interface SessionCommentRow {
+  id: string
+  session_id: string
+  author_id: string
+  body: string
   created_at: string
   updated_at: string
 }

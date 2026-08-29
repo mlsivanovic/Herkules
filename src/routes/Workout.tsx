@@ -39,6 +39,7 @@ import { useIntervalTimer } from '../lib/intervalTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
+import { capabilitiesFor, programmingForAccount } from '../lib/capabilities'
 import './workout.css'
 
 interface StartState {
@@ -73,6 +74,7 @@ export function Workout() {
   const [intervalsOpen, setIntervalsOpen] = useState(false)
   const [selectedIntervalBlockId, setSelectedIntervalBlockId] = useState<string | null>(null)
 
+  const caps = capabilitiesFor(store.profile)
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
   const [wakeLockEnabled, setWakeLockEnabled] = useState(true)
   const { isLocked: wakeLocked, isSupported: wakeLockSupported } = useScreenWakeLock(
@@ -295,7 +297,7 @@ export function Workout() {
                 reorder.active.from !== index
               }
               expanded={!collapsed}
-              reorderable={collapsed}
+              reorderable={collapsed && caps.canRestructureWorkout}
               onToggleExpand={() => {
                 if (!active) return
                 setCollapsedIds((prev) => {
@@ -306,16 +308,19 @@ export function Workout() {
                   return next
                 })
               }}
-              onSwap={() => setSwapTarget(se.id)}
+              onSwap={caps.canRestructureWorkout ? () => setSwapTarget(se.id) : () => undefined}
+              canRestructure={caps.canRestructureWorkout}
               onRestStart={(seconds) => {
                 if (!intervalTimer.active) startRest(seconds)
               }}
             />
             </Fragment>
           )})}
+          {caps.canRestructureWorkout ? (
           <button type="button" className="btn" onClick={() => setPickerMode('add')}>
             <IconPlus width={18} height={18} /> {t('workout.addExercise')}
           </button>
+          ) : null}
         </div>
       )}
       <span className="visually-hidden" aria-live="polite">
@@ -484,9 +489,18 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
   const [busy, setBusy] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const message = startError ?? error
+  const caps = capabilitiesFor(store.profile)
+  const visibleTemplates = useMemo(
+    () => programmingForAccount(store.templates, store.profile),
+    [store.templates, store.profile],
+  )
+  const visiblePlans = useMemo(
+    () => programmingForAccount(store.plans, store.profile),
+    [store.plans, store.profile],
+  )
   const routineGroups = useMemo(
-    () => templatesGroupedByPlan(store.plans, store.templates),
-    [store.plans, store.templates],
+    () => templatesGroupedByPlan(visiblePlans, visibleTemplates),
+    [visiblePlans, visibleTemplates],
   )
 
   function start(input: Parameters<typeof store.startSession>[0]) {
@@ -521,6 +535,7 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
             {message}
           </p>
         ) : null}
+        {caps.canStartEmptyWorkout ? (
         <button
           type="button"
           className="btn btn--primary btn--block"
@@ -529,6 +544,7 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
         >
           <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
         </button>
+        ) : null}
         {routineGroups.length === 0 ? <p className="muted">{t('workout.noRoutines')}</p> : null}
       </div>
 
@@ -660,6 +676,7 @@ function ExerciseCard({
   onToggleExpand,
   onSwap,
   onRestStart,
+  canRestructure = true,
 }: {
   session: SessionDoc
   exercise: SessionExerciseDoc
@@ -675,6 +692,7 @@ function ExerciseCard({
   onToggleExpand(): void
   onSwap(): void
   onRestStart(seconds: number): void
+  canRestructure?: boolean
 }) {
   const { t } = useT()
   const store = useStore()
@@ -877,6 +895,7 @@ function ExerciseCard({
         ) : (
           <span />
         )}
+        {canRestructure ? (
         <div className="row">
           <button
             type="button"
@@ -897,6 +916,9 @@ function ExerciseCard({
             <IconTrash width={16} height={16} />
           </button>
         </div>
+        ) : (
+          <span />
+        )}
       </div>
 
       {previous ? (

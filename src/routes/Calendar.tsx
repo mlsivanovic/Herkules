@@ -19,6 +19,7 @@ import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../compo
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { nextTemplateForPlan } from '../lib/programs/plans'
 import { aerobicActivityLabel, bcp47, useT } from '../lib/i18n'
+import { isLightAccount, programmingForAccount } from '../lib/capabilities'
 import type { AerobicActivityRow } from '../types/db'
 import './calendar.css'
 
@@ -265,7 +266,9 @@ function DayDetail({
   onSchedule(): void
 }) {
   const { t } = useT()
-  const { deleteSchedule, deleteSession, deleteAerobicActivity, skipOccurrence, unskipOccurrence } = useStore()
+  const { deleteSchedule, deleteSession, deleteAerobicActivity, skipOccurrence, unskipOccurrence, schedules, profile } =
+    useStore()
+  const light = isLightAccount(profile)
   const navigate = useNavigate()
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
@@ -320,6 +323,7 @@ function DayDetail({
                   {t('common.undoSkip')}
                 </button>
               ) : null}
+              {!(light && schedules.find((row) => row.id === entry.scheduleId)?.assigned_by) ? (
               <button
                 type="button"
                 className="btn btn--small btn--danger"
@@ -328,6 +332,7 @@ function DayDetail({
               >
                 {t('common.remove')}
               </button>
+              ) : null}
             </span>
           </div>
         )
@@ -428,8 +433,16 @@ function DayDetail({
 
 function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }) {
   const { t } = useT()
-  const { plans, templates, scheduleSingleDate, scheduleWeekly } = useStore()
-  const routineGroups = useMemo(() => templatesGroupedByPlan(plans, templates), [plans, templates])
+  const { plans, templates, scheduleSingleDate, scheduleWeekly, profile } = useStore()
+  const visiblePlans = useMemo(() => programmingForAccount(plans, profile), [plans, profile])
+  const visibleTemplates = useMemo(
+    () => programmingForAccount(templates, profile),
+    [templates, profile],
+  )
+  const routineGroups = useMemo(
+    () => templatesGroupedByPlan(visiblePlans, visibleTemplates),
+    [visiblePlans, visibleTemplates],
+  )
   const [templateId, setTemplateId] = useState(
     () => routineGroups[0]?.templates[0]?.id ?? templates[0]?.id ?? '',
   )
@@ -450,7 +463,7 @@ function ScheduleModal({ dayKey, onClose }: { dayKey: DateKey; onClose(): void }
     { value: 7, label: t('weekdays.sun') },
   ]
 
-  if (templates.length === 0) {
+  if (visibleTemplates.length === 0) {
     return (
       <Modal title={t('calendar.scheduleTitle')} onClose={onClose}>
         <EmptyState title={t('calendar.noRoutinesTitle')} hint={t('calendar.noRoutinesHint')} />

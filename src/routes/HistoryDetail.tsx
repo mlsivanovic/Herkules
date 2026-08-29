@@ -43,6 +43,7 @@ export function HistoryDetail() {
   }
   const current: SessionDoc = session
 
+  const comments = store.sessionComments.filter((row) => row.session_id === session.id)
   const completedSets = session.session_exercises.reduce(
     (sum, se) => sum + se.sets.filter((s) => s.completed_at !== null).length,
     0,
@@ -108,6 +109,17 @@ export function HistoryDetail() {
           />
         </div>
       </div>
+
+      {comments.length > 0 ? (
+        <div className="card stack" style={{ marginBottom: '1rem' }}>
+          <div className="section-title">{t('history.coachNotes')}</div>
+          {comments.map((row) => (
+            <p key={row.id} style={{ margin: 0 }}>
+              {row.body}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       <div className="field">
         <label htmlFor="history-notes">{t('history.notes')}</label>

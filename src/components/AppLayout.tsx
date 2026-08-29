@@ -8,6 +8,7 @@ import {
   IconCloudOff,
   IconExercises,
   IconMoon,
+  IconPeople,
   IconProgress,
   IconRoutines,
   IconSun,
@@ -15,12 +16,14 @@ import {
   IconToday,
   IconUser,
 } from './Icons'
+import { capabilitiesFor } from '../lib/capabilities'
 import { BrandLogo } from './BrandLogo'
 import { ActiveWorkoutBanner } from './ActiveWorkoutBanner'
 import './appLayout.css'
 
 export function AppLayout() {
-  const { pending, syncing, online, ready, syncError } = useStore()
+  const { pending, syncing, online, ready, syncError, profile } = useStore()
+  const caps = capabilitiesFor(profile)
   const navigate = useNavigate()
   const { theme, setPreference } = useTheme()
   const { t } = useT()
@@ -28,8 +31,8 @@ export function AppLayout() {
   const tabs = [
     { to: '/', label: t('nav.today'), Icon: IconToday },
     { to: '/calendar', label: t('nav.calendar'), Icon: IconCalendar },
-    { to: '/routines', label: t('nav.routines'), Icon: IconRoutines },
-    { to: '/exercises', label: t('nav.exercises'), Icon: IconExercises },
+    ...(caps.navRoutines ? [{ to: '/routines', label: t('nav.routines'), Icon: IconRoutines }] : []),
+    ...(caps.navExercises ? [{ to: '/exercises', label: t('nav.exercises'), Icon: IconExercises }] : []),
     { to: '/progress', label: t('nav.progress'), Icon: IconProgress },
   ]
 
@@ -98,6 +101,16 @@ export function AppLayout() {
           >
             {theme === 'dark' ? <IconSun /> : <IconMoon />}
           </button>
+          {caps.navCoach ? (
+            <button
+              type="button"
+              className="btn btn--icon"
+              aria-label={t('nav.openCoach')}
+              onClick={() => void navigate('/coach')}
+            >
+              <IconPeople />
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--icon"

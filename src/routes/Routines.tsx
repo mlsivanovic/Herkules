@@ -246,6 +246,9 @@ export function Routines() {
                 >
                   <span className="row row--between">
                     <strong>{plan.name}</strong>
+                    {plan.locked ? (
+                      <span className="badge badge--planned">{t('coach.assignedBadge')}</span>
+                    ) : null}
                     <span className="badge badge--neutral">
                       {days.length === 1
                         ? t('routines.dayOne', { count: days.length })

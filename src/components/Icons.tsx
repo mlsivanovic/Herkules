@@ -185,6 +185,17 @@ export function IconUser(props: IconProps) {
   )
 }
 
+export function IconPeople(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20c.8-3 3-4.5 6-4.5s5.2 1.5 6 4.5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M16 20c.4-2 1.8-3.2 4-3.5" />
+    </svg>
+  )
+}
+
 export function IconSettings(props: IconProps) {
   return (
     <svg {...base(props)}>

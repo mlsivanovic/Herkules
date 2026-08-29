@@ -18,6 +18,8 @@ import { Routines } from './routes/Routines'
 import { Exercises } from './routes/Exercises'
 import { Progress } from './routes/Progress'
 import { NotFound } from './routes/NotFound'
+import { capabilitiesFor, isLightAccount } from './lib/capabilities'
+import { useStore } from './lib/store'
 
 const History = lazy(() => import('./routes/History').then((m) => ({ default: m.History })))
 const RoutineEditor = lazy(() => import('./routes/RoutineEditor').then((m) => ({ default: m.RoutineEditor })))
@@ -29,12 +31,29 @@ const ExerciseEditor = lazy(() => import('./routes/ExerciseEditor').then((m) => 
 const Workout = lazy(() => import('./routes/Workout').then((m) => ({ default: m.Workout })))
 const HistoryDetail = lazy(() => import('./routes/HistoryDetail').then((m) => ({ default: m.HistoryDetail })))
 const Settings = lazy(() => import('./routes/Settings').then((m) => ({ default: m.Settings })))
+const Coach = lazy(() => import('./routes/Coach').then((m) => ({ default: m.Coach })))
+const CoachClient = lazy(() => import('./routes/CoachClient').then((m) => ({ default: m.CoachClient })))
+const JoinInvite = lazy(() => import('./routes/JoinInvite').then((m) => ({ default: m.JoinInvite })))
 
 /** Gate for everything behind a signed-in session. */
 function RequireAuth() {
   const { session, loading } = useAuth()
   if (loading) return <CheckingSession />
   if (!session) return <Navigate to="/login" replace />
+  return <Outlet />
+}
+
+function DenyLight({ children }: { children: React.ReactNode }) {
+  const { profile, ready } = useStore()
+  if (!ready) return <Loader />
+  if (isLightAccount(profile)) return <Navigate to="/" replace />
+  return children
+}
+
+function RequireCoach() {
+  const { profile, ready } = useStore()
+  if (!ready) return <Loader />
+  if (!capabilitiesFor(profile).navCoach) return <Navigate to="/settings" replace />
   return <Outlet />
 }
 
@@ -50,22 +69,27 @@ export default function App() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/update-password" element={<UpdatePassword />} />
+                <Route path="/join/:token" element={<JoinInvite />} />
 
                 <Route element={<RequireAuth />}>
                   <Route element={<AppLayout />}>
                     <Route index element={<Today />} />
                     <Route path="/calendar" element={<Calendar />} />
-                    <Route path="/routines" element={<Routines />} />
-                    <Route path="/routines/:id" element={<RoutineEditor />} />
-                    <Route path="/starters/:sourceKey/:slot" element={<StarterPreview />} />
-                    <Route path="/starters/:sourceKey" element={<StarterPreview />} />
-                    <Route path="/plans/:id" element={<PlanEditor />} />
-                    <Route path="/exercises" element={<Exercises />} />
-                    <Route path="/exercises/:id" element={<ExerciseEditor />} />
-                        <Route path="/progress" element={<Progress />} />
-                        <Route path="/history" element={<History />} />
-                        <Route path="/history/:id" element={<HistoryDetail />} />
+                    <Route path="/routines" element={<DenyLight><Routines /></DenyLight>} />
+                    <Route path="/routines/:id" element={<DenyLight><RoutineEditor /></DenyLight>} />
+                    <Route path="/starters/:sourceKey/:slot" element={<DenyLight><StarterPreview /></DenyLight>} />
+                    <Route path="/starters/:sourceKey" element={<DenyLight><StarterPreview /></DenyLight>} />
+                    <Route path="/plans/:id" element={<DenyLight><PlanEditor /></DenyLight>} />
+                    <Route path="/exercises" element={<DenyLight><Exercises /></DenyLight>} />
+                    <Route path="/exercises/:id" element={<DenyLight><ExerciseEditor /></DenyLight>} />
+                    <Route path="/progress" element={<Progress />} />
+                    <Route path="/history" element={<History />} />
+                    <Route path="/history/:id" element={<HistoryDetail />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route element={<RequireCoach />}>
+                      <Route path="/coach" element={<Coach />} />
+                      <Route path="/coach/:clientId" element={<CoachClient />} />
+                    </Route>
                   </Route>
                   <Route path="/workout" element={<Workout />} />
                 </Route>

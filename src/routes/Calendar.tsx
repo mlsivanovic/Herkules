@@ -12,7 +12,7 @@ import {
   todayKey,
   type DateKey,
 } from '../lib/dates'
-import { dayStatus, occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
+import { calendarDayItems, dayStatus, occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '../components/Icons'
@@ -272,14 +272,15 @@ function DayDetail({
   const light = isLightAccount(profile)
   const navigate = useNavigate()
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const items = calendarDayItems(planned, sessions)
 
   return (
     <div className="stack">
-      {planned.length === 0 && sessions.length === 0 && aerobic.length === 0 ? (
+      {items.planned.length === 0 && items.sessions.length === 0 && aerobic.length === 0 ? (
         <EmptyState title={t('calendar.nothingTitle')} hint={t('calendar.nothingHint')} />
       ) : null}
 
-      {planned.map((entry) => {
+      {items.planned.map((entry) => {
         const match = sessions.find((s) => s.schedule_item_id === entry.scheduleId)
         const skipped = match?.status === 'skipped'
         const completed = match?.status === 'completed'
@@ -339,7 +340,7 @@ function DayDetail({
         )
       })}
 
-      {sessions.map((session) => {
+      {items.sessions.map((session) => {
         const canOpen = session.status !== 'skipped'
         const canDelete = session.status === 'completed' || session.status === 'skipped'
         return (

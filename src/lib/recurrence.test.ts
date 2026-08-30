@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RecurrenceRuleRow, ScheduleItemRow } from '../types/db'
 import { addDays, dateRange, isoWeekday, monthGrid, startOfWeek } from './dates'
-import { dayStatus, occurrencesInRange, ruleOccursOn } from './recurrence'
+import { calendarDayItems, dayStatus, occurrencesInRange, ruleOccursOn } from './recurrence'
 
 function makeRule(overrides: Partial<RecurrenceRuleRow> = {}): RecurrenceRuleRow {
   return {
@@ -125,5 +125,32 @@ describe('day status derivation', () => {
     expect(dayStatus(today, 1, 0, false, today, 1)).toBe('skipped')
     expect(dayStatus(today, 1, 1, false, today, 1)).toBe('completed')
     expect(dayStatus(today, 1, 0, true, today, 1)).toBe('in-progress')
+  })
+})
+
+describe('calendar day items', () => {
+  const planned = [{ scheduleId: 'sch-1' }, { scheduleId: 'sch-2' }]
+
+  it('hides the planned slot when that workout is completed', () => {
+    const result = calendarDayItems(planned, [
+      { status: 'completed', schedule_item_id: 'sch-1' },
+    ])
+    expect(result.planned).toEqual([{ scheduleId: 'sch-2' }])
+    expect(result.sessions).toEqual([{ status: 'completed', schedule_item_id: 'sch-1' }])
+  })
+
+  it('keeps the planned skip row and hides the skipped session copy', () => {
+    const result = calendarDayItems(planned, [
+      { status: 'skipped', schedule_item_id: 'sch-1' },
+    ])
+    expect(result.planned).toEqual(planned)
+    expect(result.sessions).toEqual([])
+  })
+
+  it('keeps unscheduled sessions', () => {
+    const extra = { status: 'completed', schedule_item_id: null }
+    const result = calendarDayItems(planned, [extra])
+    expect(result.planned).toEqual(planned)
+    expect(result.sessions).toEqual([extra])
   })
 })

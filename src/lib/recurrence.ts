@@ -51,6 +51,32 @@ export function occurrencesInRange(
 export type DayWorkoutStatus = 'planned' | 'in-progress' | 'completed' | 'skipped'
 
 /**
+ * Calendar day sheet: a finished (or in-progress) session replaces its
+ * planned slot so the same workout is not listed twice. Skipped sessions stay
+ * on the planned row, which owns skip / undo.
+ */
+export function calendarDayItems<
+  P extends { scheduleId: string },
+  S extends { status: string; schedule_item_id: string | null },
+>(planned: P[], sessions: S[]): { planned: P[]; sessions: S[] } {
+  const fulfilled = new Set(
+    sessions.flatMap((session) =>
+      (session.status === 'completed' || session.status === 'in_progress') && session.schedule_item_id
+        ? [session.schedule_item_id]
+        : [],
+    ),
+  )
+  const nextPlanned = planned.filter((entry) => !fulfilled.has(entry.scheduleId))
+  const remainingPlanned = new Set(nextPlanned.map((entry) => entry.scheduleId))
+  const nextSessions = sessions.filter((session) => {
+    if (session.status === 'completed' || session.status === 'in_progress') return true
+    if (session.schedule_item_id && remainingPlanned.has(session.schedule_item_id)) return false
+    return true
+  })
+  return { planned: nextPlanned, sessions: nextSessions }
+}
+
+/**
  * Status of one date given how many workouts are planned there and how many
  * were completed. An explicit skip wins over a still-planned today/future
  * slot; a past planned day without a completed session still counts as

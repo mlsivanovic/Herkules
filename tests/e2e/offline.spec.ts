@@ -22,7 +22,6 @@ test.describe('offline first', () => {
 
     // --- go offline --------------------------------------------------------
     await context.setOffline(true)
-    await expect(page.getByText('Offline', { exact: false })).toBeVisible()
 
     // log two sets offline — every change persists to IndexedDB immediately
     const set1 = page.getByRole('group', { name: 'Set 1 values' })
@@ -46,7 +45,7 @@ test.describe('offline first', () => {
 
     // reload while offline — data must survive from IndexedDB, shell from SW
     await page.reload()
-    await expect(page.getByText('Offline', { exact: false })).toBeVisible()
+    await expect(page.locator('.app-topbar-status [data-sync-status="pending"]')).toBeVisible()
     await page.goto('/#/progress')
     await expect(page.getByText('Barbell Bench Press').first()).toBeVisible()
 

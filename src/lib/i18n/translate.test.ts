@@ -50,6 +50,15 @@ describe('t', () => {
     expect(t('workout.setsLabel', undefined, 'sr')).toBe('Serije')
   })
 
+  it('translates compact top-bar sync status', () => {
+    expect(t('sync.statusSuccess', undefined, 'en')).toBe('Success')
+    expect(t('sync.statusPending', undefined, 'en')).toBe('Pending')
+    expect(t('sync.statusError', undefined, 'en')).toBe('Error')
+    expect(t('sync.statusSuccess', undefined, 'sr')).toBe('Uspeh')
+    expect(t('sync.statusPending', undefined, 'sr')).toBe('Na čekanju')
+    expect(t('sync.statusError', undefined, 'sr')).toBe('Greška')
+  })
+
   it('translates rest chip label', () => {
     expect(t('workout.restLabel', undefined, 'en')).toBe('Rest')
     expect(t('workout.restLabel', undefined, 'sr')).toBe('Odmor')

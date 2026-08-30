@@ -47,7 +47,7 @@ export async function signIn(page: Page, email: string): Promise<void> {
 
 /** Waits until everything queued has been pushed (status badge in the top bar). */
 export async function waitForAllSaved(page: Page): Promise<void> {
-  await expect(page.locator('.app-topbar-status').getByText('All changes saved')).toBeVisible({
+  await expect(page.locator('.app-topbar-status [data-sync-status="success"]')).toBeVisible({
     timeout: 30_000,
   })
 }

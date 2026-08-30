@@ -32,6 +32,10 @@ export const en = {
     never: 'No successful sync on this device yet.',
     retry: 'Retry sync',
     retrying: 'Retrying…',
+    statusSuccess: 'Success',
+    statusPending: 'Pending',
+    statusError: 'Error',
+    errorDetails: 'Sync error',
   },
   common: {
     loading: 'Loading…',

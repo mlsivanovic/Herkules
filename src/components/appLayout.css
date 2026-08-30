@@ -44,6 +44,39 @@
   flex: 1;
   display: flex;
   justify-content: flex-end;
+  min-width: 0;
+}
+
+.sync-error {
+  position: relative;
+}
+
+.sync-error__btn {
+  margin: 0;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: var(--control-h);
+}
+
+.sync-error__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 45;
+  width: min(18rem, calc(100vw - 2rem));
+  max-height: min(40vh, 16rem);
+  overflow: auto;
+  padding: 0.7rem 0.85rem;
+  background: var(--c-card);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .app-brand-btn {

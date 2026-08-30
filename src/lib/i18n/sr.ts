@@ -34,6 +34,10 @@ export const sr: Messages = {
     never: 'Na ovom uređaju još nije bilo uspešne sinhronizacije.',
     retry: 'Ponovi sinhronizaciju',
     retrying: 'Ponovo…',
+    statusSuccess: 'Uspeh',
+    statusPending: 'Na čekanju',
+    statusError: 'Greška',
+    errorDetails: 'Greška sinhronizacije',
   },
   common: {
     loading: 'Učitavanje…',

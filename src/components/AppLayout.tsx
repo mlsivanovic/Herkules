@@ -1,28 +1,96 @@
 // App shell: mobile-first with bottom nav; desktop (≥768px) gets a sidebar.
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useTheme } from '../lib/theme'
 import { useT } from '../lib/i18n'
 import {
   IconCalendar,
-  IconCloudOff,
   IconExercises,
   IconMoon,
   IconPeople,
   IconProgress,
   IconRoutines,
   IconSun,
-  IconSync,
   IconToday,
   IconUser,
 } from './Icons'
 import { capabilitiesFor } from '../lib/capabilities'
+import { syncBarStatus } from '../lib/syncStatus'
 import { BrandLogo } from './BrandLogo'
 import { ActiveWorkoutBanner } from './ActiveWorkoutBanner'
 import './appLayout.css'
 
+function SyncBar() {
+  const { pending, syncing, ready, syncError } = useStore()
+  const { t } = useT()
+  const [errorOpen, setErrorOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const kind = syncBarStatus({ ready, syncing, pending, syncError })
+
+  useEffect(() => {
+    if (!syncError) setErrorOpen(false)
+  }, [syncError])
+
+  useEffect(() => {
+    if (!errorOpen) return
+    function onPointerDown(event: PointerEvent) {
+      if (rootRef.current?.contains(event.target as Node)) return
+      setErrorOpen(false)
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setErrorOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [errorOpen])
+
+  if (!kind) return null
+
+  if (kind !== 'error') {
+    return (
+      <span
+        className={`badge ${kind === 'success' ? 'badge--completed' : 'badge--planned'}`}
+        data-sync-status={kind}
+      >
+        {kind === 'success' ? t('sync.statusSuccess') : t('sync.statusPending')}
+      </span>
+    )
+  }
+
+  return (
+    <div className="sync-error" ref={rootRef}>
+      <button
+        type="button"
+        className="badge badge--error sync-error__btn"
+        data-sync-status="error"
+        aria-expanded={errorOpen}
+        aria-haspopup="dialog"
+        aria-controls="sync-error-pop"
+        onClick={() => setErrorOpen((open) => !open)}
+      >
+        {t('sync.statusError')}
+      </button>
+      {errorOpen && syncError ? (
+        <div
+          id="sync-error-pop"
+          className="sync-error__pop"
+          role="dialog"
+          aria-label={t('sync.errorDetails')}
+        >
+          {syncError}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function AppLayout() {
-  const { pending, syncing, online, ready, syncError, profile } = useStore()
+  const { profile } = useStore()
   const caps = capabilitiesFor(profile)
   const navigate = useNavigate()
   const { theme, setPreference } = useTheme()
@@ -71,25 +139,7 @@ export function AppLayout() {
             <BrandLogo theme={theme} size="bar" />
           </button>
           <div className="app-topbar-status" role="status">
-            {!online ? (
-              <span className="badge badge--skipped">
-                <IconCloudOff width={14} height={14} /> {t('sync.offline')}
-              </span>
-            ) : syncing ? (
-              <span className="badge badge--in-progress">
-                <IconSync width={14} height={14} /> {t('sync.syncing')}
-              </span>
-            ) : syncError ? (
-              <span className="badge badge--error" role="alert">
-                <IconSync width={14} height={14} /> {t('sync.failed')}
-              </span>
-            ) : pending > 0 ? (
-              <span className="badge badge--planned">
-                <IconCloudOff width={14} height={14} /> {t('sync.pending', { count: pending })}
-              </span>
-            ) : ready ? (
-              <span className="badge badge--completed">{t('sync.saved')}</span>
-            ) : null}
+            <SyncBar />
           </div>
           <button
             type="button"

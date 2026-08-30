@@ -1,17 +1,30 @@
 // Pointer reorder for mobile-first lists. HTML5 DnD is not used — it does
 // not work on iOS and fights vertical scroll.
 //
-// Grip (immediate): touch-action:none + drag starts on pointerdown.
-// Title (hold): long-press so the list can still scroll from the title.
+// Mouse grip: drag starts on pointerdown.
+// Touch / pen (grip and title): long-press so a scroll gesture does not
+// reorder. Movement beyond slop before the hold completes cancels.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { t } from './i18n'
 import { indexAtClientY } from './reorder'
 
-const MOUSE_HOLD_MS = 180
-const TOUCH_HOLD_MS = 380
+const MOUSE_HOLD_MS = 350
+const TOUCH_HOLD_MS = 600
 const MOUSE_SLOP_PX = 12
 const TOUCH_SLOP_PX = 32
 const SCROLL_EDGE_PX = 72
+
+export function pointerReorderActivation(
+  pointerType: string,
+  wantsImmediate: boolean,
+): { immediate: boolean; holdMs: number; slop: number } {
+  const isTouch = pointerType === 'touch' || pointerType === 'pen'
+  return {
+    immediate: wantsImmediate && !isTouch,
+    holdMs: isTouch ? TOUCH_HOLD_MS : MOUSE_HOLD_MS,
+    slop: isTouch ? TOUCH_SLOP_PX : MOUSE_SLOP_PX,
+  }
+}
 
 export interface ReorderActive {
   from: number
@@ -188,15 +201,17 @@ export function usePointerReorder(options: {
           }
 
           const fromGrip = Boolean(target.closest('.exercise-grip'))
-          const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen'
-          const immediate = Boolean(opts?.immediate || fromGrip)
-          const slop = isTouch ? TOUCH_SLOP_PX : MOUSE_SLOP_PX
-          const holdMs = isTouch ? TOUCH_HOLD_MS : MOUSE_HOLD_MS
+          const { immediate, holdMs, slop } = pointerReorderActivation(
+            event.pointerType,
+            Boolean(opts?.immediate || fromGrip),
+          )
           const captureEl = event.currentTarget
 
+          if (fromGrip) {
+            event.stopPropagation()
+          }
           if (immediate) {
             event.preventDefault()
-            event.stopPropagation()
           }
 
           pending.current = {

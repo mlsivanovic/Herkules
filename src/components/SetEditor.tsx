@@ -14,7 +14,7 @@ import {
 } from '../lib/units'
 import { parseDurationInput, parseNonNegative } from '../lib/validation'
 import { useT } from '../lib/i18n'
-import { IconCheck, IconClose, IconPlus, IconTrash } from './Icons'
+import { IconCheck, IconClose, IconMore, IconPlus, IconTrash } from './Icons'
 import './setEditor.css'
 
 function sameValues(a: SetRow, b: SetRow): boolean {
@@ -92,6 +92,7 @@ export function SetEditor({
   const treatEmptyAsBw = bodyweightLoad === true
   const showBwToggle = measurementHasWeight(measurement) && (treatEmptyAsBw || warmup)
   const [draft, setDraft] = useState<Draft>(() => draftFromSet(set, units, treatEmptyAsBw))
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const lastEmitted = useRef<SetRow>(set)
 
   // Adopt upstream changes (sync, programmatic edits) — but never our own
@@ -266,22 +267,6 @@ export function SetEditor({
           </label>
         ) : null}
 
-        <label className="set-field set-field--rpe">
-          <span className="visually-hidden">{t('set.rpeAria')}</span>
-          <select
-            className="input input--cell"
-            value={draft.rpe}
-            disabled={readonly}
-            onChange={(e) => apply({ rpe: e.target.value })}
-          >
-            <option value="">{t('editor.rpe')}</option>
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       {readonly ? (
@@ -306,14 +291,36 @@ export function SetEditor({
           </button>
           <button
             type="button"
-            className="btn btn--icon btn--small btn--danger"
-            aria-label={t('set.delete', { n: index + 1 })}
-            onClick={onDelete}
+            className="btn btn--icon btn--small set-more-button"
+            aria-label={t('set.moreActions', { n: index + 1 })}
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((open) => !open)}
           >
-            <IconTrash width={16} height={16} />
+            <IconMore width={18} height={18} />
           </button>
         </div>
       )}
+
+      {!readonly && detailsOpen ? (
+        <div className="set-advanced">
+          <label className="set-advanced__rpe">
+            <span>{t('editor.rpe')}</span>
+            <select
+              className="input input--cell"
+              value={draft.rpe}
+              onChange={(e) => apply({ rpe: e.target.value })}
+            >
+              <option value="">{t('common.notSet')}</option>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn btn--small btn--danger" onClick={onDelete}>
+            <IconTrash width={16} height={16} /> {t('common.delete')}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

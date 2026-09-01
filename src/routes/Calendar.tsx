@@ -21,6 +21,7 @@ import { nextTemplateForPlan } from '../lib/programs/plans'
 import { aerobicActivityLabel, bcp47, useT } from '../lib/i18n'
 import { isLightAccount, programmingForAccount } from '../lib/capabilities'
 import type { AerobicActivityRow } from '../types/db'
+import { PlanSectionNav } from '../components/SectionNav'
 import './calendar.css'
 
 export function Calendar() {
@@ -117,6 +118,7 @@ export function Calendar() {
 
   return (
     <div>
+      <PlanSectionNav />
       <div className="page-head">
         <h1>{t('calendar.title')}</h1>
         <button

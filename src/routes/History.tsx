@@ -10,6 +10,7 @@ import { sessionVolume } from '../lib/metrics'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { useT } from '../lib/i18n'
 import './history.css'
+import { ProgressSectionNav } from '../components/SectionNav'
 
 function dayKey(session: SessionDoc): string {
   return session.planned_date ?? session.started_at.slice(0, 10)
@@ -57,6 +58,7 @@ export function History() {
 
   return (
     <div>
+      <ProgressSectionNav />
       <div className="page-head">
         <h1>{t('history.title')}</h1>
         <span className="muted">

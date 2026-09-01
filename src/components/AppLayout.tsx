@@ -1,16 +1,15 @@
 // App shell: mobile-first with bottom nav; desktop (≥768px) gets a sidebar.
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { useTheme } from '../lib/theme'
 import { useT } from '../lib/i18n'
 import {
   IconCalendar,
-  IconExercises,
   IconMoon,
   IconPeople,
   IconProgress,
-  IconRoutines,
+  IconSettings,
   IconSun,
   IconToday,
   IconUser,
@@ -18,7 +17,8 @@ import {
 import { capabilitiesFor } from '../lib/capabilities'
 import { syncBarStatus } from '../lib/syncStatus'
 import { BrandLogo } from './BrandLogo'
-import { ActiveWorkoutBanner } from './ActiveWorkoutBanner'
+import { PrimaryWorkoutAction } from './PrimaryWorkoutAction'
+import { primarySectionForPath } from '../lib/navigation'
 import './appLayout.css'
 
 function SyncBar() {
@@ -93,16 +93,44 @@ export function AppLayout() {
   const { profile } = useStore()
   const caps = capabilitiesFor(profile)
   const navigate = useNavigate()
+  const location = useLocation()
   const { theme, setPreference } = useTheme()
   const { t } = useT()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+  const primarySection = primarySectionForPath(location.pathname)
 
   const tabs = [
-    { to: '/', label: t('nav.today'), Icon: IconToday },
-    { to: '/calendar', label: t('nav.calendar'), Icon: IconCalendar },
-    ...(caps.navRoutines ? [{ to: '/routines', label: t('nav.routines'), Icon: IconRoutines }] : []),
-    ...(caps.navExercises ? [{ to: '/exercises', label: t('nav.exercises'), Icon: IconExercises }] : []),
-    { to: '/progress', label: t('nav.progress'), Icon: IconProgress },
+    { to: '/', label: t('nav.today'), Icon: IconToday, active: primarySection === 'today' },
+    {
+      to: '/calendar',
+      label: t('nav.plan'),
+      Icon: IconCalendar,
+      active: primarySection === 'plan',
+    },
+    {
+      to: '/progress',
+      label: t('nav.progress'),
+      Icon: IconProgress,
+      active: primarySection === 'progress',
+    },
   ]
+
+  useEffect(() => {
+    if (!profileOpen) return
+    function close(event: PointerEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileOpen(false)
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setProfileOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [profileOpen])
 
   function toggleTheme() {
     setPreference(theme === 'dark' ? 'light' : 'dark')
@@ -119,13 +147,24 @@ export function AppLayout() {
           <BrandLogo theme={theme} size="sidebar" />
         </button>
         <nav aria-label={t('nav.main')}>
-          {tabs.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} end={to === '/'} className="app-nav-link">
+          {tabs.map(({ to, label, Icon, active }) => (
+            <Link key={to} to={to} className={`app-nav-link${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
               <Icon width={22} height={22} />
               <span>{label}</span>
-            </NavLink>
+            </Link>
           ))}
         </nav>
+        <PrimaryWorkoutAction desktop />
+        <div className="app-sidebar__foot">
+          {caps.navCoach ? (
+            <button type="button" className="app-sidebar__utility" onClick={() => void navigate('/coach')}>
+              <IconPeople width={20} height={20} /> {t('nav.coach')}
+            </button>
+          ) : null}
+          <button type="button" className="app-sidebar__utility" onClick={() => void navigate('/settings')}>
+            <IconSettings width={20} height={20} /> {t('settings.title')}
+          </button>
+        </div>
       </aside>
 
       <div className="app-main">
@@ -141,48 +180,51 @@ export function AppLayout() {
           <div className="app-topbar-status" role="status">
             <SyncBar />
           </div>
-          <button
-            type="button"
-            className="btn btn--icon"
-            aria-label={t('nav.switchTheme', {
-              theme: theme === 'dark' ? t('nav.light') : t('nav.dark'),
-            })}
-            onClick={toggleTheme}
-          >
-            {theme === 'dark' ? <IconSun /> : <IconMoon />}
-          </button>
-          {caps.navCoach ? (
+          <div className="profile-menu" ref={profileMenuRef}>
             <button
               type="button"
-              className="btn btn--icon"
-              aria-label={t('nav.openCoach')}
-              onClick={() => void navigate('/coach')}
+              className="profile-menu__trigger"
+              aria-label={t('nav.openProfileMenu')}
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              onClick={() => setProfileOpen((open) => !open)}
             >
-              <IconPeople />
+              {(profile?.display_name?.trim().charAt(0) || '') ? (
+                <span aria-hidden="true">{profile?.display_name?.trim().charAt(0).toUpperCase()}</span>
+              ) : <IconUser width={20} height={20} />}
             </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn--icon"
-            aria-label={t('nav.openSettings')}
-            onClick={() => void navigate('/settings')}
-          >
-            <IconUser />
-          </button>
+            {profileOpen ? (
+              <div className="profile-menu__panel" role="menu">
+                {profile?.display_name ? <strong>{profile.display_name}</strong> : null}
+                <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); void navigate('/settings') }}>
+                  <IconSettings width={19} height={19} /> {t('settings.title')}
+                </button>
+                {caps.navCoach ? (
+                  <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); void navigate('/coach') }}>
+                    <IconPeople width={19} height={19} /> {t('nav.coach')}
+                  </button>
+                ) : null}
+                <button type="button" role="menuitem" onClick={() => { toggleTheme(); setProfileOpen(false) }}>
+                  {theme === 'dark' ? <IconSun width={19} height={19} /> : <IconMoon width={19} height={19} />}
+                  {t('nav.switchTheme', { theme: theme === 'dark' ? t('nav.light') : t('nav.dark') })}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </header>
 
         <main className="app-content" id="main-content">
           <Outlet />
         </main>
 
-        <ActiveWorkoutBanner />
+        <PrimaryWorkoutAction />
 
         <nav className="app-bottom-nav" aria-label={t('nav.main')}>
-          {tabs.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} end={to === '/'} className="app-bottom-link">
+          {tabs.map(({ to, label, Icon, active }) => (
+            <Link key={to} to={to} className={`app-bottom-link${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
               <Icon width={24} height={24} />
               <span>{label}</span>
-            </NavLink>
+            </Link>
           ))}
         </nav>
       </div>

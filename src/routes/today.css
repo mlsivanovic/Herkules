@@ -2,46 +2,83 @@
 
 .today-stats {
   display: flex;
-  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--c-card) 76%, transparent);
 }
 
 .today-stat {
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.35rem 0.9rem;
-  border-radius: var(--radius-s);
-  background: var(--c-card);
-  border: 1px solid var(--c-border);
-  min-width: 72px;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.today-stats__divider {
+  width: 1px;
+  height: 28px;
+  background: var(--c-border);
 }
 
 .today-stat strong {
-  font-size: 1.2rem;
-  line-height: 1.1;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 .today-stat span {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--c-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+
+.today-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 112px;
+  padding: 1.05rem 1.15rem;
+  border: 0;
+  border-radius: var(--radius-l);
+  background: linear-gradient(135deg, var(--c-primary), color-mix(in srgb, var(--c-primary) 70%, #8b5cf6));
+  color: var(--c-on-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 16px 32px color-mix(in srgb, var(--c-primary) 25%, transparent);
 }
 
 .today-active {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  border-left: 4px solid var(--c-accent);
+  background: linear-gradient(135deg, var(--c-accent), color-mix(in srgb, var(--c-accent) 72%, #14b8a6));
+  box-shadow: 0 16px 32px color-mix(in srgb, var(--c-accent) 24%, transparent);
 }
 
-.today-start {
-  margin-bottom: 0.35rem;
+.today-hero-card__row { width: 100%; }
+.today-start > span:first-child,
+.today-hero-card__row > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.today-hero-card__eyebrow { color: inherit; opacity: 0.8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+.today-hero-card__title { display: block; margin: 0.15rem 0; font-size: 1.25rem; line-height: 1.2; }
+.today-hero-card .muted,
+.today-hero-card small { color: inherit; opacity: 0.86; }
+.today-hero-card__play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.18);
 }
 
 .today-checkins {
-  margin-top: 1.4rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
-import { IconChevronDown, IconCopy, IconPlus } from '../components/Icons'
+import { IconChevronDown, IconCopy, IconMore, IconPlus } from '../components/Icons'
 import { PlanRotationModal } from '../components/PlanRotationModal'
 import {
   downloadTextFile,
@@ -26,6 +26,7 @@ import {
 } from '../lib/programs/plans'
 import { HYBRID_SOURCE_KEY } from '../lib/programs/hybrid4day'
 import { useT } from '../lib/i18n'
+import { PlanSectionNav } from '../components/SectionNav'
 import './routines.css'
 
 export function Routines() {
@@ -72,9 +73,10 @@ export function Routines() {
 
   return (
     <div>
+      <PlanSectionNav />
       <div className="page-head">
         <h1>{t('routines.title')}</h1>
-        <div className="row row--wrap">
+        <div className="routine-head-actions">
           <input
             ref={fileRef}
             type="file"
@@ -99,42 +101,44 @@ export function Routines() {
                 .finally(() => setIoBusy(false))
             }}
           />
-          <button
-            type="button"
-            className="btn"
-            disabled={ioBusy}
-            onClick={() => fileRef.current?.click()}
-          >
-            {ioBusy ? t('routines.importing') : t('routines.import')}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={ioBusy || templates.length === 0}
-            onClick={() => {
-              setIoBusy(true)
-              setIoError(null)
-              setIoMessage(null)
-              void exportRoutines()
-                .then((json) => {
-                  downloadTextFile(routinesExportFilename(), json, 'application/json')
-                  setIoMessage(
-                    templates.length === 1
-                      ? t('routines.exportedOne', { count: templates.length })
-                      : t('routines.exportedOther', { count: templates.length }),
-                  )
-                })
-                .catch((caught: unknown) => {
-                  setIoError(caught instanceof Error ? caught.message : t('errors.exportRoutines'))
-                })
-                .finally(() => setIoBusy(false))
-            }}
-          >
-            {t('routines.export')}
-          </button>
-          <button type="button" className="btn btn--accent" onClick={() => void navigate('/plans/new')}>
-            <IconPlus width={18} height={18} /> {t('routines.newPlan')}
-          </button>
+          <details className="page-action-menu">
+            <summary className="btn btn--icon" aria-label={t('routines.moreActions')}>
+              <IconMore width={20} height={20} />
+            </summary>
+            <div className="page-action-menu__panel">
+              <button type="button" className="btn btn--block" onClick={() => void navigate('/plans/new')}>
+                <IconPlus width={18} height={18} /> {t('routines.newPlan')}
+              </button>
+              <button type="button" className="btn btn--block" disabled={ioBusy} onClick={() => fileRef.current?.click()}>
+                {ioBusy ? t('routines.importing') : t('routines.import')}
+              </button>
+              <button
+                type="button"
+                className="btn btn--block"
+                disabled={ioBusy || templates.length === 0}
+                onClick={() => {
+                  setIoBusy(true)
+                  setIoError(null)
+                  setIoMessage(null)
+                  void exportRoutines()
+                    .then((json) => {
+                      downloadTextFile(routinesExportFilename(), json, 'application/json')
+                      setIoMessage(
+                        templates.length === 1
+                          ? t('routines.exportedOne', { count: templates.length })
+                          : t('routines.exportedOther', { count: templates.length }),
+                      )
+                    })
+                    .catch((caught: unknown) => {
+                      setIoError(caught instanceof Error ? caught.message : t('errors.exportRoutines'))
+                    })
+                    .finally(() => setIoBusy(false))
+                }}
+              >
+                {t('routines.export')}
+              </button>
+            </div>
+          </details>
           <button
             type="button"
             className="btn btn--primary"

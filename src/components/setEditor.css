@@ -3,6 +3,7 @@
 .set-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.4rem 0.35rem;
   border-radius: var(--radius-s);
@@ -48,13 +49,36 @@
   width: 100%;
 }
 
-.set-field--rpe {
-  flex: 0 0 76px;
-}
-
 .set-actions {
   display: flex;
   gap: 0.3rem;
+}
+
+.set-advanced {
+  flex: 1 0 calc(100% - 34px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-left: 34px;
+  padding: 0.55rem;
+  border-radius: var(--radius-s);
+  background: var(--c-bg-raised);
+}
+
+.set-advanced__rpe {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--c-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.set-advanced__rpe .input {
+  width: min(110px, 100%);
+  margin-left: auto;
 }
 
 .set-bw {
@@ -85,9 +109,9 @@
 }
 
 @media (max-width: 400px) {
-  .set-field--rpe {
-    display: none;
-  }
+  .set-row { gap: 0.35rem; padding-inline: 0; }
+  .set-actions { gap: 0.2rem; }
+  .set-advanced { margin-left: 29px; }
 }
 
 /* Warm-up sets: accent wash so they read apart from working sets */

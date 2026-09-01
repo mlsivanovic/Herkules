@@ -6,7 +6,7 @@ import { formatDateLong, startOfWeek, todayKey } from '../lib/dates'
 import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import { workoutStreak } from '../lib/metrics'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
-import { IconPlay, IconPlus } from '../components/Icons'
+import { IconPlay } from '../components/Icons'
 import { TendonCheckin } from '../components/TendonCheckin'
 import { WeightCheckin } from '../components/WeightCheckin'
 import { BodyCompositionCheckin } from '../components/BodyCompositionCheckin'
@@ -76,32 +76,35 @@ export function Today() {
 
   return (
     <div className="today-page">
-      <div className="page-head">
+      <div className="page-head today-head">
         <div>
           <h1>{firstName ? t('today.hi', { name: firstName }) : t('today.title')}</h1>
           <small className="muted">{formatDateLong(today)}</small>
         </div>
-        <div className="today-stats">
-          <div className="today-stat">
-            <strong>{week.count}</strong>
-            <span>{t('today.thisWeek')}</span>
-          </div>
-          <div className="today-stat">
-            <strong>{week.streak}</strong>
-            <span>{t('today.dayStreak')}</span>
-          </div>
+      </div>
+
+      <div className="today-stats" aria-label={t('today.title')}>
+        <div className="today-stat">
+          <strong>{week.count}</strong>
+          <span>{t('today.thisWeek')}</span>
+        </div>
+        <span className="today-stats__divider" aria-hidden="true" />
+        <div className="today-stat">
+          <strong>{week.streak}</strong>
+          <span>{t('today.dayStreak')}</span>
         </div>
       </div>
 
       {active ? (
         <button
           type="button"
-          className="card today-active"
+          className="today-hero-card today-active"
           onClick={() => void navigate('/workout')}
         >
-          <span className="row row--between">
+          <span className="row row--between today-hero-card__row">
             <span>
-              <StatusBadge status="in-progress" /> <strong>{active.name}</strong>
+              <small className="today-hero-card__eyebrow">{t('status.inProgress')}</small>
+              <strong className="today-hero-card__title">{active.name}</strong>
               <small className="muted" style={{ display: 'block' }}>
                 {t('today.startedContinue', {
                   time: new Date(active.started_at).toLocaleTimeString(bcp47(), {
@@ -111,16 +114,34 @@ export function Today() {
                 })}
               </small>
             </span>
-            <IconPlay width={22} height={22} />
+            <span className="today-hero-card__play"><IconPlay width={22} height={22} /></span>
           </span>
         </button>
       ) : caps.canStartEmptyWorkout || caps.kind === 'light' || plannedToday.length > 0 ? (
         <button
           type="button"
-          className="btn btn--primary btn--block today-start"
-          onClick={() => void navigate('/workout')}
+          className="today-hero-card today-start"
+          onClick={() => {
+            const entry = plannedToday[0]
+            if (!entry) {
+              void navigate('/workout')
+              return
+            }
+            void navigate('/workout', {
+              state: {
+                templateId: entry.template?.id,
+                scheduleItemId: entry.scheduleId,
+                plannedDate: today,
+              },
+            })
+          }}
         >
-          <IconPlay width={18} height={18} /> {t('today.startWorkout')}
+          <span>
+            <small className="today-hero-card__eyebrow">{plannedToday.length > 0 ? t('today.plannedToday') : t('today.title')}</small>
+            <strong className="today-hero-card__title">{plannedToday[0]?.template?.name ?? t('today.startWorkout')}</strong>
+            <small>{t('today.startWorkout')}</small>
+          </span>
+          <span className="today-hero-card__play"><IconPlay width={22} height={22} /></span>
         </button>
       ) : null}
 
@@ -203,21 +224,7 @@ export function Today() {
         </div>
       )}
 
-      <div className="section-title">{t('today.quickActions')}</div>
-      <div className="row row--wrap">
-        {caps.canCreateRoutines ? (
-          <button type="button" className="btn" onClick={() => void navigate('/routines/new')}>
-            <IconPlus width={18} height={18} /> {t('today.newRoutine')}
-          </button>
-        ) : null}
-        <button type="button" className="btn" onClick={() => void navigate('/calendar')}>
-          {t('today.planCalendar')}
-        </button>
-        <button type="button" className="btn" onClick={() => void navigate('/history')}>
-          {t('today.history')}
-        </button>
-      </div>
-
+      <div className="section-title">{t('today.checkins')}</div>
       <div className="today-checkins">
         <AerobicGoal />
         <WeightCheckin />

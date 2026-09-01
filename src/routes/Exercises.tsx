@@ -15,6 +15,7 @@ import {
   useT,
 } from '../lib/i18n'
 import './exercises.css'
+import { PlanSectionNav } from '../components/SectionNav'
 
 export function Exercises() {
   const { t } = useT()
@@ -42,6 +43,7 @@ export function Exercises() {
 
   return (
     <div>
+      <PlanSectionNav />
       <div className="page-head">
         <h1>{t('exercises.title')}</h1>
         <button

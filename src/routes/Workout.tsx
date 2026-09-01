@@ -27,6 +27,7 @@ import { isBlockRoundComplete, isSetGroupComplete, progressionSuggestions } from
 import { SetEditor, AddSetButton } from '../components/SetEditor'
 import {
   IconGrip,
+  IconChevronLeft,
   IconPlay,
   IconPlus,
   IconSun,
@@ -161,13 +162,13 @@ export function Workout() {
     <div className="workout-page">
       <header className="workout-header">
         <div className="workout-header__bar">
-          <button type="button" className="btn btn--small" onClick={() => void navigate('/')}>
-            {t('workout.back')}
+          <button type="button" className="btn btn--icon btn--ghost" aria-label={t('workout.back')} onClick={() => void navigate('/')}>
+            <IconChevronLeft width={22} height={22} />
           </button>
           <h1 className="workout-title">{active.name}</h1>
           <button
             type="button"
-            className="btn btn--small btn--accent"
+            className="btn btn--small btn--primary workout-finish"
             onClick={() => setFinishOpen(true)}
           >
             {t('workout.finish')}
@@ -214,10 +215,12 @@ export function Workout() {
             </button>
             <button
               type="button"
-              className="btn btn--small"
+              className="btn btn--icon btn--small btn--ghost workout-discard"
+              aria-label={t('workout.discard')}
+              title={t('workout.discard')}
               onClick={() => setDiscardOpen(true)}
             >
-              {t('workout.discard')}
+              <IconTrash width={18} height={18} />
             </button>
           </div>
         </div>

@@ -25,6 +25,7 @@ import { IconTrophy } from '../components/Icons'
 import { BodyComposition } from '../components/BodyComposition'
 import { displayExerciseName, displaySnapshotName, displayTag, displayTendonSite, t as translate, useT } from '../lib/i18n'
 import './progress.css'
+import { ProgressSectionNav } from '../components/SectionNav'
 
 const PR_VISIBLE = 6
 const PR_RECENT_DAYS = 30
@@ -104,6 +105,7 @@ export function Progress() {
   if (sessions.length === 0) {
     return (
       <div>
+        <ProgressSectionNav />
         <h1>{t('progress.title')}</h1>
         {composition}
         {trends}
@@ -117,6 +119,7 @@ export function Progress() {
 
   return (
     <div>
+      <ProgressSectionNav />
       <div className="page-head">
         <h1>{t('progress.title')}</h1>
         <button

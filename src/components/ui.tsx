@@ -1,5 +1,5 @@
 // Shared UI primitives: loading/error/empty states, modal, badges, notes disclosure.
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { IconChevronDown, IconNote } from './Icons'
 import { useT } from '../lib/i18n'
@@ -61,13 +61,43 @@ export function Modal({
   className?: string
 }) {
   const { t } = useT()
+  const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    panelRef.current?.focus()
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )]
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+      previousFocus?.focus()
+    }
+  }, [])
 
   return (
     <div
@@ -76,14 +106,102 @@ export function Modal({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className={`modal${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={panelRef} className={`modal${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="row row--between" style={{ marginBottom: '0.75rem' }}>
-          <h2 style={{ margin: 0 }}>{title}</h2>
+          <h2 id={titleId} style={{ margin: 0 }}>{title}</h2>
           <button type="button" className="btn btn--small" onClick={onClose} aria-label={closeLabel ?? t('common.closeDialog')}>
             {closeLabel ?? t('common.close')}
           </button>
         </div>
         {children}
+      </div>
+    </div>
+  )
+}
+
+export function BottomSheet({
+  title,
+  description,
+  onClose,
+  children,
+}: {
+  title: string
+  description?: string
+  onClose(): void
+  children: ReactNode
+}) {
+  const { t } = useT()
+  const titleId = useId()
+  const descriptionId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    panelRef.current?.focus()
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        closeRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return
+      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )]
+      if (focusable.length === 0) {
+        event.preventDefault()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+      previousFocus?.focus()
+    }
+  }, [])
+
+  return (
+    <div
+      className="sheet-backdrop"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={panelRef}
+        className="bottom-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+      >
+        <span className="bottom-sheet__grabber" aria-hidden="true" />
+        <div className="bottom-sheet__head">
+          <div>
+            <h2 id={titleId}>{title}</h2>
+            {description ? <p id={descriptionId}>{description}</p> : null}
+          </div>
+          <button type="button" className="btn btn--icon btn--ghost" onClick={onClose} aria-label={t('common.closeDialog')}>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div className="bottom-sheet__body">{children}</div>
       </div>
     </div>
   )

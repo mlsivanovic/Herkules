@@ -1,15 +1,10 @@
 // Routines list: training plans, unassigned templates, starter program gallery.
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { EmptyState, Loader } from '../components/ui'
-import { IconChevronDown, IconCopy, IconMore, IconPlus } from '../components/Icons'
+import { IconChevronDown, IconCopy, IconPlus } from '../components/Icons'
 import { PlanRotationModal } from '../components/PlanRotationModal'
-import {
-  downloadTextFile,
-  formatRoutineImportMessage,
-  routinesExportFilename,
-} from '../lib/routinesIo'
 import {
   equipmentCopyKey,
   isStarterInstalled,
@@ -38,18 +33,12 @@ export function Routines() {
     planRoutines,
     ready,
     installStarterProgram,
-    exportRoutines,
-    importRoutines,
     cloneTemplate,
   } = useStore()
   const navigate = useNavigate()
-  const fileRef = useRef<HTMLInputElement>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [plannerPlanId, setPlannerPlanId] = useState<string | null>(null)
-  const [ioBusy, setIoBusy] = useState(false)
-  const [ioMessage, setIoMessage] = useState<string | null>(null)
-  const [ioError, setIoError] = useState<string | null>(null)
   const [startersOpen, setStartersOpen] = useState(false)
 
   const library = useMemo(() => poolTemplates(templates), [templates])
@@ -77,68 +66,9 @@ export function Routines() {
       <div className="page-head">
         <h1>{t('routines.title')}</h1>
         <div className="routine-head-actions">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              event.target.value = ''
-              if (!file) return
-              setIoBusy(true)
-              setIoError(null)
-              setIoMessage(null)
-              void file
-                .text()
-                .then((text) => importRoutines(text))
-                .then((result) => {
-                  setIoMessage(formatRoutineImportMessage(result))
-                })
-                .catch((caught: unknown) => {
-                  setIoError(caught instanceof Error ? caught.message : t('errors.importFile'))
-                })
-                .finally(() => setIoBusy(false))
-            }}
-          />
-          <details className="page-action-menu">
-            <summary className="btn btn--icon" aria-label={t('routines.moreActions')}>
-              <IconMore width={20} height={20} />
-            </summary>
-            <div className="page-action-menu__panel">
-              <button type="button" className="btn btn--block" onClick={() => void navigate('/plans/new')}>
-                <IconPlus width={18} height={18} /> {t('routines.newPlan')}
-              </button>
-              <button type="button" className="btn btn--block" disabled={ioBusy} onClick={() => fileRef.current?.click()}>
-                {ioBusy ? t('routines.importing') : t('routines.import')}
-              </button>
-              <button
-                type="button"
-                className="btn btn--block"
-                disabled={ioBusy || templates.length === 0}
-                onClick={() => {
-                  setIoBusy(true)
-                  setIoError(null)
-                  setIoMessage(null)
-                  void exportRoutines()
-                    .then((json) => {
-                      downloadTextFile(routinesExportFilename(), json, 'application/json')
-                      setIoMessage(
-                        templates.length === 1
-                          ? t('routines.exportedOne', { count: templates.length })
-                          : t('routines.exportedOther', { count: templates.length }),
-                      )
-                    })
-                    .catch((caught: unknown) => {
-                      setIoError(caught instanceof Error ? caught.message : t('errors.exportRoutines'))
-                    })
-                    .finally(() => setIoBusy(false))
-                }}
-              >
-                {t('routines.export')}
-              </button>
-            </div>
-          </details>
+          <button type="button" className="btn" onClick={() => void navigate('/plans/new')}>
+            <IconPlus width={18} height={18} /> {t('routines.newPlan')}
+          </button>
           <button
             type="button"
             className="btn btn--primary"
@@ -148,16 +78,6 @@ export function Routines() {
           </button>
         </div>
       </div>
-      {ioMessage || ioError ? (
-        <div className="stack" style={{ marginBottom: '0.9rem' }}>
-          {ioMessage ? <small className="badge badge--completed">{ioMessage}</small> : null}
-          {ioError ? (
-            <p className="field-error" role="alert" style={{ margin: 0 }}>
-              {ioError}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="starters-section">
         <button

@@ -17,6 +17,7 @@ import {
   sortPlanTemplates,
   templatePlanIds,
   unassignedTemplates,
+  workoutSequenceSuggestion,
 } from './plans'
 
 const NOW = '2026-08-19T12:00:00.000Z'
@@ -191,5 +192,54 @@ describe('dynamic plan sequence', () => {
     expect(nextTemplateForPlan('p1', days, [session('skip', 'skipped', 'p1')])?.name).toBe('A')
     expect(nextTemplateForPlan('p1', days, [session('manual', 'completed', null)])?.name).toBe('A')
     expect(nextTemplateForPlan('p1', days, [session('done', 'completed', 'p1')])?.name).toBe('B')
+  })
+
+  it('suggests the day after the latest completed routine and wraps to the start', () => {
+    const completedB = {
+      ...session('done-b', 'completed', null),
+      template_id: 't-B',
+      started_at: '2026-08-20T10:00:00.000Z',
+      ended_at: '2026-08-20T11:00:00.000Z',
+    }
+    expect(workoutSequenceSuggestion(days, [completedB]).nextTemplate?.name).toBe('C')
+
+    const completedD = {
+      ...completedB,
+      id: 'done-d',
+      template_id: 't-D',
+      started_at: '2026-08-21T10:00:00.000Z',
+      ended_at: '2026-08-21T11:00:00.000Z',
+    }
+    const suggestion = workoutSequenceSuggestion(days, [completedB, completedD])
+    expect(suggestion.lastSession?.id).toBe('done-d')
+    expect(suggestion.nextTemplate?.name).toBe('A')
+  })
+
+  it('uses ordered memberships for manually started pool routines', () => {
+    const poolDays = [
+      template('push', { name: 'Push' }),
+      template('pull', { name: 'Pull' }),
+      template('legs', { name: 'Legs' }),
+    ]
+    const memberships = poolDays.map((row, position) => ({
+      plan_id: 'p-ppl',
+      template_id: row.id,
+      position,
+    }))
+    const completed = {
+      ...session('manual-pull', 'completed', null),
+      template_id: 'pull',
+    }
+    expect(workoutSequenceSuggestion(poolDays, [completed], memberships).nextTemplate?.name).toBe('Legs')
+  })
+
+  it('still reports an ad-hoc last workout when there is no sequence to suggest', () => {
+    const completed = {
+      ...session('empty', 'completed', null),
+      name: 'Quick workout',
+    }
+    const suggestion = workoutSequenceSuggestion(days, [completed])
+    expect(suggestion.lastSession?.name).toBe('Quick workout')
+    expect(suggestion.nextTemplate).toBeNull()
   })
 })

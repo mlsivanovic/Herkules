@@ -215,6 +215,8 @@ export const sr: Messages = {
     planned: 'Planirano za danas',
     routines: 'Izaberi rutinu',
     otherRoutines: 'Ostale rutine',
+    lastWorkout: 'Poslednji trening',
+    nextInSequence: 'Sledeći po redosledu',
     exerciseCount: '{count} vežbi',
   },
   calendar: {

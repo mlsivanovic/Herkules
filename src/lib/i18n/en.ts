@@ -213,6 +213,8 @@ export const en = {
     planned: 'Planned for today',
     routines: 'Choose a routine',
     otherRoutines: 'Other routines',
+    lastWorkout: 'Last workout',
+    nextInSequence: 'Up next',
     exerciseCount: '{count} exercises',
   },
   calendar: {

@@ -787,6 +787,24 @@ body.is-reordering .exercise-grip {
 
 .start-sheet__section + .start-sheet__section { margin-top: 1.2rem; }
 
+.start-sheet__last {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-s);
+  background: var(--c-bg-raised);
+  color: var(--c-muted);
+  font-size: 0.85rem;
+}
+
+.start-sheet__last strong {
+  color: var(--c-text);
+  text-align: right;
+}
+
 .start-sheet__section h3 {
   margin: 0 0 0.5rem;
   color: var(--c-muted);
@@ -821,6 +839,10 @@ body.is-reordering .exercise-grip {
 
 .sheet-list__item:first-child { border-top: 0; }
 .sheet-list__item--primary { color: var(--c-primary); }
+.sheet-list__item--recommended {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
 .sheet-list__item > span { display: flex; flex-direction: column; }
 .sheet-list__item small { font-size: 0.78rem; }
 .start-sheet__empty { margin-top: 1rem; }

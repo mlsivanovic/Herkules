@@ -218,3 +218,49 @@ export function nextTemplateForPlan(
   ).length
   return days[completed % days.length] ?? days[0] ?? null
 }
+
+export interface WorkoutSequenceSuggestion {
+  lastSession: SessionDoc | null
+  nextTemplate: TemplateRow | null
+}
+
+/** Suggest the routine after the most recently completed workout in its plan.
+ * Manual starts still count because the saved template identifies plan membership. */
+export function workoutSequenceSuggestion(
+  templates: TemplateRow[],
+  sessions: SessionDoc[],
+  memberships?: PlanMembership[],
+): WorkoutSequenceSuggestion {
+  const lastSession = sessions
+    .filter((session) => session.status === 'completed')
+    .sort((a, b) => {
+      const byTime = (b.ended_at ?? b.started_at).localeCompare(a.ended_at ?? a.started_at)
+      return byTime || b.id.localeCompare(a.id)
+    })[0] ?? null
+
+  if (!lastSession?.template_id) return { lastSession, nextTemplate: null }
+  const lastTemplate = templates.find((template) => template.id === lastSession.template_id)
+  if (!lastTemplate) return { lastSession, nextTemplate: null }
+
+  const membershipPlanIds = memberships
+    ?.filter((row) => row.template_id === lastTemplate.id)
+    .sort((a, b) => a.position - b.position || a.plan_id.localeCompare(b.plan_id))
+    .map((row) => row.plan_id) ?? []
+  const candidatePlanIds = [
+    lastSession.plan_id,
+    lastTemplate.plan_id,
+    ...membershipPlanIds,
+  ].filter((id, index, ids): id is string => Boolean(id) && ids.indexOf(id) === index)
+
+  for (const planId of candidatePlanIds) {
+    const days = sortPlanTemplates(templates, planId, memberships)
+    const lastIndex = days.findIndex((template) => template.id === lastTemplate.id)
+    if (lastIndex < 0 || days.length === 0) continue
+    return {
+      lastSession,
+      nextTemplate: days[(lastIndex + 1) % days.length] ?? null,
+    }
+  }
+
+  return { lastSession, nextTemplate: null }
+}

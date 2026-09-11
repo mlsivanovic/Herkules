@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { capabilitiesFor, startableProgrammingForAccount } from '../lib/capabilities'
 import { todayKey } from '../lib/dates'
 import { useT } from '../lib/i18n'
-import { nextTemplateForPlan } from '../lib/programs/plans'
+import { nextTemplateForPlan, workoutSequenceSuggestion } from '../lib/programs/plans'
 import { occurrencesInRange, type ScheduleRef } from '../lib/recurrence'
 import { useStore } from '../lib/store'
 import { IconPlay, IconPlus } from './Icons'
@@ -45,6 +45,19 @@ export function PrimaryWorkoutAction({ desktop = false }: { desktop?: boolean })
     }))
   }, [store.planRoutines, store.rules, store.schedules, store.sessions, today, visibleTemplates])
 
+  const sequence = useMemo(
+    () => workoutSequenceSuggestion(visibleTemplates, store.sessions, store.planRoutines),
+    [store.planRoutines, store.sessions, visibleTemplates],
+  )
+  const orderedPlanned = useMemo(
+    () => [...planned].sort(
+      (a, b) =>
+        Number(b.template?.id === sequence.nextTemplate?.id) -
+        Number(a.template?.id === sequence.nextTemplate?.id),
+    ),
+    [planned, sequence.nextTemplate?.id],
+  )
+
   const recentTemplates = useMemo(() => {
     const recentIds = store.sessions
       .filter((session) => session.status === 'completed' && session.template_id)
@@ -53,6 +66,8 @@ export function PrimaryWorkoutAction({ desktop = false }: { desktop?: boolean })
     const order = [...new Set(recentIds)]
     return [...visibleTemplates]
       .sort((a, b) => {
+        if (a.id === sequence.nextTemplate?.id) return -1
+        if (b.id === sequence.nextTemplate?.id) return 1
         const aIndex = order.indexOf(a.id)
         const bIndex = order.indexOf(b.id)
         if (aIndex === -1 && bIndex === -1) return a.name.localeCompare(b.name)
@@ -62,7 +77,7 @@ export function PrimaryWorkoutAction({ desktop = false }: { desktop?: boolean })
       })
       .filter((template) => !planned.some((entry) => entry.template?.id === template.id))
       .slice(0, 4)
-  }, [planned, store.sessions, visibleTemplates])
+  }, [planned, sequence.nextTemplate?.id, store.sessions, visibleTemplates])
 
   function activate() {
     if (active) {
@@ -96,22 +111,35 @@ export function PrimaryWorkoutAction({ desktop = false }: { desktop?: boolean })
           description={t('startSheet.description')}
           onClose={() => setOpen(false)}
         >
+          {sequence.lastSession ? (
+            <p className="start-sheet__last">
+              <span>{t('startSheet.lastWorkout')}</span>
+              <strong>{sequence.lastSession.name}</strong>
+            </p>
+          ) : null}
+
           {planned.length > 0 ? (
             <section className="start-sheet__section">
               <h3>{t('startSheet.today')}</h3>
               <div className="sheet-list">
-                {planned.map((entry) => (
+                {orderedPlanned.map((entry) => (
                   <button
                     key={entry.scheduleId}
                     type="button"
-                    className="sheet-list__item sheet-list__item--primary"
+                    className={`sheet-list__item sheet-list__item--primary${entry.template?.id === sequence.nextTemplate?.id ? ' sheet-list__item--recommended' : ''}`}
                     onClick={() => start({
                       templateId: entry.template?.id,
                       scheduleItemId: entry.scheduleId,
                       plannedDate: today,
                     })}
                   >
-                    <span><strong>{entry.template?.name ?? t('today.workout')}</strong><small>{t('startSheet.planned')}</small></span>
+                    <span>
+                      <strong>{entry.template?.name ?? t('today.workout')}</strong>
+                      <small>
+                        {entry.template?.id === sequence.nextTemplate?.id ? `${t('startSheet.nextInSequence')} · ` : ''}
+                        {t('startSheet.planned')}
+                      </small>
+                    </span>
                     <IconPlay width={20} height={20} />
                   </button>
                 ))}
@@ -124,8 +152,19 @@ export function PrimaryWorkoutAction({ desktop = false }: { desktop?: boolean })
               <h3>{planned.length > 0 ? t('startSheet.otherRoutines') : t('startSheet.routines')}</h3>
               <div className="sheet-list">
                 {recentTemplates.map((template) => (
-                  <button key={template.id} type="button" className="sheet-list__item" onClick={() => start({ templateId: template.id })}>
-                    <span><strong>{template.name}</strong><small>{t('startSheet.exerciseCount', { count: store.templateItems.filter((item) => item.template_id === template.id).length })}</small></span>
+                  <button
+                    key={template.id}
+                    type="button"
+                    className={`sheet-list__item${template.id === sequence.nextTemplate?.id ? ' sheet-list__item--recommended' : ''}`}
+                    onClick={() => start({ templateId: template.id })}
+                  >
+                    <span>
+                      <strong>{template.name}</strong>
+                      <small>
+                        {template.id === sequence.nextTemplate?.id ? `${t('startSheet.nextInSequence')} · ` : ''}
+                        {t('startSheet.exerciseCount', { count: store.templateItems.filter((item) => item.template_id === template.id).length })}
+                      </small>
+                    </span>
                     <IconPlay width={20} height={20} />
                   </button>
                 ))}

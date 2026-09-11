@@ -65,6 +65,7 @@ function item(overrides: Partial<TemplateItemRow> = {}): TemplateItemRow {
     id: 'item-1',
     template_id: 'tpl-a',
     exercise_id: 'ex-custom',
+    backup_exercise_id: null,
     position: 0,
     planned_sets: 3,
     target_weight_kg: 60,
@@ -109,9 +110,10 @@ describe('copyPlanToClient', () => {
         plan: plan(),
         templates: [template()],
         blocks: [block()],
-        items: [item()],
+        items: [item({ backup_exercise_id: 'ex-backup' })],
         exercises: [
           exercise(),
+          exercise({ id: 'ex-backup', name: 'Belt Squat' }),
           exercise({ id: 'sys', owner_id: null, name: 'Back Squat' }),
         ],
       },
@@ -127,7 +129,7 @@ describe('copyPlanToClient', () => {
     expect(copy.plan.locked).toBe(true)
     expect(copy.plan.id).not.toBe('plan-1')
 
-    expect(copy.exercises).toHaveLength(1)
+    expect(copy.exercises).toHaveLength(2)
     expect(copy.exercises[0]?.owner_id).toBe('client')
     expect(copy.exercises[0]?.source_exercise_id).toBe('ex-custom')
     expect(copy.exercises[0]?.locked).toBe(true)
@@ -137,6 +139,7 @@ describe('copyPlanToClient', () => {
     expect(copy.templates[0]?.plan_id).toBe(copy.plan.id)
 
     expect(copy.items[0]?.exercise_id).toBe(copy.exercises[0]?.id)
+    expect(copy.items[0]?.backup_exercise_id).toBe(copy.exercises[1]?.id)
     expect(copy.items[0]?.template_id).toBe(copy.templates[0]?.id)
     expect(copy.items[0]?.block_id).toBe(copy.blocks[0]?.id)
   })

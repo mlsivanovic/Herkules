@@ -35,11 +35,13 @@ export function ExercisePicker({
   onSelect,
   onClose,
   warmupOption,
+  excludeIds = [],
 }: {
   title?: string
   onSelect(exerciseId: string, options?: { isWarmup?: boolean }): void
   onClose(): void
   warmupOption?: boolean
+  excludeIds?: string[]
 }) {
   const { t } = useT()
   const { exercises } = useStore()
@@ -51,6 +53,7 @@ export function ExercisePicker({
     const needle = query.trim().toLowerCase()
     return exercises
       .filter((e) => !e.is_archived)
+      .filter((e) => !excludeIds.includes(e.id))
       .filter((e) => category === 'all' || e.category === category)
       .filter((e) => exerciseMatchesQuery(e, needle))
       .sort((a, b) => {
@@ -59,7 +62,7 @@ export function ExercisePicker({
           sensitivity: 'base',
         })
       })
-  }, [exercises, query, category])
+  }, [exercises, query, category, excludeIds])
 
   return (
     <Modal title={title ?? t('exercises.choose')} onClose={onClose}>

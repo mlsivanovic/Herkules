@@ -636,6 +636,7 @@ function prescriptionLabel(
   units: 'metric' | 'imperial',
 ): string {
   const sets = exercise.planned_sets
+  const targetWeight = exercise.uses_backup ? null : exercise.target_weight_kg
   if (exercise.measurement_snapshot === 'weight_reps' || exercise.measurement_snapshot === 'reps') {
     const reps = rangeLabel(exercise.target_reps_min ?? exercise.target_reps, exercise.target_reps_max ?? exercise.target_reps)
     const bodyweightLoad = isBodyweightLoadExercise({
@@ -643,8 +644,8 @@ function prescriptionLabel(
       name: exercise.name_snapshot,
     })
     const load =
-      exercise.target_weight_kg != null
-        ? ` @ ${formatSetLoad(exercise.target_weight_kg, units, bodyweightLoad)}`
+      targetWeight != null
+        ? ` @ ${formatSetLoad(targetWeight, units, bodyweightLoad)}`
         : bodyweightLoad
           ? ` @ ${formatSetLoad(null, units, true)}`
           : ''
@@ -652,12 +653,12 @@ function prescriptionLabel(
   }
   if (exercise.measurement_snapshot === 'duration' || exercise.measurement_snapshot === 'weight_duration') {
     const duration = rangeLabel(exercise.target_duration_min_s ?? exercise.target_duration_s, exercise.target_duration_max_s ?? exercise.target_duration_s)
-    const load = exercise.target_weight_kg != null ? `${formatWeight(exercise.target_weight_kg, units)} × ` : ''
+    const load = targetWeight != null ? `${formatWeight(targetWeight, units)} × ` : ''
     return `${sets} × ${load}${duration}s`
   }
   const distance = rangeLabel(exercise.target_distance_min_m ?? exercise.target_distance_m, exercise.target_distance_max_m ?? exercise.target_distance_m)
-  const load = exercise.measurement_snapshot === 'weight_distance' && exercise.target_weight_kg != null
-    ? `${formatWeight(exercise.target_weight_kg, units)} × `
+  const load = exercise.measurement_snapshot === 'weight_distance' && targetWeight != null
+    ? `${formatWeight(targetWeight, units)} × `
     : ''
   return `${sets} × ${load}${distance} m`
 }
@@ -700,6 +701,7 @@ function ExerciseCard({
   const units = store.profile?.unit_system ?? 'metric'
   const shownName = displaySnapshotName(exercise.name_snapshot, exercise.exercise_id)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
   const catalogExercise = exercise.exercise_id
     ? store.exercises.find((row) => row.id === exercise.exercise_id)
     : null
@@ -780,6 +782,14 @@ function ExerciseCard({
   )
   const logged = exercise.sets.some((set) => set.completed_at !== null)
   const role = normalizeBlockRole(exercise.block_role)
+  const primaryName = displaySnapshotName(
+    exercise.primary_name_snapshot ?? exercise.name_snapshot,
+    exercise.primary_exercise_id ?? exercise.exercise_id,
+  )
+  const backupName = exercise.backup_name_snapshot
+    ? displaySnapshotName(exercise.backup_name_snapshot, exercise.backup_exercise_id ?? null)
+    : null
+  const targetWeight = exercise.uses_backup ? null : exercise.target_weight_kg
 
   return (
     <section
@@ -838,6 +848,39 @@ function ExerciseCard({
           <span className="exercise-superset__with">
             {t('workout.withPartners', { names: partners.join(', ') })}
           </span>
+        </div>
+      ) : null}
+
+      {backupName ? (
+        <div className="workout-backup">
+          {exercise.uses_backup ? (
+            <span className="badge badge--planned">
+              {t('workout.backupInUse', { name: primaryName })}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={logged}
+            title={logged ? t('workout.backupLocked') : undefined}
+            onClick={() => {
+              setBackupError(null)
+              void store
+                .setSessionBackup(session.id, exercise.id, !exercise.uses_backup)
+                .catch((caught: unknown) => {
+                  setBackupError(
+                    caught instanceof Error ? caught.message : t('errors.backupUnavailable'),
+                  )
+                })
+            }}
+          >
+            <IconSwap width={16} height={16} />
+            {exercise.uses_backup
+              ? t('workout.returnToPrimary', { name: primaryName })
+              : t('workout.useBackup', { backup: backupName, primary: primaryName })}
+          </button>
+          {logged ? <small className="muted">{t('workout.backupLocked')}</small> : null}
+          {backupError ? <small className="field-error" role="alert">{backupError}</small> : null}
         </div>
       ) : null}
 
@@ -959,7 +1002,7 @@ function ExerciseCard({
             units={units}
             bodyweightLoad={bodyweightLoad}
             suggestion={{
-              weight: weightForInput(exercise.target_weight_kg ?? previous?.[setIndex]?.weight_kg ?? null, units),
+              weight: weightForInput(targetWeight ?? previous?.[setIndex]?.weight_kg ?? null, units),
               reps: exercise.target_reps_min != null || exercise.target_reps_max != null
                 ? rangeLabel(exercise.target_reps_min, exercise.target_reps_max)
                 : previous?.[setIndex]?.reps != null ? String(previous[setIndex]?.reps) : '',

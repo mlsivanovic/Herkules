@@ -154,6 +154,8 @@ export interface TemplateItemRow {
   id: string
   template_id: string
   exercise_id: string
+  /** Optional pre-approved substitute for this routine slot. */
+  backup_exercise_id: string | null
   position: number
   planned_sets: number
   target_weight_kg: number | null
@@ -295,6 +297,16 @@ export interface SessionExerciseRow {
   exercise_id: string | null
   name_snapshot: string
   measurement_snapshot: ExerciseMeasurement
+  /** Immutable planned exercise snapshot, used to restore a pre-set substitution. */
+  primary_exercise_id?: string | null
+  primary_name_snapshot?: string
+  primary_measurement_snapshot?: ExerciseMeasurement
+  primary_target_weight_kg?: number | null
+  /** Optional routine-approved substitute snapshot. */
+  backup_exercise_id?: string | null
+  backup_name_snapshot?: string | null
+  backup_measurement_snapshot?: ExerciseMeasurement | null
+  uses_backup?: boolean
   position: number
   planned_sets: number
   rest_seconds: number | null

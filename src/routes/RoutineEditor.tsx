@@ -36,6 +36,7 @@ function newItem(exerciseId: string, position: number, isWarmup = false): Templa
   return {
     id: null,
     exercise_id: exerciseId,
+    backup_exercise_id: null,
     position,
     planned_sets: 3,
     target_weight_kg: null,
@@ -130,6 +131,7 @@ export function RoutineEditor() {
   const [newPlanName, setNewPlanName] = useState('')
   const [items, setItems] = useState<TemplateItemInput[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [backupPickerIndex, setBackupPickerIndex] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
@@ -416,6 +418,10 @@ export function RoutineEditor() {
             const exercise = exerciseById.get(item.exercise_id)
             const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
             const name = exercise ? displayExerciseName(exercise) : t('editor.unknownExercise')
+            const backupExercise = item.backup_exercise_id
+              ? exerciseById.get(item.backup_exercise_id)
+              : null
+            const backupName = backupExercise ? displayExerciseName(backupExercise) : null
             const itemBlock = item.block_id
               ? templateBlocks.find((block) => block.id === item.block_id) ?? null
               : null
@@ -509,6 +515,11 @@ export function RoutineEditor() {
                       {item.is_warmup ? (
                         <span className="badge badge--planned">{t('workout.warmup')}</span>
                       ) : null}
+                      {backupName ? (
+                        <span className="badge badge--neutral">
+                          {t('editor.backupBadge', { name: backupName })}
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         className="btn btn--icon btn--small btn--danger"
@@ -587,6 +598,34 @@ export function RoutineEditor() {
                   />
                   <span>{t('editor.warmupExercise')}</span>
                 </label>
+
+                <div className="routine-backup">
+                  <div>
+                    <strong>{t('editor.backupExercise')}</strong>
+                    <small className="muted">
+                      {backupName ?? t('editor.noBackupExercise')}
+                    </small>
+                  </div>
+                  <div className="row row--wrap">
+                    <button
+                      type="button"
+                      className="btn btn--small"
+                      onClick={() => setBackupPickerIndex(index)}
+                    >
+                      {backupName ? t('editor.changeBackupExercise') : t('editor.addBackupExercise')}
+                    </button>
+                    {backupName ? (
+                      <button
+                        type="button"
+                        className="btn btn--small btn--ghost"
+                        aria-label={t('editor.removeBackupNamed', { name: backupName })}
+                        onClick={() => update(index, { backup_exercise_id: null })}
+                      >
+                        {t('common.remove')}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
 
                 <div className="exercise-meta-row">
                   <small className="muted">
@@ -1046,6 +1085,17 @@ export function RoutineEditor() {
             }}
           />
         </Modal>
+      ) : null}
+
+      {backupPickerIndex !== null && items[backupPickerIndex] ? (
+        <ExercisePicker
+          title={t('editor.chooseBackupExercise')}
+          excludeIds={[items[backupPickerIndex].exercise_id]}
+          onClose={() => setBackupPickerIndex(null)}
+          onSelect={(exerciseId) => {
+            update(backupPickerIndex, { backup_exercise_id: exerciseId })
+          }}
+        />
       ) : null}
     </div>
   )

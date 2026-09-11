@@ -651,7 +651,13 @@ export function collectAssignablePlan(
   const templateIds = new Set(templates.map((row) => row.id))
   const blocks = data.templateBlocks.filter((row) => templateIds.has(row.template_id))
   const items = data.templateItems.filter((row) => templateIds.has(row.template_id))
-  const exerciseIds = new Set(items.map((row) => row.exercise_id))
+  const exerciseIds = new Set(
+    items.flatMap((row) =>
+      row.backup_exercise_id
+        ? [row.exercise_id, row.backup_exercise_id]
+        : [row.exercise_id],
+    ),
+  )
   const exercises = data.exercises.filter((row) => exerciseIds.has(row.id))
   return { plan, templates, blocks, items, exercises }
 }

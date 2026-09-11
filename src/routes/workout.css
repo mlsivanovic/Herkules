@@ -134,6 +134,18 @@
   align-items: center;
 }
 
+.workout-backup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.workout-backup .field-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .workout-prescription .form-link-icon {
   margin-left: auto;
   flex: 0 0 32px;

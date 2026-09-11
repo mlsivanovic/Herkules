@@ -132,6 +132,7 @@ import {
   progressionSuggestions,
   snapshotBlock,
   snapshotExercise,
+  switchSessionExerciseBackup,
 } from './prescription'
 
 const SYNC_DEBOUNCE_MS = 2500
@@ -218,6 +219,7 @@ export interface ExerciseInput {
 export interface TemplateItemInput {
   id: string | null
   exercise_id: string
+  backup_exercise_id: string | null
   position: number
   planned_sets: number
   target_weight_kg: number | null
@@ -377,6 +379,7 @@ export interface StoreActions {
   addSessionExercise(sessionId: string, exerciseId: string): Promise<void>
   removeSessionExercise(sessionId: string, sessionExerciseId: string): Promise<void>
   swapSessionExercise(sessionId: string, sessionExerciseId: string, exerciseId: string): Promise<void>
+  setSessionBackup(sessionId: string, sessionExerciseId: string, useBackup: boolean): Promise<void>
   reorderSessionExercises(sessionId: string, orderedIds: string[]): Promise<void>
   upsertSet(sessionId: string, set: SetRow): Promise<void>
   deleteSet(sessionId: string, sessionExerciseId: string, setId: string): Promise<void>
@@ -1233,6 +1236,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             id: item.id ?? newId(),
             template_id: templateId,
             exercise_id: item.exercise_id,
+            backup_exercise_id:
+              item.backup_exercise_id && item.backup_exercise_id !== item.exercise_id
+                ? item.backup_exercise_id
+                : null,
             position: item.position,
             planned_sets: item.planned_sets,
             target_weight_kg: item.target_weight_kg,
@@ -1747,6 +1754,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const sessionBlockById = new Map(sessionBlocks.map((block) => [block.id, block]))
         const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = items.map((item) => {
           const exercise = all.exercises.find((e) => e.id === item.exercise_id)
+          const backupExercise = item.backup_exercise_id
+            ? all.exercises.find((e) => e.id === item.backup_exercise_id)
+            : null
           const sessionBlockId = item.block_id ? blockIdMap.get(item.block_id) ?? null : null
           const row = snapshotExercise(item, {
             sessionId,
@@ -1754,6 +1764,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             sessionBlockId,
             name: exercise?.name ?? 'Exercise',
             measurement: exercise?.measurement ?? 'weight_reps',
+            backup: backupExercise
+              ? {
+                  id: backupExercise.id,
+                  name: backupExercise.name,
+                  measurement: backupExercise.measurement,
+                }
+              : null,
             now: stamp,
             deload,
           })
@@ -2028,7 +2045,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ops.push(upsert('template_blocks', next))
         }
         for (const row of file.templateItems) {
-          const next = { ...row, updated_at: stamp }
+          const next = { ...row, backup_exercise_id: row.backup_exercise_id ?? null, updated_at: stamp }
           writes.push({ store: 'templateItems', row: next })
           ops.push(upsert('template_items', next))
         }
@@ -2044,14 +2061,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         for (const doc of file.sessions) {
-          const row = { ...doc, owner_id: owner, updated_at: stamp }
+          const sessionExercises = (doc.session_exercises ?? []).map((se) => ({
+            ...se,
+            primary_exercise_id: se.primary_exercise_id ?? se.exercise_id ?? null,
+            primary_name_snapshot: se.primary_name_snapshot ?? se.name_snapshot,
+            primary_measurement_snapshot:
+              se.primary_measurement_snapshot ?? se.measurement_snapshot,
+            primary_target_weight_kg:
+              se.primary_target_weight_kg ?? se.target_weight_kg ?? null,
+            backup_exercise_id: se.backup_exercise_id ?? null,
+            backup_name_snapshot: se.backup_name_snapshot ?? null,
+            backup_measurement_snapshot: se.backup_measurement_snapshot ?? null,
+            uses_backup: se.uses_backup === true,
+          }))
+          const row = {
+            ...doc,
+            owner_id: owner,
+            session_exercises: sessionExercises,
+            updated_at: stamp,
+          }
           writes.push({ store: 'sessions', row })
           ops.push(upsert('workout_sessions', stripNested(row)))
           sessionCount += 1
           for (const block of doc.session_blocks ?? []) {
             ops.push(upsert('session_blocks', block))
           }
-          for (const se of doc.session_exercises ?? []) {
+          for (const se of sessionExercises) {
             ops.push(upsert('session_exercises', stripSessionExercise(se)))
             for (const set of se.sets ?? []) ops.push(upsert('workout_sets', set))
           }
@@ -2284,6 +2319,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           exercise_id: exercise.id,
           name_snapshot: exercise.name,
           measurement_snapshot: exercise.measurement,
+          primary_exercise_id: exercise.id,
+          primary_name_snapshot: exercise.name,
+          primary_measurement_snapshot: exercise.measurement,
+          primary_target_weight_kg: null,
+          backup_exercise_id: null,
+          backup_name_snapshot: null,
+          backup_measurement_snapshot: null,
+          uses_backup: false,
           position: maxPos + 1,
           planned_sets: 3,
           rest_seconds: null,
@@ -2350,6 +2393,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           exercise_id: exercise.id,
           name_snapshot: exercise.name,
           measurement_snapshot: exercise.measurement,
+          primary_exercise_id: exercise.id,
+          primary_name_snapshot: exercise.name,
+          primary_measurement_snapshot: exercise.measurement,
+          primary_target_weight_kg: target.target_weight_kg ?? null,
+          backup_exercise_id: null,
+          backup_name_snapshot: null,
+          backup_measurement_snapshot: null,
+          uses_backup: false,
           updated_at: nowIso(),
         }
         let nextExercises: (SessionExerciseRow & { sets: SetRow[] })[]
@@ -2373,6 +2424,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }
         ops.push(upsert('session_exercises', stripSessionExercise(updated)))
         await commit([{ store: 'sessions', row }], ops)
+      },
+
+      async setSessionBackup(sessionId, sessionExerciseId, useBackup) {
+        const doc = await readOne<SessionDoc>('sessions', sessionId)
+        if (!doc) throw new Error(t('errors.sessionNotFound'))
+        const target = doc.session_exercises.find((se) => se.id === sessionExerciseId)
+        if (!target) return
+        if (target.uses_backup === useBackup) return
+        const stamp = nowIso()
+        const switched = switchSessionExerciseBackup(target, useBackup, stamp)
+        if (!switched.ok) {
+          throw new Error(
+            switched.reason === 'completed_set'
+              ? t('errors.backupAfterCompletedSet')
+              : t('errors.backupUnavailable'),
+          )
+        }
+        const updated = switched.exercise
+        const updatedSets = updated.sets
+        const row: SessionDoc = {
+          ...doc,
+          session_exercises: doc.session_exercises.map((exercise) =>
+            exercise.id === sessionExerciseId ? updated : exercise,
+          ),
+          updated_at: stamp,
+        }
+        await commit(
+          [{ store: 'sessions', row }],
+          [
+            upsert('session_exercises', stripSessionExercise(updated)),
+            ...updatedSets.map((set) => upsert('workout_sets', set)),
+          ],
+        )
       },
 
       async reorderSessionExercises(sessionId, orderedIds) {

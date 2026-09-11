@@ -54,6 +54,7 @@ function item(overrides: Partial<TemplateItemRow> = {}): TemplateItemRow {
     id: 'item-1',
     template_id: 'tpl-1',
     exercise_id: 'ex-1',
+    backup_exercise_id: null,
     position: 0,
     planned_sets: 3,
     target_weight_kg: 60,
@@ -77,7 +78,10 @@ describe('cloneRoutine', () => {
     n = 0
     const copy = cloneRoutine({
       template: template(),
-      items: [item(), item({ id: 'item-2', position: 1, exercise_id: 'ex-2' })],
+      items: [
+        item({ backup_exercise_id: 'ex-2' }),
+        item({ id: 'item-2', position: 1, exercise_id: 'ex-2' }),
+      ],
       blocks: [block()],
       ownerId: 'trainer',
       now: NOW,
@@ -106,5 +110,6 @@ describe('cloneRoutine', () => {
     expect(copy.items[0]?.superset_group).not.toBe('g1')
     expect(copy.items[1]?.superset_group).toBe(copy.items[0]?.superset_group)
     expect(copy.items[0]?.tempo).toBe('3-0-1')
+    expect(copy.items[0]?.backup_exercise_id).toBe('ex-2')
   })
 })

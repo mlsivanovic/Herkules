@@ -53,6 +53,11 @@ export function snapshotExercise(
     sessionBlockId: string | null
     name: string
     measurement: SessionExerciseRow['measurement_snapshot']
+    backup: {
+      id: string
+      name: string
+      measurement: SessionExerciseRow['measurement_snapshot']
+    } | null
     now: string
     deload: boolean
   },
@@ -66,6 +71,14 @@ export function snapshotExercise(
     exercise_id: item.exercise_id,
     name_snapshot: input.name,
     measurement_snapshot: input.measurement,
+    primary_exercise_id: item.exercise_id,
+    primary_name_snapshot: input.name,
+    primary_measurement_snapshot: input.measurement,
+    primary_target_weight_kg: item.target_weight_kg,
+    backup_exercise_id: input.backup?.id ?? null,
+    backup_name_snapshot: input.backup?.name ?? null,
+    backup_measurement_snapshot: input.backup?.measurement ?? null,
+    uses_backup: false,
     position: item.position,
     planned_sets: plannedSets,
     rest_seconds: item.rest_seconds,
@@ -154,6 +167,53 @@ export function materializePlannedSets(input: {
   return rows
 }
 
+export type BackupSwitchResult =
+  | { ok: true; exercise: SessionExerciseDoc }
+  | { ok: false; reason: 'completed_set' | 'unavailable' }
+
+/** Switches between the planned and pre-approved alternative snapshot.
+ * Draft values are cleared so load or measurement data never leaks between exercises. */
+export function switchSessionExerciseBackup(
+  exercise: SessionExerciseDoc,
+  useBackup: boolean,
+  now: string,
+): BackupSwitchResult {
+  if (exercise.sets.some((set) => set.completed_at !== null)) {
+    return { ok: false, reason: 'completed_set' }
+  }
+  const name = useBackup ? exercise.backup_name_snapshot : exercise.primary_name_snapshot
+  const measurement = useBackup
+    ? exercise.backup_measurement_snapshot
+    : exercise.primary_measurement_snapshot
+  if (!name || !measurement) return { ok: false, reason: 'unavailable' }
+
+  return {
+    ok: true,
+    exercise: {
+      ...exercise,
+      exercise_id: useBackup
+        ? exercise.backup_exercise_id ?? null
+        : exercise.primary_exercise_id ?? null,
+      name_snapshot: name,
+      measurement_snapshot: measurement,
+      target_weight_kg: useBackup ? null : exercise.primary_target_weight_kg ?? null,
+      uses_backup: useBackup,
+      sets: exercise.sets.map((set) => ({
+        ...set,
+        weight_kg: null,
+        reps: null,
+        duration_s: null,
+        distance_m: null,
+        rpe: null,
+        notes: null,
+        completed_at: null,
+        updated_at: now,
+      })),
+      updated_at: now,
+    },
+  }
+}
+
 export function isSetGroupComplete(sets: SetRow[], set: SetRow): boolean {
   const group = set.round_index ?? set.position
   return sets
@@ -189,6 +249,7 @@ export function progressionSuggestions(session: SessionDoc): ProgressionSuggesti
   if (session.is_deload) return []
   const result: ProgressionSuggestion[] = []
   for (const exercise of session.session_exercises) {
+    if (exercise.uses_backup) continue
     if (!exercise.template_item_id || !exercise.load_increment_kg || exercise.target_reps_max === null) continue
     if (exercise.measurement_snapshot !== 'weight_reps') continue
     const work = exercise.sets.filter((set) => !set.is_warmup)

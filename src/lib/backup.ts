@@ -20,7 +20,7 @@ import type {
 import { t } from './i18n'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 5
+export const BACKUP_VERSION = 6
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT

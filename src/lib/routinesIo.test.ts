@@ -56,6 +56,7 @@ const items: TemplateItemRow[] = [
     id: '11111111-1111-4111-8111-111111111201',
     template_id: template.id,
     exercise_id: bench.id,
+    backup_exercise_id: curl.id,
     position: 0,
     planned_sets: 4,
     target_weight_kg: 80,
@@ -75,6 +76,7 @@ const items: TemplateItemRow[] = [
     id: '11111111-1111-4111-8111-111111111202',
     template_id: template.id,
     exercise_id: curl.id,
+    backup_exercise_id: null,
     position: 1,
     planned_sets: 3,
     target_weight_kg: 12,
@@ -102,6 +104,7 @@ describe('routines JSON', () => {
     expect(routine?.notes).toBe('Upper body')
     expect(routine?.items).toHaveLength(2)
     expect(routine?.items[0]?.exercise.name).toBe('Barbell Bench Press')
+    expect(routine?.items[0]?.backup_exercise?.name).toBe('My Special Curl')
     expect(routine?.items[0]?.tempo).toBe('3-0-1')
     expect(routine?.items[0]?.is_warmup).toBe(true)
     expect(routine?.items[1]?.block_role).toBe('tendon')
@@ -144,7 +147,7 @@ describe('routines JSON', () => {
 
   it('rejects a newer file version', () => {
     const json = serializeRoutines([template], items, [bench, curl]).replace(
-      '"version": 2',
+      '"version": 3',
       '"version": 99',
     )
     expect(() => parseRoutines(json)).toThrow(/newer version/)
@@ -168,7 +171,22 @@ describe('routines JSON', () => {
     expect(plan.newExercises[0]?.name).toBe('My Special Curl')
     expect(plan.newExercises[0]?.owner_id).toBe('u2')
     expect(plan.items[0]?.exercise_id).toBe(bench.id)
+    expect(plan.items[0]?.backup_exercise_id).toBe(plan.newExercises[0]?.id)
     expect(plan.items[1]?.exercise_id).toBe(plan.newExercises[0]?.id)
+  })
+
+  it('accepts legacy routine files without an alternative exercise', () => {
+    const first = items[0]
+    expect(first).toBeDefined()
+    if (!first) return
+    const raw = JSON.parse(serializeRoutines([template], [first], [bench, curl])) as {
+      version: number
+      routines: { items: Record<string, unknown>[] }[]
+    }
+    raw.version = 2
+    delete raw.routines[0]?.items[0]?.backup_exercise
+    const file = parseRoutines(JSON.stringify(raw))
+    expect(file.routines[0]?.items[0]?.backup_exercise).toBeNull()
   })
 
   it('re-import updates the same routine and does not recreate a custom exercise', () => {

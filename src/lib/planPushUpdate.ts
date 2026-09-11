@@ -139,6 +139,9 @@ export function applyPlanPushUpdate(input: {
   const remappedItems = items.map((row) => ({
     ...row,
     exercise_id: exerciseIdMap.get(row.exercise_id) ?? row.exercise_id,
+    backup_exercise_id: row.backup_exercise_id
+      ? exerciseIdMap.get(row.backup_exercise_id) ?? row.backup_exercise_id
+      : null,
   }))
 
   const liveItems = [

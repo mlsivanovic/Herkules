@@ -113,4 +113,39 @@ test.describe('workout flow', () => {
     await page.getByRole('button', { name: 'Finish workout' }).click()
     await expect(page.getByText('Rowing Machine')).toBeVisible()
   })
+
+  test('uses a routine alternative before logging and attributes history to it', async ({ page }) => {
+    await signUpFresh(page, 'alternative')
+
+    await page.goto('/#/routines/new')
+    await page.getByLabel('Name').fill('E2E Rack Backup')
+    await page.getByRole('button', { name: 'Add exercise' }).click()
+    await page.getByLabel('Search').fill('Barbell Back Squat')
+    await page.getByRole('button', { name: /Barbell Back Squat/ }).click()
+    await page.getByLabel('Target kg').fill('100')
+    await page.getByRole('button', { name: 'Add alternative' }).click()
+    await page.getByLabel('Search').fill('Leg Press')
+    await page.getByRole('button', { name: /^Leg Press/ }).click()
+    await expect(page.getByText('Leg Press')).toBeVisible()
+    await page.getByRole('button', { name: 'Save routine' }).click()
+
+    await page.goto('/#/workout')
+    await page.getByRole('button', { name: /E2E Rack Backup/ }).click()
+    await page.getByRole('button', { name: 'Use Leg Press instead of Barbell Back Squat' }).click()
+    await expect(page.getByText('Alternative for Barbell Back Squat')).toBeVisible()
+
+    const set = page.getByRole('group', { name: 'Set 1 values' })
+    await expect(set.getByLabel('Weight in kg')).toHaveValue('')
+    await set.getByLabel('Weight in kg').fill('140')
+    await set.getByLabel('Repetitions').fill('10')
+    await page.getByRole('button', { name: 'Complete set 1' }).click()
+    await expect(page.getByRole('button', { name: 'Return to Barbell Back Squat' })).toBeDisabled()
+
+    await page.getByRole('button', { name: 'Finish' }).click()
+    await page.getByRole('button', { name: 'Finish workout' }).click()
+    await expect(page.getByText('Leg Press')).toBeVisible()
+
+    await page.goto('/#/progress')
+    await expect(page.getByText('Leg Press').first()).toBeVisible()
+  })
 })

@@ -152,6 +152,7 @@ export function buildProgramRows(input: {
         const rir = item.rir ?? null
         items.push({
           id: input.newId(), template_id: templateId, exercise_id: item.exerciseId,
+          backup_exercise_id: null,
           position: globalPosition++, planned_sets: item.plannedSets,
           target_weight_kg: item.targetWeightKg ?? null,
           target_reps: reps?.[1] ?? null,

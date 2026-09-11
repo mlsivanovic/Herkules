@@ -246,6 +246,7 @@ function normalizeExercise(row: ExerciseRow): ExerciseRow {
 function normalizeTemplateItem(row: TemplateItemRow): TemplateItemRow {
   return {
     ...row,
+    backup_exercise_id: row.backup_exercise_id ?? null,
     block_id: row.block_id ?? null,
     block_position: row.block_position ?? row.position,
     target_reps_min: row.target_reps_min ?? row.target_reps ?? null,
@@ -288,6 +289,16 @@ function normalizeSession(row: SessionDoc): SessionDoc {
     session_blocks: sortByPosition(row.session_blocks ?? []),
     session_exercises: sortByPosition((row.session_exercises ?? []).map((exercise) => ({
       ...exercise,
+      primary_exercise_id: exercise.primary_exercise_id ?? exercise.exercise_id ?? null,
+      primary_name_snapshot: exercise.primary_name_snapshot ?? exercise.name_snapshot,
+      primary_measurement_snapshot:
+        exercise.primary_measurement_snapshot ?? exercise.measurement_snapshot,
+      primary_target_weight_kg:
+        exercise.primary_target_weight_kg ?? exercise.target_weight_kg ?? null,
+      backup_exercise_id: exercise.backup_exercise_id ?? null,
+      backup_name_snapshot: exercise.backup_name_snapshot ?? null,
+      backup_measurement_snapshot: exercise.backup_measurement_snapshot ?? null,
+      uses_backup: exercise.uses_backup === true,
       template_item_id: exercise.template_item_id ?? null,
       session_block_id: exercise.session_block_id ?? null,
       block_position: exercise.block_position ?? exercise.position,

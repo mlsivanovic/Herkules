@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionBlockRow, SessionDoc, SessionExerciseRow, SetRow } from '../types/db'
+import type {
+  SessionBlockRow,
+  SessionDoc,
+  SessionExerciseDoc,
+  SessionExerciseRow,
+  SetRow,
+  TemplateItemRow,
+} from '../types/db'
 import {
   aerobicSecondsInWeek,
   cycleWeek,
@@ -8,6 +15,8 @@ import {
   materializePlannedSets,
   progressionSuggestions,
   snapshotBlock,
+  snapshotExercise,
+  switchSessionExerciseBackup,
 } from './prescription'
 
 const NOW = '2026-08-20T12:00:00.000Z'
@@ -42,6 +51,84 @@ describe('V2 session prescription', () => {
     const snapshot = snapshotBlock(templateBlock, 's-2', 'sb-2', NOW, false)
     expect(snapshot).not.toHaveProperty('template_id')
     expect(snapshot).toMatchObject({ id: 'sb-2', session_id: 's-2', template_block_id: 'sb-1' })
+  })
+
+  it('snapshots the planned and alternative exercise for offline switching', () => {
+    const item = {
+      id: 'ti-1', template_id: 't-1', exercise_id: 'squat', backup_exercise_id: 'leg-press',
+      position: 0, planned_sets: 3, target_weight_kg: 100, target_reps: 5,
+      target_duration_s: null, target_distance_m: null, rest_seconds: 120,
+      tempo: null, notes: null, superset_group: null, block_role: 'gym',
+      created_at: NOW, updated_at: NOW,
+    } satisfies TemplateItemRow
+    const snapshot = snapshotExercise(item, {
+      sessionId: 's-1', sessionExerciseId: 'se-1', sessionBlockId: null,
+      name: 'Back Squat', measurement: 'weight_reps',
+      backup: { id: 'leg-press', name: 'Leg Press', measurement: 'weight_reps' },
+      now: NOW, deload: false,
+    })
+    expect(snapshot).toMatchObject({
+      exercise_id: 'squat', primary_exercise_id: 'squat',
+      primary_name_snapshot: 'Back Squat', primary_target_weight_kg: 100,
+      backup_exercise_id: 'leg-press', backup_name_snapshot: 'Leg Press',
+      uses_backup: false,
+    })
+  })
+
+  it('switches to the alternative, clears draft values and restores the primary target', () => {
+    const draftSet: SetRow = {
+      id: 'set-1', session_exercise_id: 'se-1', position: 1, weight_kg: 100,
+      reps: 5, duration_s: null, distance_m: null, rpe: 7, notes: 'draft',
+      is_warmup: false, completed_at: null, created_at: NOW, updated_at: NOW,
+    }
+    const row = {
+      ...exercise({
+        primary_exercise_id: 'squat', primary_name_snapshot: 'Back Squat',
+        primary_measurement_snapshot: 'weight_reps', primary_target_weight_kg: 100,
+        backup_exercise_id: 'leg-press', backup_name_snapshot: 'Leg Press',
+        backup_measurement_snapshot: 'weight_reps', target_weight_kg: 100,
+        uses_backup: false,
+      }),
+      sets: [draftSet],
+    } satisfies SessionExerciseDoc
+    const alternative = switchSessionExerciseBackup(row, true, '2026-08-20T12:01:00.000Z')
+    expect(alternative.ok).toBe(true)
+    if (!alternative.ok) return
+    expect(alternative.exercise).toMatchObject({
+      exercise_id: 'leg-press', name_snapshot: 'Leg Press', uses_backup: true,
+      target_weight_kg: null,
+    })
+    expect(alternative.exercise.sets[0]).toMatchObject({
+      weight_kg: null, reps: null, rpe: null, notes: null,
+    })
+
+    const primary = switchSessionExerciseBackup(alternative.exercise, false, NOW)
+    expect(primary.ok).toBe(true)
+    if (primary.ok) {
+      expect(primary.exercise).toMatchObject({
+        exercise_id: 'squat', name_snapshot: 'Back Squat', uses_backup: false,
+        target_weight_kg: 100,
+      })
+    }
+  })
+
+  it('refuses to switch after a completed set', () => {
+    const row = {
+      ...exercise({
+        primary_exercise_id: 'squat', primary_name_snapshot: 'Back Squat',
+        primary_measurement_snapshot: 'weight_reps', backup_exercise_id: 'leg-press',
+        backup_name_snapshot: 'Leg Press', backup_measurement_snapshot: 'weight_reps',
+      }),
+      sets: [{
+        id: 'set-1', session_exercise_id: 'se-1', position: 1, weight_kg: 100,
+        reps: 5, duration_s: null, distance_m: null, rpe: 7, notes: null,
+        is_warmup: false, completed_at: NOW, created_at: NOW, updated_at: NOW,
+      }],
+    } satisfies SessionExerciseDoc
+    expect(switchSessionExerciseBackup(row, true, NOW)).toEqual({
+      ok: false,
+      reason: 'completed_set',
+    })
   })
 
   it('materializes one shared planned row per unilateral set', () => {
@@ -133,10 +220,21 @@ describe('V2 session prescription', () => {
       }],
     } satisfies SessionDoc
     expect(progressionSuggestions(session)[0]).toMatchObject({ fromWeightKg: 20, toWeightKg: 22 })
-    session.session_exercises[0]!.sets[1]!.rpe = 9
+    const sessionExercise = session.session_exercises[0]
+    expect(sessionExercise).toBeDefined()
+    if (!sessionExercise) return
+    sessionExercise.uses_backup = true
     expect(progressionSuggestions(session)).toEqual([])
-    session.session_exercises[0]!.sets[1]!.rpe = 8
-    session.session_exercises[0]!.sets[2]!.completed_at = null
+    sessionExercise.uses_backup = false
+    const secondSet = sessionExercise.sets[1]
+    const thirdSet = sessionExercise.sets[2]
+    expect(secondSet).toBeDefined()
+    expect(thirdSet).toBeDefined()
+    if (!secondSet || !thirdSet) return
+    secondSet.rpe = 9
+    expect(progressionSuggestions(session)).toEqual([])
+    secondSet.rpe = 8
+    thirdSet.completed_at = null
     expect(progressionSuggestions(session)).toEqual([])
   })
 

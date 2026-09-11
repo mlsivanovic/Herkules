@@ -16,7 +16,7 @@ import { matchExercise } from './csv'
 import { t } from './i18n'
 
 export const ROUTINES_FORMAT = 'herkules-routines'
-export const ROUTINES_VERSION = 2
+export const ROUTINES_VERSION = 3
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -85,6 +85,7 @@ export interface RoutineItemExport {
   tempo_intent: NonNullable<TemplateItemRow['tempo_intent']>
   is_warmup: boolean
   exercise: RoutineExerciseSnapshot
+  backup_exercise: RoutineExerciseSnapshot | null
 }
 
 export interface RoutineExport {
@@ -139,6 +140,9 @@ export function serializeRoutines(
       .flatMap((item) => {
         const exercise = byId.get(item.exercise_id)
         if (!exercise) return []
+        const backupExercise = item.backup_exercise_id
+          ? byId.get(item.backup_exercise_id) ?? null
+          : null
         return [
           {
             id: item.id,
@@ -175,6 +179,7 @@ export function serializeRoutines(
             tempo_intent: item.tempo_intent ?? 'controlled',
             is_warmup: item.is_warmup === true,
             exercise: snapshotExercise(exercise),
+            backup_exercise: backupExercise ? snapshotExercise(backupExercise) : null,
           } satisfies RoutineItemExport,
         ]
       }),
@@ -305,6 +310,32 @@ export function planRoutineImport(input: {
         newExercises.push(exercise)
       }
 
+      let backupExercise = item.backup_exercise
+        ? resolveExercise(item.backup_exercise, catalog)
+        : undefined
+      if (item.backup_exercise && !backupExercise) {
+        backupExercise = {
+          id: input.newId(),
+          owner_id: input.ownerId,
+          name: item.backup_exercise.name,
+          category: item.backup_exercise.category,
+          measurement: item.backup_exercise.measurement,
+          muscle_groups: item.backup_exercise.muscle_groups,
+          equipment: item.backup_exercise.equipment,
+          instructions: item.backup_exercise.instructions,
+          video_url: item.backup_exercise.video_url,
+          source_title: item.backup_exercise.source_title,
+          source_provider: item.backup_exercise.source_provider,
+          source_url: item.backup_exercise.source_url,
+          source_verified_at: item.backup_exercise.source_verified_at,
+          is_archived: false,
+          created_at: input.now,
+          updated_at: input.now,
+        }
+        catalog.push(backupExercise)
+        newExercises.push(backupExercise)
+      }
+
       const itemId = isUuid(item.id) ? item.id : input.newId()
       keep.add(itemId)
       const previousItem = existingItemById.get(itemId)
@@ -312,6 +343,8 @@ export function planRoutineImport(input: {
         id: itemId,
         template_id: templateId,
         exercise_id: exercise.id,
+        backup_exercise_id:
+          backupExercise && backupExercise.id !== exercise.id ? backupExercise.id : null,
         position: Number.isFinite(item.position) ? item.position : index,
         planned_sets: item.planned_sets,
         target_weight_kg: item.target_weight_kg,
@@ -526,6 +559,10 @@ function parseItem(value: unknown, index: number, routineName: string): RoutineI
     tempo_intent: row.tempo_intent === 'explosive' ? 'explosive' : 'controlled',
     is_warmup: row.is_warmup === true,
     exercise: parseExerciseSnapshot(row.exercise, index, routineName),
+    backup_exercise:
+      row.backup_exercise == null
+        ? null
+        : parseExerciseSnapshot(row.backup_exercise, index, routineName),
   }
 }
 

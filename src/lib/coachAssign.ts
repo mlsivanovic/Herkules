@@ -95,6 +95,9 @@ export function copyPlanToClient(input: {
       id: newId(),
       template_id: templateMap.get(item.template_id) ?? item.template_id,
       exercise_id: exerciseMap.get(item.exercise_id) ?? item.exercise_id,
+      backup_exercise_id: item.backup_exercise_id
+        ? exerciseMap.get(item.backup_exercise_id) ?? item.backup_exercise_id
+        : null,
       block_id: item.block_id ? blockMap.get(item.block_id) ?? item.block_id : item.block_id,
       created_at: now,
       updated_at: now,

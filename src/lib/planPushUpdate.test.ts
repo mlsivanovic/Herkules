@@ -42,6 +42,7 @@ function item(overrides: Partial<TemplateItemRow> = {}): TemplateItemRow {
     id: 'master-item',
     template_id: 'master-a',
     exercise_id: 'sys',
+    backup_exercise_id: null,
     position: 0,
     planned_sets: 3,
     target_weight_kg: 60,

@@ -39,6 +39,7 @@ import { useRestTimer } from '../lib/restTimer'
 import { useIntervalTimer } from '../lib/intervalTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
+import { workoutSequenceSuggestion } from '../lib/programs/plans'
 import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
 import { capabilitiesFor, startableProgrammingForAccount } from '../lib/capabilities'
 import './workout.css'
@@ -497,10 +498,25 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
     () => startableProgrammingForAccount(store.plans, store.templates, store.profile),
     [store.plans, store.templates, store.profile],
   )
-  const routineGroups = useMemo(
-    () => templatesGroupedByPlan(visiblePlans, visibleTemplates, store.planRoutines),
-    [visiblePlans, visibleTemplates, store.planRoutines],
+  const sequence = useMemo(
+    () => workoutSequenceSuggestion(visibleTemplates, store.sessions, store.planRoutines),
+    [store.planRoutines, store.sessions, visibleTemplates],
   )
+  const routineGroups = useMemo(() => {
+    const nextId = sequence.nextTemplate?.id
+    return templatesGroupedByPlan(visiblePlans, visibleTemplates, store.planRoutines)
+      .map((group) => ({
+        ...group,
+        templates: [...group.templates].sort(
+          (a, b) => Number(b.id === nextId) - Number(a.id === nextId),
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          Number(b.templates.some((template) => template.id === nextId)) -
+          Number(a.templates.some((template) => template.id === nextId)),
+      )
+  }, [sequence.nextTemplate?.id, store.planRoutines, visiblePlans, visibleTemplates])
 
   function start(input: Parameters<typeof store.startSession>[0]) {
     setBusy(true)
@@ -534,18 +550,34 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
             {message}
           </p>
         ) : null}
+        {sequence.lastSession ? (
+          <div className="card workout-start-sequence">
+            <span>
+              <small>{t('startSheet.lastWorkout')}</small>
+              <strong>{sequence.lastSession.name}</strong>
+            </span>
+            {sequence.nextTemplate ? (
+              <span>
+                <small>{t('startSheet.nextInSequence')}</small>
+                <strong>{sequence.nextTemplate.name}</strong>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {caps.canStartEmptyWorkout ? (
-        <button
-          type="button"
-          className="btn btn--primary btn--block"
-          disabled={busy}
-          onClick={() => start({})}
-        >
-          <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
-        </button>
+          <button
+            type="button"
+            className="btn btn--primary btn--block"
+            disabled={busy}
+            onClick={() => start({})}
+          >
+            <IconPlay width={18} height={18} /> {t('workout.emptyWorkout')}
+          </button>
         ) : null}
         {routineGroups.length === 0 ? (
-          <p className="muted">{caps.kind === 'light' ? t('workout.noAssigned') : t('workout.noRoutines')}</p>
+          <p className="muted">
+            {caps.kind === 'light' ? t('workout.noAssigned') : t('workout.noRoutines')}
+          </p>
         ) : null}
       </div>
 
@@ -563,16 +595,27 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
               <button
                 key={template.id}
                 type="button"
-                className="card exercise-card"
+                className={`card exercise-card workout-start-routine${
+                  template.id === sequence.nextTemplate?.id
+                    ? ' workout-start-routine--recommended'
+                    : ''
+                }`}
                 disabled={busy}
                 onClick={() => start({ templateId: template.id })}
               >
                 <span className="row row--between">
                   <strong>{template.name}</strong>
-                  <span className="badge badge--neutral">
-                    {t('routines.exerciseCount', {
-                      count: store.templateItems.filter((i) => i.template_id === template.id).length,
-                    })}
+                  <span className="row row--wrap workout-start-routine__badges">
+                    {template.id === sequence.nextTemplate?.id ? (
+                      <span className="badge badge--in-progress">
+                        {t('startSheet.nextInSequence')}
+                      </span>
+                    ) : null}
+                    <span className="badge badge--neutral">
+                      {t('routines.exerciseCount', {
+                        count: store.templateItems.filter((i) => i.template_id === template.id).length,
+                      })}
+                    </span>
                   </span>
                 </span>
               </button>

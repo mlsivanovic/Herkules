@@ -1,1 +1,28 @@
 /* History */
+
+.history-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+}
+
+.history-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.history-row__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.history-row__metrics {
+  color: var(--c-muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}

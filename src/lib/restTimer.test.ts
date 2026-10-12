@@ -1,8 +1,10 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
   calculateRemainingSeconds,
+  cancelRestFromSource,
   computeTargetMs,
   extendTargetMs,
+  readRestOrigin,
   readRestTarget,
   writeRestTarget,
 } from './restTimer'
@@ -47,5 +49,20 @@ describe('restTimer', () => {
     expect(readRestTarget()).toBe(1_234_567)
     writeRestTarget(null)
     expect(readRestTarget()).toBeNull()
+  })
+
+  it('cancels the rest from the confirming set and leaves a later manual timer', () => {
+    writeRestTarget(1_200_000, { sourceId: 'group:a:r:1', manual: false })
+    expect(cancelRestFromSource('group:other')).toBe(false)
+    expect(readRestTarget()).toBe(1_200_000)
+    expect(cancelRestFromSource('group:a:r:1')).toBe(true)
+    expect(readRestTarget()).toBeNull()
+
+    writeRestTarget(1_300_000, { sourceId: 'manual:1', manual: true })
+    expect(cancelRestFromSource('manual:1')).toBe(false)
+    expect(readRestOrigin()?.manual).toBe(true)
+    writeRestTarget(extendTargetMs(readRestTarget(), 15, 1_000_000))
+    expect(readRestOrigin()?.sourceId).toBe('manual:1')
+    writeRestTarget(null)
   })
 })

@@ -44,10 +44,27 @@ export function ExercisePicker({
   excludeIds?: string[]
 }) {
   const { t } = useT()
-  const { exercises } = useStore()
+  const { exercises, sessions } = useStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ExerciseCategory | 'all'>('all')
   const [asWarmup, setAsWarmup] = useState(false)
+
+  const recent = useMemo(() => {
+    const ids: string[] = []
+    const sorted = sessions
+      .filter((session) => session.status === 'completed')
+      .sort((a, b) => b.started_at.localeCompare(a.started_at))
+    for (const session of sorted) {
+      for (const row of [...session.session_exercises].sort((a, b) => a.position - b.position)) {
+        if (row.exercise_id && !ids.includes(row.exercise_id)) ids.push(row.exercise_id)
+      }
+    }
+    return ids
+      .map((id) => exercises.find((exercise) => exercise.id === id && !exercise.is_archived))
+      .filter((exercise): exercise is ExerciseRow => Boolean(exercise))
+      .filter((exercise) => !excludeIds.includes(exercise.id))
+      .slice(0, 8)
+  }, [exercises, excludeIds, sessions])
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -112,6 +129,33 @@ export function ExercisePicker({
           </button>
         ))}
       </div>
+      {query.trim() === '' && category === 'all' && recent.length > 0 ? (
+        <>
+          <h3 className="picker-recent-title">{t('exercises.recent')}</h3>
+          <ul className="picker-list">
+            {recent.map((exercise) => (
+              <li key={`recent-${exercise.id}`}>
+                <button
+                  type="button"
+                  className="picker-item"
+                  onClick={() => {
+                    onSelect(exercise.id, { isWarmup: asWarmup })
+                    onClose()
+                  }}
+                >
+                  <span className="picker-name">
+                    {displayExerciseName(exercise)}
+                    {exercise.owner_id === null ? <small>{t('exercises.systemDot')}</small> : <small>{t('exercises.customDot')}</small>}
+                  </span>
+                  <span className="muted">
+                    {categoryLabel(exercise.category)} · {MEASUREMENT_LABELS(exercise.measurement)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       {results.length === 0 ? (
         <p className="muted">{t('exercises.pickerEmpty')}</p>
       ) : (
@@ -128,7 +172,7 @@ export function ExercisePicker({
               >
                 <span className="picker-name">
                   {displayExerciseName(exercise)}
-                  {exercise.owner_id === null ? <small>{t('exercises.systemDot')}</small> : null}
+                  {exercise.owner_id === null ? <small>{t('exercises.systemDot')}</small> : <small>{t('exercises.customDot')}</small>}
                 </span>
                 <span className="muted">
                   {categoryLabel(exercise.category)} · {MEASUREMENT_LABELS(exercise.measurement)}

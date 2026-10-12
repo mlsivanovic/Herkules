@@ -12,7 +12,12 @@ import {
   exerciseProgress,
   groupPersonalRecords,
   personalRecords,
+  concreteTarget,
+  findPreviousPerformance,
+  matchPreviousSet,
+  pickPreparedValue,
   previousSetsForExercise,
+  setGroupOrdinal,
   sessionTotals,
   sessionVolume,
   setVolume,
@@ -305,6 +310,87 @@ describe('previous performance', () => {
     ]
     const previous = previousSetsForExercise(sessions, 'ex-1', 'Bench Press', 's-active')
     expect(previous?.[0]?.weight_kg).toBe(70)
+  })
+
+  it('does not treat a different id with the same name as the same exercise', () => {
+    const sessions = [
+      makeSession({
+        id: 's-other',
+        session_exercises: [
+          makeSessionEx({ id: 'se-x', exercise_id: 'ex-other', name_snapshot: 'Bench Press' }, [
+            makeSet({ weight_kg: 40, reps: 12, session_exercise_id: 'se-x' }),
+          ]),
+        ],
+      }),
+    ]
+    expect(findPreviousPerformance(sessions, { exerciseId: 'ex-1', name: 'Bench Press' }).status).toBe('none')
+  })
+
+  it('uses an unambiguous legacy name and refuses a duplicate name', () => {
+    const legacy = makeSession({
+      id: 's-legacy',
+      session_exercises: [
+        makeSessionEx({ id: 'se-l', exercise_id: null, name_snapshot: 'Curl' }, [
+          makeSet({ weight_kg: 12, reps: 10, session_exercise_id: 'se-l' }),
+        ]),
+      ],
+    })
+    expect(findPreviousPerformance([legacy], { exerciseId: null, name: 'Curl' })).toMatchObject({
+      status: 'match',
+      via: 'legacy-name',
+    })
+    const ambiguous = makeSession({
+      id: 's-amb',
+      session_exercises: [
+        makeSessionEx({ id: 'a', exercise_id: null, name_snapshot: 'Curl', position: 0 }, [
+          makeSet({ weight_kg: 10, reps: 8, session_exercise_id: 'a' }),
+        ]),
+        makeSessionEx({ id: 'b', exercise_id: null, name_snapshot: 'Curl', position: 1 }, [
+          makeSet({ weight_kg: 14, reps: 8, session_exercise_id: 'b' }),
+        ]),
+      ],
+    })
+    expect(findPreviousPerformance([ambiguous], { exerciseId: null, name: 'Curl' }).status).toBe('ambiguous')
+  })
+
+  it('pairs warm-up, side and direction without shifting work ordinals', () => {
+    const previous = [
+      makeSet({ id: 'w', position: 1, is_warmup: true, weight_kg: 20, reps: 10, round_index: null }),
+      makeSet({ id: 'l', position: 2, is_warmup: false, weight_kg: 40, reps: 8, round_index: 1, side: 'left' }),
+      makeSet({ id: 'r', position: 3, is_warmup: false, weight_kg: 40, reps: 8, round_index: 1, side: 'right' }),
+      makeSet({ id: 'p', position: 4, is_warmup: false, weight_kg: 15, reps: 12, round_index: 1, direction: 'pronation' }),
+      makeSet({ id: 's', position: 5, is_warmup: false, weight_kg: 15, reps: 12, round_index: 1, direction: 'supination' }),
+    ]
+    expect(setGroupOrdinal(previous, previous[1]!)).toBe(1)
+    expect(setGroupOrdinal(previous, previous[2]!)).toBe(1)
+    expect(matchPreviousSet(previous, {
+      isWarmup: true, roundIndex: null, side: null, direction: null, ordinal: 1,
+    })?.set.id).toBe('w')
+    expect(matchPreviousSet(previous, {
+      isWarmup: false, roundIndex: 1, side: 'right', direction: null, ordinal: 1,
+    })?.set.id).toBe('r')
+    expect(matchPreviousSet(previous, {
+      isWarmup: false, roundIndex: 1, side: null, direction: null, ordinal: 1,
+    })).toBeNull()
+    expect(matchPreviousSet(previous, {
+      isWarmup: false, roundIndex: 1, side: null, direction: 'supination', ordinal: 1,
+    })?.set.weight_kg).toBe(15)
+  })
+
+  it('keeps a saved value ahead of a target and does not invent a number from a range', () => {
+    expect(pickPreparedValue({ saved: 50, hasSaved: true, target: 60, previous: 40 })).toEqual({
+      value: 50,
+      source: 'saved',
+    })
+    expect(pickPreparedValue({ saved: 0, hasSaved: true, target: 60, previous: 40 }).source).toBe('saved')
+    expect(pickPreparedValue({ saved: null, hasSaved: false, target: 60, previous: 40 })).toEqual({
+      value: 60,
+      source: 'target',
+    })
+    expect(pickPreparedValue({ saved: null, hasSaved: false, target: null, previous: 40 }).source).toBe('previous')
+    expect(concreteTarget(null, 5, 8)).toBeNull()
+    expect(concreteTarget(8, 8, 8)).toBe(8)
+    expect(concreteTarget(10, null, null)).toBe(10)
   })
 })
 

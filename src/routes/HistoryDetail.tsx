@@ -8,6 +8,7 @@ import { formatDateLong } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { sessionVolume } from '../lib/metrics'
+import { diagnoseSessionDuration } from '../lib/sessionDuration'
 import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
@@ -24,6 +25,7 @@ export function HistoryDetail() {
   const [notes, setNotes] = useState(session?.notes ?? '')
   const [notesDirty, setNotesDirty] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const duration = useMemo(() => {
     if (!session?.ended_at) return null
@@ -88,6 +90,9 @@ export function HistoryDetail() {
           </small>
         </div>
         <div className="row">
+          <button type="button" className="btn" aria-pressed={editing} onClick={() => setEditing((open) => !open)}>
+            {editing ? t('history.doneEditing') : t('history.edit')}
+          </button>
           {session.status === 'completed' || session.status === 'skipped' ? (
             <button
               type="button"
@@ -109,6 +114,10 @@ export function HistoryDetail() {
           />
         </div>
       </div>
+      <p className="muted">{t('history.reviewHint')}</p>
+      {session && diagnoseSessionDuration(session).unusuallyLong ? (
+        <p className="muted">{t('history.longSession')}</p>
+      ) : null}
 
       {comments.length > 0 ? (
         <div className="card stack" style={{ marginBottom: '1rem' }}>
@@ -177,6 +186,8 @@ export function HistoryDetail() {
                     set={set}
                     measurement={se.measurement_snapshot}
                     units={units}
+                    readonly={!editing}
+                    exerciseName={displaySnapshotName(se.name_snapshot, se.exercise_id)}
                     bodyweightLoad={isBodyweightLoadExercise({
                       id: se.exercise_id,
                       name: se.name_snapshot,
@@ -187,12 +198,14 @@ export function HistoryDetail() {
                   />
                 ))
               )}
-              <div className="row row--wrap" style={{ gap: '0.4rem' }}>
-                <AddSetButton onAdd={() => addSet(se.id, false)} />
-                {se.is_warmup === true ? null : (
-                  <AddSetButton onAdd={() => addSet(se.id, true)} label={t('set.addWarmup')} />
-                )}
-              </div>
+              {editing ? (
+                <div className="row row--wrap" style={{ gap: '0.4rem' }}>
+                  <AddSetButton onAdd={() => addSet(se.id, false)} />
+                  {se.is_warmup === true ? null : (
+                    <AddSetButton onAdd={() => addSet(se.id, true)} label={t('set.addWarmup')} />
+                  )}
+                </div>
+              ) : null}
             </div>
           </section>
         ))}

@@ -7,35 +7,87 @@ import { t } from './i18n'
 
 export const REST_STORAGE_KEY = 'herkules:rest-target-ms'
 
-let memoryTargetMs: number | null = null
-
-export function readRestTarget(): number | null {
-  try {
-    if (typeof sessionStorage !== 'undefined' && sessionStorage) {
-      const raw = sessionStorage.getItem(REST_STORAGE_KEY)
-      if (!raw) return null
-      const ms = Number(raw)
-      return Number.isFinite(ms) && ms > 0 ? ms : null
-    }
-  } catch {
-    /* private browsing or restricted iframe */
-  }
-  return memoryTargetMs
+export interface RestOrigin {
+  sourceId: string
+  /** Manual rests are not cancelled when an older set is undone. */
+  manual: boolean
 }
 
-export function writeRestTarget(targetMs: number | null): void {
-  memoryTargetMs = targetMs
+interface RestRecord {
+  targetMs: number
+  origin: RestOrigin | null
+}
+
+let memoryRecord: RestRecord | null = null
+
+function parseRestRaw(raw: string | null): RestRecord | null {
+  if (!raw) return null
+  if (raw.startsWith('{')) {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (typeof parsed !== 'object' || parsed === null || !('targetMs' in parsed)) return null
+      const targetMs = Number((parsed as { targetMs: unknown }).targetMs)
+      if (!Number.isFinite(targetMs) || targetMs <= 0) return null
+      const originRaw = (parsed as { origin?: unknown }).origin
+      let origin: RestOrigin | null = null
+      if (typeof originRaw === 'object' && originRaw !== null && 'sourceId' in originRaw) {
+        const sourceId = (originRaw as { sourceId: unknown }).sourceId
+        const manual = (originRaw as { manual?: unknown }).manual === true
+        if (typeof sourceId === 'string' && sourceId) origin = { sourceId, manual }
+      }
+      return { targetMs, origin }
+    } catch {
+      return null
+    }
+  }
+  const ms = Number(raw)
+  return Number.isFinite(ms) && ms > 0 ? { targetMs: ms, origin: null } : null
+}
+
+function readRecord(): RestRecord | null {
   try {
     if (typeof sessionStorage !== 'undefined' && sessionStorage) {
-      if (targetMs !== null && targetMs > 0) {
-        sessionStorage.setItem(REST_STORAGE_KEY, String(targetMs))
-      } else {
-        sessionStorage.removeItem(REST_STORAGE_KEY)
-      }
+      return parseRestRaw(sessionStorage.getItem(REST_STORAGE_KEY))
     }
   } catch {
     /* private browsing or restricted iframe */
   }
+  return memoryRecord
+}
+
+export function readRestTarget(): number | null {
+  return readRecord()?.targetMs ?? null
+}
+
+export function readRestOrigin(): RestOrigin | null {
+  return readRecord()?.origin ?? null
+}
+
+export function writeRestTarget(targetMs: number | null, origin?: RestOrigin | null): void {
+  if (targetMs === null || targetMs <= 0) {
+    memoryRecord = null
+  } else {
+    // Omitting origin keeps the rest tied to the set that started it (+15s).
+    const kept = origin === undefined ? (readRecord()?.origin ?? null) : origin
+    memoryRecord = { targetMs, origin: kept }
+  }
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+      if (memoryRecord === null) sessionStorage.removeItem(REST_STORAGE_KEY)
+      else if (memoryRecord.origin) sessionStorage.setItem(REST_STORAGE_KEY, JSON.stringify(memoryRecord))
+      else sessionStorage.setItem(REST_STORAGE_KEY, String(memoryRecord.targetMs))
+    }
+  } catch {
+    /* private browsing or restricted iframe */
+  }
+}
+
+/** Cancel only the rest that this confirmation started. */
+export function cancelRestFromSource(sourceId: string): boolean {
+  const record = readRecord()
+  if (!record?.origin || record.origin.manual || record.origin.sourceId !== sourceId) return false
+  writeRestTarget(null)
+  return true
 }
 
 /** Compute remaining seconds based on target timestamp and current time. */
@@ -67,21 +119,26 @@ export function extendTargetMs(
 export interface RestTimerState {
   remaining: number | null
   targetMs: number | null
-  start: (seconds: number) => void
+  origin: RestOrigin | null
+  start: (seconds: number, origin?: RestOrigin | null) => void
   addSeconds: (seconds: number) => void
   skip: () => void
+  cancelIfSource: (sourceId: string) => boolean
 }
 
 export function useRestTimer(): RestTimerState {
   const [targetMs, setTargetMs] = useState<number | null>(readRestTarget)
+  const [origin, setOrigin] = useState<RestOrigin | null>(readRestOrigin)
   const [remaining, setRemaining] = useState<number | null>(() =>
     calculateRemainingSeconds(readRestTarget()),
   )
 
-  const start = useCallback((seconds: number) => {
+  const start = useCallback((seconds: number, nextOrigin?: RestOrigin | null) => {
     void requestNotificationPermission()
     const target = computeTargetMs(seconds)
-    writeRestTarget(target)
+    const stored = nextOrigin ?? null
+    writeRestTarget(target, stored)
+    setOrigin(stored)
     setTargetMs(target)
     setRemaining(Math.ceil(seconds))
   }, [])
@@ -97,8 +154,18 @@ export function useRestTimer(): RestTimerState {
 
   const skip = useCallback(() => {
     writeRestTarget(null)
+    setOrigin(null)
     setTargetMs(null)
     setRemaining(null)
+  }, [])
+
+  const cancelIfSource = useCallback((sourceId: string) => {
+    const cancelled = cancelRestFromSource(sourceId)
+    if (!cancelled) return false
+    setOrigin(null)
+    setTargetMs(null)
+    setRemaining(null)
+    return true
   }, [])
 
   useEffect(() => {
@@ -111,6 +178,7 @@ export function useRestTimer(): RestTimerState {
       const rem = calculateRemainingSeconds(targetMs)
       if (rem === null || rem <= 0) {
         writeRestTarget(null)
+        setOrigin(null)
         setTargetMs(null)
         setRemaining(null)
         timerCue()
@@ -146,8 +214,10 @@ export function useRestTimer(): RestTimerState {
   return {
     remaining,
     targetMs,
+    origin,
     start,
     addSeconds,
     skip,
+    cancelIfSource,
   }
 }

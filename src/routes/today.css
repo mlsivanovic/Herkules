@@ -43,8 +43,8 @@
   justify-content: space-between;
   gap: 1rem;
   width: 100%;
-  min-height: 112px;
-  padding: 1.05rem 1.15rem;
+  min-height: 72px;
+  padding: 0.85rem 1rem;
   border: 0;
   border-radius: var(--radius-l);
   background: linear-gradient(135deg, var(--c-primary), color-mix(in srgb, var(--c-primary) 70%, #8b5cf6));

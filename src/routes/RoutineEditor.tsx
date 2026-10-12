@@ -1014,7 +1014,7 @@ export function RoutineEditor() {
         </p>
       ) : null}
 
-      <div className="row row--wrap" style={{ marginTop: '1rem' }}>
+      <div className="row row--wrap editor-save">
         {locked ? <p className="muted">{t('errors.assignedReadOnly')}</p> : null}
         <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={busy || locked}>
           {busy ? t('common.saving') : t('editor.saveRoutine')}

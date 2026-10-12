@@ -51,12 +51,10 @@ describe('t', () => {
   })
 
   it('translates compact top-bar sync status', () => {
-    expect(t('sync.statusSuccess', undefined, 'en')).toBe('Success')
-    expect(t('sync.statusPending', undefined, 'en')).toBe('Pending')
-    expect(t('sync.statusError', undefined, 'en')).toBe('Error')
-    expect(t('sync.statusSuccess', undefined, 'sr')).toBe('Uspeh')
-    expect(t('sync.statusPending', undefined, 'sr')).toBe('Na čekanju')
-    expect(t('sync.statusError', undefined, 'sr')).toBe('Greška')
+    expect(t('sync.statusPending', undefined, 'en')).toBe('Saved on this device · waiting to sync')
+    expect(t('sync.statusError', undefined, 'en')).toBe('Sync problem')
+    expect(t('sync.statusPending', undefined, 'sr')).toBe('Sačuvano na uređaju · čeka sync')
+    expect(t('sync.statusError', undefined, 'sr')).toBe('Problem sa sync-om')
   })
 
   it('translates rest chip label', () => {

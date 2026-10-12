@@ -19,7 +19,7 @@ describe('syncBarStatus', () => {
     expect(syncBarStatus({ ...base, pending: 1 })).toBe('pending')
   })
 
-  it('shows success when idle and clean', () => {
-    expect(syncBarStatus(base)).toBe('success')
+  it('stays quiet when idle and clean', () => {
+    expect(syncBarStatus(base)).toBeNull()
   })
 })

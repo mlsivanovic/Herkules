@@ -9,5 +9,6 @@ export function syncBarStatus(state: {
   if (!state.ready) return null
   if (state.syncError) return 'error'
   if (state.syncing || state.pending > 0) return 'pending'
-  return 'success'
+  // A clean device is not announced as a cloud success.
+  return null
 }

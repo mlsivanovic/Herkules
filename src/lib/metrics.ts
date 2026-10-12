@@ -247,6 +247,78 @@ export function groupPersonalRecords(records: PersonalRecord[]): GroupedPersonal
     })
 }
 
+export type PreviousLookup =
+  | { status: 'none' }
+  | { status: 'ambiguous'; sessionId: string; startedAt: string; name: string }
+  | {
+      status: 'match'
+      via: 'id' | 'legacy-name'
+      sessionId: string
+      startedAt: string
+      exerciseId: string | null
+      name: string
+      sets: SetRow[]
+    }
+
+function hasExerciseId(id: string | null | undefined): id is string {
+  return typeof id === 'string' && id !== ''
+}
+
+/** Last completed performance for this exercise.
+ * An id match never falls through to a different id that happens to share a name.
+ * A name match is used only when the current row has no id and exactly one row in
+ * that session uses the name. */
+export function findPreviousPerformance(
+  sessions: SessionDoc[],
+  query: { exerciseId: string | null; name: string },
+  excludeSessionId?: string,
+): PreviousLookup {
+  const sorted = [...sessions]
+    .filter((session) => session.id !== excludeSessionId && session.status === 'completed')
+    .sort((a, b) => (a.started_at < b.started_at ? 1 : -1))
+
+  for (const doc of sorted) {
+    if (hasExerciseId(query.exerciseId)) {
+      const matches = doc.session_exercises.filter((exercise) => exercise.exercise_id === query.exerciseId)
+      const withSets = matches
+        .map((exercise) => ({ exercise, sets: exercise.sets.filter(isCompleted) }))
+        .filter((row) => row.sets.length > 0)
+      const found = withSets[0]
+      if (found) {
+        return {
+          status: 'match',
+          via: 'id',
+          sessionId: doc.id,
+          startedAt: doc.started_at,
+          exerciseId: found.exercise.exercise_id,
+          name: found.exercise.name_snapshot,
+          sets: found.sets,
+        }
+      }
+      continue
+    }
+
+    const named = doc.session_exercises.filter((exercise) => exercise.name_snapshot === query.name)
+    if (named.length > 1) {
+      return { status: 'ambiguous', sessionId: doc.id, startedAt: doc.started_at, name: query.name }
+    }
+    const only = named[0]
+    const sets = only?.sets.filter(isCompleted) ?? []
+    if (only && sets.length > 0) {
+      return {
+        status: 'match',
+        via: 'legacy-name',
+        sessionId: doc.id,
+        startedAt: doc.started_at,
+        exerciseId: only.exercise_id,
+        name: only.name_snapshot,
+        sets,
+      }
+    }
+  }
+  return { status: 'none' }
+}
+
 /** Previous performance for an exercise, from the most recent session that
  * contains it (excluding the given session). Returns formatted raw sets. */
 export function previousSetsForExercise(
@@ -255,16 +327,79 @@ export function previousSetsForExercise(
   exerciseName: string,
   excludeSessionId?: string,
 ): SetRow[] | null {
-  const sorted = [...sessions]
-    .filter((s) => s.id !== excludeSessionId && s.status === 'completed')
-    .sort((a, b) => (a.started_at < b.started_at ? 1 : -1))
-  for (const doc of sorted) {
-    const match = doc.session_exercises.find(
-      (se) => se.exercise_id === exerciseId || se.name_snapshot === exerciseName,
-    )
-    const completed = match?.sets.filter(isCompleted) ?? []
-    if (match && completed.length > 0) return completed
+  const found = findPreviousPerformance(
+    sessions,
+    { exerciseId: exerciseId || null, name: exerciseName },
+    excludeSessionId,
+  )
+  return found.status === 'match' ? found.sets : null
+}
+
+export interface SetMatchIdentity {
+  isWarmup: boolean
+  roundIndex: number | null
+  side: 'left' | 'right' | null
+  direction: 'pronation' | 'supination' | null
+  /** 1-based index among warm-up groups or work groups. Sides of one round share it. */
+  ordinal: number
+}
+
+export function setGroupKey(set: Pick<SetRow, 'round_index' | 'position'>): string {
+  return set.round_index != null ? `r:${set.round_index}` : `p:${set.position}`
+}
+
+/** Work or warm-up group ordinal. Side and direction rows that share a round count once. */
+export function setGroupOrdinal(sets: SetRow[], set: SetRow): number {
+  const keys: string[] = []
+  for (const row of [...sets].filter((candidate) => candidate.is_warmup === set.is_warmup).sort((a, b) => a.position - b.position)) {
+    const key = setGroupKey(row)
+    if (!keys.includes(key)) keys.push(key)
   }
+  const index = keys.indexOf(setGroupKey(set))
+  return index < 0 ? 0 : index + 1
+}
+
+/** Pair a current row with one previous row. Unclear legacy rows return null
+ * so the caller can show history without copying it into the inputs. */
+export function matchPreviousSet(
+  previous: SetRow[],
+  identity: SetMatchIdentity,
+): { set: SetRow; confident: boolean } | null {
+  const candidates = previous.filter((set) => {
+    if (set.completed_at == null) return false
+    if ((set.is_warmup === true) !== identity.isWarmup) return false
+    if ((set.side ?? null) !== identity.side) return false
+    if ((set.direction ?? null) !== identity.direction) return false
+    return setGroupOrdinal(previous, set) === identity.ordinal
+  })
+  if (candidates.length !== 1) return null
+  return { set: candidates[0]!, confident: true }
+}
+
+export type PreparedSource = 'saved' | 'target' | 'previous' | 'empty'
+
+/** Saved value wins, including an explicit 0. A range is not a target. */
+export function pickPreparedValue(input: {
+  saved: number | null
+  hasSaved: boolean
+  target: number | null
+  previous: number | null
+}): { value: number | null; source: PreparedSource } {
+  if (input.hasSaved) return { value: input.saved, source: 'saved' }
+  if (input.target != null) return { value: input.target, source: 'target' }
+  if (input.previous != null) return { value: input.previous, source: 'previous' }
+  return { value: null, source: 'empty' }
+}
+
+/** A single concrete plan number. A min–max range stays empty. */
+export function concreteTarget(
+  single: number | null | undefined,
+  min: number | null | undefined,
+  max: number | null | undefined,
+): number | null {
+  if (min != null && max != null && min !== max) return null
+  if (min != null && max != null && min === max) return min
+  if (single != null && (min == null || min === single) && (max == null || max === single)) return single
   return null
 }
 

@@ -159,3 +159,16 @@ fieldset.field legend {
   color: var(--c-muted);
   margin-bottom: 0.25rem;
 }
+
+.editor-save {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-h, 0px) + 0.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  margin-top: 1rem;
+  padding: 0.65rem 0;
+  background: color-mix(in srgb, var(--c-bg) 92%, transparent);
+}
+
+@media (min-width: 768px) {
+  .editor-save { bottom: 0.5rem; }
+}

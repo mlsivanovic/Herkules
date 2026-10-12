@@ -99,6 +99,7 @@ export function AppLayout() {
   const [profileOpen, setProfileOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
   const primarySection = primarySectionForPath(location.pathname)
+  const onToday = location.pathname === '/'
 
   const tabs = [
     { to: '/', label: t('nav.today'), Icon: IconToday, active: primarySection === 'today' },
@@ -154,7 +155,7 @@ export function AppLayout() {
             </Link>
           ))}
         </nav>
-        <PrimaryWorkoutAction desktop />
+        {onToday ? null : <PrimaryWorkoutAction desktop />}
         <div className="app-sidebar__foot">
           {caps.navCoach ? (
             <button type="button" className="app-sidebar__utility" onClick={() => void navigate('/coach')}>
@@ -167,7 +168,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <div className="app-main">
+      <div className={`app-main${onToday ? ' app-main--today' : ''}`}>
         <header className="app-topbar">
           <button
             type="button"
@@ -217,7 +218,7 @@ export function AppLayout() {
           <Outlet />
         </main>
 
-        <PrimaryWorkoutAction />
+        {onToday ? null : <PrimaryWorkoutAction />}
 
         <nav className="app-bottom-nav" aria-label={t('nav.main')}>
           {tabs.map(({ to, label, Icon, active }) => (

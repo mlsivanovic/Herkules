@@ -37,7 +37,9 @@ import type {
   TrainingPlanRow,
   PlanRoutineRow,
 } from '../types/db'
+import { createSerialQueue } from './serial'
 import { backendConfigured, supabase } from './supabase'
+import { clearAllWorkoutUi, clearSessionWorkoutUi } from './workoutUiState'
 import { useAuth } from './auth'
 import {
   appendOps,
@@ -592,6 +594,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     if (!userId) {
+      clearAllWorkoutUi()
       setState((prev) => ({
         ...prev,
         ready: true,
@@ -620,6 +623,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const storedUser = await getMeta<string>('userId')
       if (storedUser !== userId) {
         await wipeLocalData()
+        clearAllWorkoutUi()
         await setMeta('userId', userId)
       }
       if (cancelled) return
@@ -663,17 +667,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [performSync])
 
-  /** Write to the mirror, queue ops, refresh state, schedule the push. */
+  /** Write to the mirror, queue ops, refresh state, schedule the push.
+   * Commits run one at a time so a fast confirm cannot be overwritten by an older keystroke. */
+  const enqueueCommit = useRef(createSerialQueue()).current
   const commit = useCallback(
     async (writes: { store: StoreName; row: object }[], ops: OutboxOp[]) => {
-      for (const write of writes) {
-        await putDirty(write.store, write.row)
-      }
-      await appendOps(ops)
-      await reloadFromDb()
-      scheduleDebouncedSync()
+      await enqueueCommit(async () => {
+        for (const write of writes) {
+          await putDirty(write.store, write.row)
+        }
+        await appendOps(ops)
+        await reloadFromDb()
+        scheduleDebouncedSync()
+      })
     },
-    [reloadFromDb, scheduleDebouncedSync],
+    [enqueueCommit, reloadFromDb, scheduleDebouncedSync],
   )
 
   const actionsRef = useRef<StoreActions | null>(null)
@@ -1866,6 +1874,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       async deleteSession(id) {
+        clearSessionWorkoutUi(id)
         const doc = await readOne<SessionDoc>('sessions', id)
         if (!doc) return
         const exerciseIds = doc.session_exercises.map((se) => se.id)

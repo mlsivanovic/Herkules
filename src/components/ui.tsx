@@ -1,5 +1,6 @@
 // Shared UI primitives: loading/error/empty states, modal, badges, notes disclosure.
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { pushOverlay } from '../lib/overlayBack'
 import type { DayWorkoutStatus } from '../lib/recurrence'
 import { IconChevronDown, IconNote } from './Icons'
 import { useT } from '../lib/i18n'
@@ -70,6 +71,7 @@ export function Modal({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     panelRef.current?.focus()
+    const releaseOverlay = pushOverlay(() => closeRef.current())
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeRef.current()
@@ -93,6 +95,7 @@ export function Modal({
     }
     document.addEventListener('keydown', onKey)
     return () => {
+      releaseOverlay()
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
       previousFocus?.focus()
@@ -142,6 +145,7 @@ export function BottomSheet({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     panelRef.current?.focus()
+    const releaseOverlay = pushOverlay(() => closeRef.current())
 
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -169,6 +173,7 @@ export function BottomSheet({
 
     document.addEventListener('keydown', onKey)
     return () => {
+      releaseOverlay()
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
       previousFocus?.focus()

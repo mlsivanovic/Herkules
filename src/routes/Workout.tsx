@@ -1,37 +1,24 @@
 // Active workout screen: elapsed timer, previous values, set logging for all
 // measurement types, automatic rest timer, RPE, notes, reorder/swap/remove,
 // finish (works fully offline — everything lands in IndexedDB + outbox).
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  Fragment,
-  type PointerEvent as ReactPointerEvent,
-} from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useStore, newId } from '../lib/store'
-import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
-import { blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
-import { distanceForInput, formatDuration, formatWeight, formatDistance, weightForInput } from '../lib/units'
-import { formatSetLoad, isBodyweightLoadExercise } from '../lib/bodyweightLoad'
-import { formVideoUrl } from '../lib/video'
-import { previousSetsForExercise } from '../lib/metrics'
-import { moveIndex, sortByPosition, supersetPartners } from '../lib/reorder'
-import { usePointerReorder } from '../lib/usePointerReorder'
-import { EmptyState, Loader, Modal, NotesDisclosure } from '../components/ui'
+import { useStore } from '../lib/store'
+import type { SessionDoc } from '../types/db'
+import { formatDuration } from '../lib/units'
+import { BottomSheet, EmptyState, Loader, Modal } from '../components/ui'
+import { WorkoutLogger } from '../components/WorkoutLogger'
+import { sessionFlowProgress } from '../lib/workoutFlow'
+import { diagnoseSessionDuration } from '../lib/sessionDuration'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { IntervalTimerDock, IntervalTimerModal } from '../components/IntervalTimer'
-import { isBlockRoundComplete, isSetGroupComplete, progressionSuggestions } from '../lib/prescription'
-import { SetEditor, AddSetButton } from '../components/SetEditor'
+import { progressionSuggestions } from '../lib/prescription'
 import {
-  IconGrip,
   IconChevronLeft,
   IconPlay,
   IconPlus,
+  IconMore,
   IconSun,
-  IconSwap,
   IconTimer,
   IconTrash,
 } from '../components/Icons'
@@ -40,7 +27,7 @@ import { useIntervalTimer } from '../lib/intervalTimer'
 import { useScreenWakeLock } from '../lib/wakeLock'
 import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { workoutSequenceSuggestion } from '../lib/programs/plans'
-import { blockFormatLabel, displaySnapshotName, t as translate, useT, workoutRoleLabel } from '../lib/i18n'
+import { useT } from '../lib/i18n'
 import { capabilitiesFor, startableProgrammingForAccount } from '../lib/capabilities'
 import './workout.css'
 
@@ -71,10 +58,10 @@ export function Workout() {
     start: startRest,
     addSeconds: addRestSeconds,
     skip: skipRest,
+    cancelIfSource: cancelRestSource,
   } = useRestTimer()
   const intervalTimer = useIntervalTimer()
   const [intervalsOpen, setIntervalsOpen] = useState(false)
-  const [selectedIntervalBlockId, setSelectedIntervalBlockId] = useState<string | null>(null)
 
   const caps = capabilitiesFor(store.profile)
   const active = store.sessions.find((s) => s.status === 'in_progress') ?? null
@@ -83,45 +70,30 @@ export function Workout() {
     wakeLockEnabled && active !== null,
   )
   const startingRef = useRef(false)
-  const [announce, setAnnounce] = useState('')
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
-  const activeId = active?.id
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [focusToken, setFocusToken] = useState(0)
+  const dockRef = useRef<HTMLDivElement>(null)
   const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
-  const selectedIntervalBlock = active?.session_blocks?.find(
-    (block) => block.id === selectedIntervalBlockId && block.format === 'interval',
-  ) ?? intervalBlock
-  const orderedExercises = useMemo(
-    () => (active ? sortByPosition(active.session_exercises) : []),
-    [active],
-  )
-
-  useEffect(() => {
-    if (activeId) setCollapsedIds(readCollapsed(activeId))
-  }, [activeId])
+  const progress = active ? sessionFlowProgress(active) : null
 
   useEffect(() => {
     if (intervalTimer.active && restRemaining !== null) skipRest()
   }, [intervalTimer.active, restRemaining, skipRest])
 
-  const moveExercise = useCallback(
-    (from: number, to: number) => {
-      const session = store.sessions.find((s) => s.status === 'in_progress')
-      if (!session) return
-      const ids = moveIndex(
-        sortByPosition(session.session_exercises).map((se) => se.id),
-        from,
-        to,
-      )
-      void store.reorderSessionExercises(session.id, ids)
-    },
-    [store],
-  )
-
-  const reorder = usePointerReorder({
-    itemCount: orderedExercises.length,
-    onMove: moveExercise,
-    announce: setAnnounce,
-  })
+  useEffect(() => {
+    const node = dockRef.current
+    if (!node || typeof ResizeObserver === 'undefined') return
+    const apply = () => {
+      document.documentElement.style.setProperty('--workout-dock-h', `${node.offsetHeight}px`)
+    }
+    apply()
+    const observer = new ResizeObserver(apply)
+    observer.observe(node)
+    return () => {
+      observer.disconnect()
+      document.documentElement.style.setProperty('--workout-dock-h', '0px')
+    }
+  }, [restRemaining, intervalTimer.active, active?.id])
 
   useEffect(() => {
     if (!startState || startingRef.current) return
@@ -157,7 +129,9 @@ export function Workout() {
     return <StartScreen onStarted={() => navigate('/workout', { replace: true })} error={startError} />
   }
 
-  const completedSets = countCompletedSets(active)
+  const workDone = progress?.workDone ?? 0
+  const workTotal = progress?.workTotal ?? 0
+  const finishReady = workTotal > 0 && workDone >= workTotal
 
   return (
     <div className="workout-page">
@@ -169,10 +143,19 @@ export function Workout() {
           <h1 className="workout-title">{active.name}</h1>
           <button
             type="button"
-            className="btn btn--small btn--primary workout-finish"
+            className={`btn workout-finish${finishReady ? ' btn--primary' : ''}`}
             onClick={() => setFinishOpen(true)}
           >
             {t('workout.finish')}
+          </button>
+          <button
+            type="button"
+            className="btn btn--icon"
+            aria-label={t('workout.menu')}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <IconMore width={18} height={18} />
           </button>
         </div>
         <div className="workout-header__meta">
@@ -183,48 +166,32 @@ export function Workout() {
               </span>
               <span className="workout-stat__label">{t('workout.elapsed')}</span>
             </span>
-            <span
-              className="workout-stat"
-              aria-label={t('workout.setsDone', { count: completedSets })}
-            >
-              <span className="workout-stat__value mono">{completedSets}</span>
-              <span className="workout-stat__label" aria-hidden="true">
-                {t('workout.setsLabel')}
-              </span>
+            <span className="workout-stat" aria-label={t('workout.workProgress', { done: workDone, total: workTotal })}>
+              <span className="workout-stat__value mono">{workDone}/{workTotal}</span>
+              <span className="workout-stat__label" aria-hidden="true">{t('workout.setsLabel')}</span>
             </span>
           </div>
-          <div className="workout-header__tools">
+        </div>
+        {menuOpen ? (
+          <div className="workout-menu">
             {wakeLockSupported ? (
-              <button
-                type="button"
-                className={`btn btn--icon btn--small ${wakeLocked ? 'btn--primary' : ''}`}
-                aria-label={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
-                title={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
-                onClick={() => setWakeLockEnabled((prev) => !prev)}
-              >
-                <IconSun width={18} height={18} />
+              <button type="button" className="btn" onClick={() => setWakeLockEnabled((prev) => !prev)}>
+                <IconSun width={18} height={18} /> {wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
               </button>
             ) : null}
-            <button
-              type="button"
-              className={`btn btn--icon btn--small ${intervalTimer.state.phase !== 'idle' ? 'btn--primary' : ''}`}
-              aria-label={t('workout.intervalTimer')}
-              title={t('workout.intervalTimer')}
-              onClick={() => setIntervalsOpen(true)}
-            >
-              <IconTimer width={18} height={18} />
+            <button type="button" className="btn" onClick={() => { setMenuOpen(false); setIntervalsOpen(true) }}>
+              <IconTimer width={18} height={18} /> {t('workout.intervalTimer')}
             </button>
-            <button
-              type="button"
-              className="btn btn--icon btn--small btn--ghost workout-discard"
-              aria-label={t('workout.discard')}
-              title={t('workout.discard')}
-              onClick={() => setDiscardOpen(true)}
-            >
-              <IconTrash width={18} height={18} />
+            {caps.canRestructureWorkout ? (
+              <button type="button" className="btn" onClick={() => { setMenuOpen(false); setPickerMode('add') }}>
+                <IconPlus width={18} height={18} /> {t('workout.addExercise')}
+              </button>
+            ) : null}
+            <button type="button" className="btn btn--danger" onClick={() => { setMenuOpen(false); setDiscardOpen(true) }}>
+              <IconTrash width={18} height={18} /> {t('workout.discard')}
             </button>
           </div>
-        </div>
+        ) : null}
       </header>
 
       {active.session_exercises.length === 0 ? (
@@ -238,114 +205,38 @@ export function Workout() {
           }
         />
       ) : (
-        <div className="stack">
-          {orderedExercises.map((se, index) => {
-            const block = active.session_blocks?.find((row) => row.id === se.session_block_id) ?? null
-            const previous = index > 0 ? orderedExercises[index - 1] : null
-            const showBlock = block && previous?.session_block_id !== block.id
-            const collapsed = collapsedIds.has(se.id)
-            return (
-            <Fragment key={se.id}>
-              {showBlock ? (
-                <div className="workout-block-head">
-                  <span className="badge badge--neutral">{workoutRoleLabel(block.role)}</span>
-                  <strong>{blockFormatLabel(block.format)}</strong>
-                  {block.format === 'circuit' ? (
-                    <small className="muted">
-                      {t('workout.circuitMeta', {
-                        rounds: block.rounds_initial,
-                        rest: block.rest_after_round_s ?? 0,
-                      })}
-                    </small>
-                  ) : null}
-                  {block.format === 'superset' ? (
-                    <small className="muted">
-                      {t('workout.supersetMeta', { rest: block.rest_after_round_s ?? 0 })}
-                    </small>
-                  ) : null}
-                  {block.format === 'interval' ? (
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      onClick={() => {
-                        if (!intervalTimer.active && intervalTimer.state.phase === 'done') {
-                          intervalTimer.reset()
-                        }
-                        setSelectedIntervalBlockId(block.id)
-                        setIntervalsOpen(true)
-                      }}
-                    >
-                      {t('workout.openTimer', {
-                        rounds: block.interval_rounds ?? 0,
-                        work: block.interval_work_s ?? 0,
-                        rest: block.interval_recovery_s ?? 0,
-                      })}
-                    </button>
-                  ) : null}
-                  {block.notes ? <small className="muted">{block.notes}</small> : null}
-                </div>
-              ) : null}
-              <ExerciseCard
-              key={se.id}
-              session={active}
-              exercise={se}
-              block={block}
-              itemRef={reorder.setItemRef(index)}
-              handleProps={reorder.getHandleProps(index)}
-              gripProps={reorder.getHandleProps(index, { immediate: true })}
-              onMoveBy={(delta) => reorder.moveBy(index, delta)}
-              dragging={reorder.active?.from === index}
-              dropTarget={
-                reorder.active !== null &&
-                reorder.active.over === index &&
-                reorder.active.from !== index
-              }
-              expanded={!collapsed}
-              reorderable={collapsed && caps.canRestructureWorkout}
-              onToggleExpand={() => {
-                if (!active) return
-                setCollapsedIds((prev) => {
-                  const next = new Set(prev)
-                  if (next.has(se.id)) next.delete(se.id)
-                  else next.add(se.id)
-                  writeCollapsed(active.id, next)
-                  return next
-                })
-              }}
-              onSwap={caps.canRestructureWorkout ? () => setSwapTarget(se.id) : () => undefined}
-              canRestructure={caps.canRestructureWorkout}
-              onRestStart={(seconds) => {
-                if (!intervalTimer.active) startRest(seconds)
-              }}
-            />
-            </Fragment>
-          )})}
-          {caps.canRestructureWorkout ? (
-          <button type="button" className="btn" onClick={() => setPickerMode('add')}>
-            <IconPlus width={18} height={18} /> {t('workout.addExercise')}
-          </button>
-          ) : null}
-        </div>
+        <WorkoutLogger
+          session={active}
+          userId={store.profile?.id ?? ''}
+          canRestructure={caps.canRestructureWorkout}
+          intervalActive={intervalTimer.active}
+          defaultRestSeconds={store.profile?.default_rest_seconds ?? 90}
+          onRest={(seconds, sourceId) => {
+            if (!intervalTimer.active) startRest(seconds, { sourceId, manual: false })
+          }}
+          onCancelRestSource={cancelRestSource}
+          onSwap={(exerciseId) => setSwapTarget(exerciseId)}
+          focusToken={focusToken}
+        />
       )}
-      <span className="visually-hidden" aria-live="polite">
-        {announce}
-      </span>
 
-      {intervalTimer.active && !intervalsOpen ? (
-        <IntervalTimerDock
-          state={intervalTimer.state}
-          onOpen={() => setIntervalsOpen(true)}
-          onPause={intervalTimer.pause}
-          onResume={intervalTimer.resume}
-          onSkipPhase={intervalTimer.skipPhase}
-        />
-      ) : restRemaining !== null ? (
-        <RestChip
-          remaining={restRemaining}
-          onAdd15={() => addRestSeconds(15)}
-          onSkip={skipRest}
-        />
-      ) : null}
+      <div ref={dockRef} className="workout-dock-slot">
+        {intervalTimer.active && !intervalsOpen ? (
+          <IntervalTimerDock
+            state={intervalTimer.state}
+            onOpen={() => setIntervalsOpen(true)}
+            onPause={intervalTimer.pause}
+            onResume={intervalTimer.resume}
+            onSkipPhase={intervalTimer.skipPhase}
+          />
+        ) : restRemaining !== null ? (
+          <RestChip
+            remaining={restRemaining}
+            onAdd15={() => addRestSeconds(15)}
+            onSkip={skipRest}
+          />
+        ) : null}
+      </div>
 
       {intervalsOpen ? (
         <IntervalTimerModal
@@ -359,11 +250,11 @@ export function Workout() {
           onResume={intervalTimer.resume}
           onSkipPhase={intervalTimer.skipPhase}
           onReset={intervalTimer.reset}
-          initialConfig={selectedIntervalBlock ? {
-            prepare: selectedIntervalBlock.interval_prepare_s ?? 10,
-            work: selectedIntervalBlock.interval_work_s ?? 30,
-            rest: selectedIntervalBlock.interval_recovery_s ?? 60,
-            rounds: selectedIntervalBlock.interval_rounds ?? selectedIntervalBlock.rounds_initial,
+          initialConfig={intervalBlock ? {
+            prepare: intervalBlock.interval_prepare_s ?? 10,
+            work: intervalBlock.interval_work_s ?? 30,
+            rest: intervalBlock.interval_recovery_s ?? 60,
+            rounds: intervalBlock.interval_rounds ?? intervalBlock.rounds_initial,
           } : undefined}
         />
       ) : null}
@@ -417,6 +308,11 @@ export function Workout() {
           onClose={() => {
             setFinishOpen(false)
             setFinishError(null)
+          }}
+          onBackToNext={() => {
+            setFinishOpen(false)
+            setFinishError(null)
+            setFocusToken((token) => token + 1)
           }}
           onFinish={async (summary) => {
             setFinishError(null)
@@ -637,472 +533,38 @@ function Elapsed({ startedAt }: { startedAt: string }) {
   return <>{formatDuration(seconds)}</>
 }
 
-function collapsedStorageKey(sessionId: string): string {
-  return `herkules:collapsed:${sessionId}`
-}
-
-function readCollapsed(sessionId: string): Set<string> {
-  try {
-    const raw = sessionStorage.getItem(collapsedStorageKey(sessionId))
-    if (!raw) return new Set()
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string')) : new Set()
-  } catch {
-    return new Set()
-  }
-}
-
-function writeCollapsed(sessionId: string, ids: Set<string>): void {
-  try {
-    sessionStorage.setItem(collapsedStorageKey(sessionId), JSON.stringify([...ids]))
-  } catch {
-    /* private mode / quota — collapse still works for this mount */
-  }
-}
-
-function countCompletedSets(session: SessionDoc): number {
-  return session.session_exercises.reduce(
-    (sum, se) => sum + se.sets.filter((s) => s.completed_at !== null).length,
-    0,
-  )
-}
-
-function rangeLabel(min: number | null | undefined, max: number | null | undefined): string {
-  if (min == null && max == null) return '—'
-  if (min == null) return String(max)
-  if (max == null || min === max) return String(min)
-  return `${min}–${max}`
-}
-
-function prescriptionLabel(
-  exercise: SessionExerciseDoc,
-  units: 'metric' | 'imperial',
-): string {
-  const sets = exercise.planned_sets
-  const targetWeight = exercise.uses_backup ? null : exercise.target_weight_kg
-  if (exercise.measurement_snapshot === 'weight_reps' || exercise.measurement_snapshot === 'reps') {
-    const reps = rangeLabel(exercise.target_reps_min ?? exercise.target_reps, exercise.target_reps_max ?? exercise.target_reps)
-    const bodyweightLoad = isBodyweightLoadExercise({
-      id: exercise.exercise_id,
-      name: exercise.name_snapshot,
-    })
-    const load =
-      targetWeight != null
-        ? ` @ ${formatSetLoad(targetWeight, units, bodyweightLoad)}`
-        : bodyweightLoad
-          ? ` @ ${formatSetLoad(null, units, true)}`
-          : ''
-    return `${sets} × ${reps} ${translate('set.reps')}${load}`
-  }
-  if (exercise.measurement_snapshot === 'duration' || exercise.measurement_snapshot === 'weight_duration') {
-    const duration = rangeLabel(exercise.target_duration_min_s ?? exercise.target_duration_s, exercise.target_duration_max_s ?? exercise.target_duration_s)
-    const load = targetWeight != null ? `${formatWeight(targetWeight, units)} × ` : ''
-    return `${sets} × ${load}${duration}s`
-  }
-  const distance = rangeLabel(exercise.target_distance_min_m ?? exercise.target_distance_m, exercise.target_distance_max_m ?? exercise.target_distance_m)
-  const load = exercise.measurement_snapshot === 'weight_distance' && targetWeight != null
-    ? `${formatWeight(targetWeight, units)} × `
-    : ''
-  return `${sets} × ${load}${distance} m`
-}
-
-function ExerciseCard({
-  session,
-  exercise,
-  block,
-  itemRef,
-  handleProps,
-  gripProps,
-  onMoveBy,
-  dragging,
-  dropTarget,
-  expanded,
-  reorderable,
-  onToggleExpand,
-  onSwap,
-  onRestStart,
-  canRestructure = true,
-}: {
-  session: SessionDoc
-  exercise: SessionExerciseDoc
-  block: NonNullable<SessionDoc['session_blocks']>[number] | null
-  itemRef: (el: HTMLElement | null) => void
-  handleProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
-  gripProps: { onPointerDown(event: ReactPointerEvent<HTMLElement>): void }
-  onMoveBy(delta: number): void
-  dragging: boolean
-  dropTarget: boolean
-  expanded: boolean
-  reorderable: boolean
-  onToggleExpand(): void
-  onSwap(): void
-  onRestStart(seconds: number): void
-  canRestructure?: boolean
-}) {
-  const { t } = useT()
-  const store = useStore()
-  const units = store.profile?.unit_system ?? 'metric'
-  const shownName = displaySnapshotName(exercise.name_snapshot, exercise.exercise_id)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [backupError, setBackupError] = useState<string | null>(null)
-  const catalogExercise = exercise.exercise_id
-    ? store.exercises.find((row) => row.id === exercise.exercise_id)
-    : null
-  const catalogVideo = formVideoUrl(catalogExercise?.name ?? exercise.name_snapshot)
-  const catalogSource = catalogExercise?.source_url ?? null
-
-  const previous = useMemo(
-    () =>
-      previousSetsForExercise(
-        store.sessions,
-        exercise.exercise_id ?? '',
-        exercise.name_snapshot,
-        session.id,
-      ),
-    [store.sessions, exercise.exercise_id, exercise.name_snapshot, session.id],
-  )
-
-  function handleSetChange(next: SetRow) {
-    void store.upsertSet(session.id, next)
-  }
-
-  function handleComplete(next: SetRow) {
-    const wasCompleted = (exercise.sets.find((s) => s.id === next.id)?.completed_at ?? null) !== null
-    void store.upsertSet(session.id, next)
-    if (!wasCompleted && next.completed_at !== null && isSetGroupComplete(exercise.sets, next)) {
-      if (block?.format === 'interval') return
-      if (block?.format === 'circuit' || block?.format === 'superset') {
-        const blockExercises = session.session_exercises.filter((row) => row.session_block_id === block.id)
-        if (isBlockRoundComplete(blockExercises, next)) {
-          const rest = block.rest_after_round_s ?? exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90
-          if (rest > 0) onRestStart(rest)
-        }
-        return
-      }
-      onRestStart(exercise.rest_seconds ?? store.profile?.default_rest_seconds ?? 90)
-    }
-  }
-
-  const bodyweightLoad = isBodyweightLoadExercise({
-    id: exercise.exercise_id,
-    name: exercise.name_snapshot,
-  })
-  const exerciseIsWarmup = exercise.is_warmup === true || block?.role === 'warmup'
-
-  function addSet(asWarmup = false) {
-    if (asWarmup || exerciseIsWarmup) {
-      void store.addWarmupSets(session.id, exercise.id, [{ weightKg: null, reps: null }])
-      return
-    }
-    const position = exercise.sets.reduce((m, s) => Math.max(m, s.position), 0) + 1
-    const set: SetRow = {
-      id: newId(),
-      session_exercise_id: exercise.id,
-      position,
-      weight_kg: null,
-      reps: null,
-      duration_s: null,
-      distance_m: null,
-      rpe: null,
-      notes: null,
-      is_warmup: false,
-      completed_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-    void store.upsertSet(session.id, set)
-  }
-
-  const blockPartners = block?.format === 'superset'
-    ? session.session_exercises
-      .filter((row) => row.session_block_id === block.id && row.id !== exercise.id)
-      .map((row) => displaySnapshotName(row.name_snapshot, row.exercise_id))
-    : []
-  const partners = blockPartners.length > 0 ? blockPartners : supersetPartners(
-    session.session_exercises,
-    exercise,
-    (se) => displaySnapshotName(se.name_snapshot, se.exercise_id),
-  )
-  const logged = exercise.sets.some((set) => set.completed_at !== null)
-  const role = normalizeBlockRole(exercise.block_role)
-  const primaryName = displaySnapshotName(
-    exercise.primary_name_snapshot ?? exercise.name_snapshot,
-    exercise.primary_exercise_id ?? exercise.exercise_id,
-  )
-  const backupName = exercise.backup_name_snapshot
-    ? displaySnapshotName(exercise.backup_name_snapshot, exercise.backup_exercise_id ?? null)
-    : null
-  const targetWeight = exercise.uses_backup ? null : exercise.target_weight_kg
-
-  return (
-    <section
-      ref={itemRef}
-      className={`card workout-exercise exercise-card-item ${blockRoleClass(role)}${logged ? ' workout-exercise--logged' : ''}${expanded ? ' workout-exercise--expanded' : ' workout-exercise--collapsed'}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
-    >
-      <div className="exercise-head">
-        <div className="exercise-head__drag" {...(reorderable ? handleProps : {})}>
-          {reorderable ? (
-            <button
-              type="button"
-              className="exercise-grip"
-              aria-label={t('editor.reorder', { name: shownName })}
-              {...gripProps}
-              onKeyDown={(event) => {
-                if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
-                  event.preventDefault()
-                  onMoveBy(-1)
-                } else if (event.key === 'ArrowDown' || (event.altKey && event.key === 'ArrowDown')) {
-                  event.preventDefault()
-                  onMoveBy(1)
-                }
-              }}
-            >
-              <IconGrip width={16} height={16} />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="exercise-head__toggle"
-            aria-expanded={expanded}
-            title={expanded ? t('workout.collapseToReorder', { name: shownName }) : undefined}
-            onClick={onToggleExpand}
-          >
-            <strong className="exercise-head__title">{shownName}</strong>
-          </button>
-        </div>
-        {catalogVideo ? (
-          <a
-            href={catalogVideo}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="form-link-icon"
-            aria-label={t('editor.watchForm', { name: shownName })}
-            title={t('editor.watchForm', { name: shownName })}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span aria-hidden="true">▶️</span>
-          </a>
-        ) : null}
-      </div>
-
-      {partners.length > 0 ? (
-        <div className="exercise-superset">
-          <span className="badge badge--in-progress">{t('blockFormat.superset')}</span>
-          <span className="exercise-superset__with">
-            {t('workout.withPartners', { names: partners.join(', ') })}
-          </span>
-        </div>
-      ) : null}
-
-      {backupName ? (
-        <div className="workout-backup">
-          {exercise.uses_backup ? (
-            <span className="badge badge--planned">
-              {t('workout.backupInUse', { name: primaryName })}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn--small"
-            disabled={logged}
-            title={logged ? t('workout.backupLocked') : undefined}
-            onClick={() => {
-              setBackupError(null)
-              void store
-                .setSessionBackup(session.id, exercise.id, !exercise.uses_backup)
-                .catch((caught: unknown) => {
-                  setBackupError(
-                    caught instanceof Error ? caught.message : t('errors.backupUnavailable'),
-                  )
-                })
-            }}
-          >
-            <IconSwap width={16} height={16} />
-            {exercise.uses_backup
-              ? t('workout.returnToPrimary', { name: primaryName })
-              : t('workout.useBackup', { backup: backupName, primary: primaryName })}
-          </button>
-          {logged ? <small className="muted">{t('workout.backupLocked')}</small> : null}
-          {backupError ? <small className="field-error" role="alert">{backupError}</small> : null}
-        </div>
-      ) : null}
-
-      <div className="row row--wrap workout-prescription">
-        <span className="badge badge--neutral">{prescriptionLabel(exercise, units)}</span>
-        {exercise.target_rpe_min != null || exercise.target_rpe_max != null ? (
-          <span className="badge badge--neutral">RPE {rangeLabel(exercise.target_rpe_min, exercise.target_rpe_max)}</span>
-        ) : null}
-        {exercise.target_rir_min != null || exercise.target_rir_max != null ? (
-          <span className="badge badge--neutral">RIR {rangeLabel(exercise.target_rir_min, exercise.target_rir_max)}</span>
-        ) : null}
-        {exercise.side_mode && exercise.side_mode !== 'bilateral' ? (
-          <span className="badge badge--neutral">
-            {exercise.side_mode === 'per_leg' ? t('workout.perLeg') : t('workout.perSide')}
-          </span>
-        ) : null}
-        {exercise.tempo_intent === 'explosive' ? (
-          <span className="badge badge--in-progress">{t('workout.explosive')}</span>
-        ) : null}
-        {exerciseIsWarmup ? <span className="badge badge--planned">{t('workout.warmup')}</span> : null}
-        {block?.role === 'tendon' ? <span className="badge badge--planned">{t('workoutRole.tendon')}</span> : null}
-        {catalogSource && catalogSource !== catalogVideo ? (
-          <a
-            href={catalogSource}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="form-link-icon"
-            aria-label={t('editor.openGuide', { name: shownName })}
-            title={t('editor.openGuide', { name: shownName })}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span aria-hidden="true">📖</span>
-          </a>
-        ) : null}
-      </div>
-
-      {expanded ? (
-        <>
-      {exercise.notes ? (
-        <NotesDisclosure
-          label={t('workout.notes')}
-          preview={exercise.notes}
-          open={notesOpen}
-          onToggle={() => setNotesOpen((open) => !open)}
-          panelId={`workout-notes-${exercise.id}`}
-        >
-          <p>{exercise.notes}</p>
-        </NotesDisclosure>
-      ) : null}
-
-      <div className="exercise-meta-row">
-        {exercise.tempo ? (
-          <span className="badge badge--neutral tempo-badge" title={t('workout.prescribedTempo')}>
-            {t('editor.tempo')} {exercise.tempo}
-          </span>
-        ) : (
-          <span />
-        )}
-        {canRestructure ? (
-        <div className="row">
-          <button
-            type="button"
-            className="btn btn--icon btn--small"
-            data-no-drag
-            aria-label={t('workout.swapNamed', { name: shownName })}
-            onClick={onSwap}
-          >
-            <IconSwap width={16} height={16} />
-          </button>
-          <button
-            type="button"
-            className="btn btn--icon btn--small btn--danger"
-            data-no-drag
-            aria-label={t('workout.removeFromWorkout', { name: shownName })}
-            onClick={() => void store.removeSessionExercise(session.id, exercise.id)}
-          >
-            <IconTrash width={16} height={16} />
-          </button>
-        </div>
-        ) : (
-          <span />
-        )}
-      </div>
-
-      {previous ? (
-        <small className="muted">
-          {t('workout.previous')}{' '}
-          {previous
-            .map((set) => {
-              if (exercise.measurement_snapshot === 'weight_reps') {
-                return `${formatSetLoad(set.weight_kg, units, bodyweightLoad)} × ${set.reps ?? '–'}`
-              }
-              if (exercise.measurement_snapshot === 'reps')
-                return `${set.reps ?? '–'} ${t('set.reps')}`
-              if (exercise.measurement_snapshot === 'duration')
-                return formatDuration(set.duration_s ?? 0)
-              if (exercise.measurement_snapshot === 'weight_duration')
-                return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDuration(set.duration_s ?? 0)}`
-              if (exercise.measurement_snapshot === 'weight_distance')
-                return `${formatWeight(set.weight_kg ?? 0, units)} × ${formatDistance(set.distance_m ?? 0, units)}`
-              return t('workout.distanceInTime', {
-                distance: formatDistance(set.distance_m ?? 0, units),
-                duration: formatDuration(set.duration_s ?? 0),
-              })
-            })
-            .join(', ')}
-        </small>
-      ) : (
-        <small className="muted">{t('workout.firstTime')}</small>
-      )}
-
-      <div className="stack" style={{ gap: '0.35rem' }}>
-        {exercise.sets.map((set, setIndex) => (
-          <SetEditor
-            key={set.id}
-            index={setIndex}
-            set={set}
-            measurement={exercise.measurement_snapshot}
-            units={units}
-            bodyweightLoad={bodyweightLoad}
-            suggestion={{
-              weight: weightForInput(targetWeight ?? previous?.[setIndex]?.weight_kg ?? null, units),
-              reps: exercise.target_reps_min != null || exercise.target_reps_max != null
-                ? rangeLabel(exercise.target_reps_min, exercise.target_reps_max)
-                : previous?.[setIndex]?.reps != null ? String(previous[setIndex]?.reps) : '',
-              duration: exercise.target_duration_min_s != null || exercise.target_duration_max_s != null
-                ? `${rangeLabel(exercise.target_duration_min_s, exercise.target_duration_max_s)}s`
-                : previous?.[setIndex]?.duration_s != null ? formatDuration(previous[setIndex]?.duration_s ?? 0) : '',
-              distance: distanceForInput(exercise.target_distance_m ?? previous?.[setIndex]?.distance_m ?? null, units),
-            }}
-            onChange={handleSetChange}
-            onComplete={handleComplete}
-            onDelete={() => void store.deleteSet(session.id, exercise.id, set.id)}
-          />
-        ))}
-        <div className="row row--wrap" style={{ gap: '0.4rem' }}>
-          <AddSetButton onAdd={() => addSet(false)} />
-          {exerciseIsWarmup ? null : (
-            <AddSetButton onAdd={() => addSet(true)} label={t('set.addWarmup')} />
-          )}
-        </div>
-        {exercise.planned_sets > exercise.sets.length ? (
-          <small className="muted">
-            {t('workout.morePlanned', {
-              count: exercise.planned_sets - exercise.sets.length,
-            })}
-          </small>
-        ) : null}
-      </div>
-        </>
-      ) : null}
-
-    </section>
-  )
-}
-
 function FinishModal({
   session,
   busy,
   error,
   onClose,
+  onBackToNext,
   onFinish,
 }: {
   session: SessionDoc
   busy: boolean
   error: string | null
   onClose(): void
+  onBackToNext(): void
   onFinish(summary: { notes: string | null; rpe: number | null }): Promise<void>
 }) {
   const { t } = useT()
+  const [notesOpen, setNotesOpen] = useState(false)
   const [notes, setNotes] = useState(session.notes ?? '')
   const [rpe, setRpe] = useState<string>(session.rpe === null ? '' : String(session.rpe))
-  const completed = countCompletedSets(session)
+  const progress = sessionFlowProgress(session)
   const suggestions = progressionSuggestions(session)
   const store = useStore()
-  const [acceptProgression, setAcceptProgression] = useState(suggestions.length > 0)
+  const [acceptProgression, setAcceptProgression] = useState(false)
+  const [confirmEmpty, setConfirmEmpty] = useState(false)
+  const diagnosis = diagnoseSessionDuration(session)
+  const nothingLogged = progress.workDone === 0 && progress.warmupDone === 0
 
   async function submit() {
-    if (completed === 0 && !window.confirm(t('workout.finishEmpty'))) return
+    if (nothingLogged && !confirmEmpty) {
+      setConfirmEmpty(true)
+      return
+    }
     if (acceptProgression) await store.applyProgressionSuggestions(session.id)
     await onFinish({
       notes: notes.trim() === '' ? null : notes.trim(),
@@ -1111,60 +573,66 @@ function FinishModal({
   }
 
   return (
-    <Modal title={t('workout.finishTitle')} onClose={onClose}>
-      <div className="field">
-        <label htmlFor="finish-notes">{t('workout.finishNotes')}</label>
-        <textarea
-          id="finish-notes"
-          className="input"
-          rows={3}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder={t('workout.notesPlaceholder')}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="finish-rpe">{t('workout.sessionRpe')}</label>
-        <select id="finish-rpe" className="input" value={rpe} onChange={(e) => setRpe(e.target.value)}>
-          <option value="">{t('common.notSet')}</option>
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="muted">
-        {t('workout.completedSummary', {
-          count: completed,
-          duration: formatDuration(elapsedOf(session)),
-        })}
+    <BottomSheet title={t('workout.finishTitle')} onClose={onClose}>
+      <p className="workout-finish-summary">
+        {t('workout.finishWorkDone', { done: progress.workDone, total: progress.workTotal })}
       </p>
+      {progress.workTotal > progress.workDone ? (
+        <p>{t('workout.finishWorkLeft', { count: progress.workTotal - progress.workDone })}</p>
+      ) : null}
+      <p>{t('workout.finishWarmup', { done: progress.warmupDone, total: progress.warmupTotal })}</p>
+      <p className="muted">{formatDuration(elapsedOf(session))}</p>
+      {diagnosis.unusuallyLong ? <p className="muted">{t('workout.longSession')}</p> : null}
+      {confirmEmpty ? <p role="alert">{t('workout.finishEmptyBody')}</p> : null}
+      <button type="button" className="btn btn--block" onClick={onBackToNext}>
+        {t('workout.finishBack')}
+      </button>
+      <button type="button" className="notes-toggle" aria-expanded={notesOpen} onClick={() => setNotesOpen((open) => !open)}>
+        {t('workout.finishNotes')} · {t('workout.sessionRpe')}
+      </button>
+      {notesOpen ? (
+        <>
+          <div className="field">
+            <label htmlFor="finish-notes">{t('workout.finishNotes')}</label>
+            <textarea
+              id="finish-notes"
+              className="input"
+              rows={3}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder={t('workout.notesPlaceholder')}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="finish-rpe">{t('workout.sessionRpe')}</label>
+            <select id="finish-rpe" className="input" value={rpe} onChange={(event) => setRpe(event.target.value)}>
+              <option value="">{t('common.notSet')}</option>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : null}
       {suggestions.length > 0 ? (
         <label className="card row" style={{ alignItems: 'flex-start' }}>
           <input type="checkbox" checked={acceptProgression} onChange={(event) => setAcceptProgression(event.target.checked)} />
           <span>
-            <strong>{t('workout.applyDouble')}</strong>
-            <small className="muted" style={{ display: 'block' }}>
-              {suggestions.map((row) => `${row.exerciseName}: ${row.fromWeightKg} → ${row.toWeightKg} kg`).join(' · ')}
-            </small>
+            {t('workout.progressionPrompt', {
+              change: suggestions.map((row) => t('workout.progressionChange', {
+                name: row.exerciseName,
+                from: row.fromWeightKg,
+                to: row.toWeightKg,
+              })).join(' · '),
+            })}
           </span>
         </label>
       ) : null}
-      {error ? (
-        <p className="field-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <button
-        type="button"
-        className="btn btn--accent btn--block"
-        disabled={busy}
-        onClick={() => void submit()}
-      >
-        {busy ? t('workout.finishing') : t('workout.finishConfirm')}
+      {error ? <p className="field-error" role="alert">{error}</p> : null}
+      <button type="button" className="btn btn--accent btn--block" disabled={busy} onClick={() => void submit()}>
+        {busy ? t('workout.finishing') : nothingLogged ? t('workout.finishAnyway') : t('workout.finishConfirm')}
       </button>
-    </Modal>
+    </BottomSheet>
   )
 }
 

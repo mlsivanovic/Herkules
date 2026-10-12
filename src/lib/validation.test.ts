@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  confirmSetDraft,
+  parseDecimalDraft,
   parseDurationInput,
   parseNonNegative,
+  parseRepsDraft,
   validateEmail,
   validateHttpsUrl,
   validatePassword,
   validateRpe,
+  type SetDraftInput,
 } from './validation'
 
 describe('auth field validation', () => {
@@ -47,6 +51,75 @@ describe('optional https link', () => {
     expect(validateHttpsUrl('https://example.com/how-to')).toBeNull()
     expect(validateHttpsUrl('http://example.com')).toBeTruthy()
     expect(validateHttpsUrl('example.com')).toBeTruthy()
+  })
+})
+
+const draft = (patch: Partial<SetDraftInput> = {}): SetDraftInput => ({
+  weight: '',
+  bodyweight: false,
+  reps: '',
+  duration: '',
+  distance: '',
+  rpe: '',
+  ...patch,
+})
+
+describe('decimal and rep drafts', () => {
+  it('keeps a trailing separator partial and accepts comma or dot', () => {
+    expect(parseDecimalDraft('')).toEqual({ kind: 'empty' })
+    expect(parseDecimalDraft('82.')).toEqual({ kind: 'partial' })
+    expect(parseDecimalDraft('82,')).toEqual({ kind: 'partial' })
+    expect(parseDecimalDraft('82.5')).toEqual({ kind: 'ok', value: 82.5 })
+    expect(parseDecimalDraft('82,5')).toEqual({ kind: 'ok', value: 82.5 })
+    expect(parseDecimalDraft('0')).toEqual({ kind: 'ok', value: 0 })
+    expect(parseDecimalDraft('-2')).toEqual({ kind: 'ok', value: -2 })
+    expect(parseDecimalDraft('abc')).toEqual({ kind: 'invalid' })
+    expect(parseDecimalDraft('1e2')).toEqual({ kind: 'invalid' })
+  })
+
+  it('does not round a decimal repetition', () => {
+    expect(parseRepsDraft('8')).toEqual({ kind: 'ok', value: 8 })
+    expect(parseRepsDraft('8.')).toEqual({ kind: 'partial' })
+    expect(parseRepsDraft('8.5')).toEqual({ kind: 'invalid' })
+    expect(parseRepsDraft('8,5')).toEqual({ kind: 'invalid' })
+    expect(parseRepsDraft('')).toEqual({ kind: 'empty' })
+  })
+})
+
+describe('confirmSetDraft', () => {
+  it('rejects an empty weight-reps set and accepts explicit zero or bodyweight', () => {
+    expect(confirmSetDraft('weight_reps', draft(), 'metric').ok).toBe(false)
+    const zero = confirmSetDraft('weight_reps', draft({ weight: '0', reps: '5' }), 'metric')
+    expect(zero).toMatchObject({ ok: true, metrics: { weight_kg: 0, reps: 5 } })
+    const bw = confirmSetDraft('weight_reps', draft({ bodyweight: true, reps: '8' }), 'metric')
+    expect(bw).toMatchObject({ ok: true, metrics: { weight_kg: 0, reps: 8 } })
+    const emptyLoad = confirmSetDraft('weight_reps', draft({ reps: '8' }), 'metric', { bodyweightLoad: true })
+    expect(emptyLoad).toMatchObject({ ok: true, metrics: { weight_kg: 0, reps: 8 } })
+  })
+
+  it('rejects zero reps and decimal reps without rounding', () => {
+    expect(confirmSetDraft('reps', draft({ reps: '0' }), 'metric')).toMatchObject({ ok: false, field: 'reps' })
+    expect(confirmSetDraft('reps', draft({ reps: '8.5' }), 'metric')).toMatchObject({ ok: false, field: 'reps' })
+    expect(confirmSetDraft('weight_reps', draft({ weight: '82,', reps: '8' }), 'metric')).toMatchObject({
+      ok: false,
+      field: 'weight',
+    })
+  })
+
+  it('requires duration and distance for those measurements and converts imperial', () => {
+    expect(confirmSetDraft('duration', draft({ duration: '0' }), 'metric').ok).toBe(false)
+    expect(confirmSetDraft('duration', draft({ duration: '1:30' }), 'metric')).toMatchObject({
+      ok: true,
+      metrics: { duration_s: 90 },
+    })
+    expect(confirmSetDraft('distance_duration', draft({ duration: '20:00', distance: '5,2' }), 'metric')).toMatchObject({
+      ok: true,
+      metrics: { duration_s: 1200, distance_m: 5200 },
+    })
+    const imperial = confirmSetDraft('weight_reps', draft({ weight: '10', reps: '5' }), 'imperial')
+    expect(imperial.ok).toBe(true)
+    if (imperial.ok) expect(imperial.metrics.weight_kg).toBeCloseTo(4.54, 1)
+    expect(confirmSetDraft('weight_distance', draft({ weight: '20', distance: '0' }), 'metric').ok).toBe(false)
   })
 })
 

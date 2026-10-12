@@ -1,6 +1,6 @@
 // Chronological history list: every finished and skipped workout, grouped
 // by month. Detail review and post-hoc editing live on /history/:id.
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import type { SessionDoc } from '../types/db'
@@ -31,6 +31,14 @@ export function History() {
   const store = useStore()
   const navigate = useNavigate()
   const units = store.profile?.unit_system ?? 'metric'
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('herkules:history-scroll')
+    if (!raw) return
+    const y = Number(raw)
+    if (Number.isFinite(y)) window.scrollTo(0, y)
+  }, [])
 
   const finished = useMemo(
     () =>
@@ -42,17 +50,22 @@ export function History() {
         }),
     [store.sessions],
   )
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return finished
+    return finished.filter((session) => session.name.toLowerCase().includes(needle))
+  }, [finished, query])
 
   const groups = useMemo(() => {
     const map = new Map<string, SessionDoc[]>()
-    for (const session of finished) {
+    for (const session of visible) {
       const month = dayKey(session).slice(0, 7)
       const list = map.get(month) ?? []
       list.push(session)
       map.set(month, list)
     }
     return [...map.entries()]
-  }, [finished])
+  }, [visible])
 
   if (!store.ready) return <Loader />
 
@@ -68,11 +81,25 @@ export function History() {
         </span>
       </div>
 
+      <div className="field">
+        <label htmlFor="history-search">{t('history.search')}</label>
+        <input
+          id="history-search"
+          className="input"
+          type="search"
+          value={query}
+          placeholder={t('history.searchPlaceholder')}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+
       {finished.length === 0 ? (
         <EmptyState
           title={t('history.emptyTitle')}
           hint={t('history.emptyHint')}
         />
+      ) : visible.length === 0 ? (
+        <EmptyState title={t('history.noMatch')} hint={t('history.search')} />
       ) : (
         groups.map(([month, sessions]) => (
           <section key={month}>
@@ -103,18 +130,19 @@ export function History() {
                     key={session.id}
                     type="button"
                     className="card exercise-card history-row"
-                    onClick={() => void navigate(`/history/${session.id}`)}
+                    onClick={() => {
+                      sessionStorage.setItem('herkules:history-scroll', String(window.scrollY))
+                      void navigate(`/history/${session.id}`)
+                    }}
                   >
-                    <span className="row row--between">
-                      <span>
-                        <strong>{formatDateShort(dayKey(session))}</strong>{' '}
-                        <span className="muted">{session.name}</span>{' '}
-                        <StatusBadge
-                          status={session.status === 'skipped' ? 'skipped' : 'completed'}
-                        />
-                      </span>
-                      <small className="muted">{summary}</small>
+                    <span className="history-row__title">
+                      <strong>{formatDateShort(dayKey(session))}</strong>
+                      <span className="history-row__name">{session.name}</span>
+                      <StatusBadge
+                        status={session.status === 'skipped' ? 'skipped' : 'completed'}
+                      />
                     </span>
+                    <span className="history-row__metrics">{summary}</span>
                   </button>
                 )
               })}

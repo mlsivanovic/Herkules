@@ -1,31 +1,24 @@
-// Routine editor: exercise order, planned sets, targets, rest, notes and
-// superset/circuit grouping.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+// Routine editor: compact exercise list with a per-exercise bottom sheet,
+// planned sets, targets, rest, notes and superset/circuit grouping.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore, newId, type TemplateItemInput } from '../lib/store'
 import type { ExerciseMeasurement } from '../types/db'
-import { EmptyState, Modal, NotesDisclosure } from '../components/ui'
-import { ExercisePicker, MEASUREMENT_LABELS } from '../components/ExercisePicker'
+import { EmptyState, Modal } from '../components/ui'
+import { ExercisePicker } from '../components/ExercisePicker'
+import { ExerciseItemSheet } from '../components/ExerciseItemSheet'
 import { validateRequiredName } from '../lib/validation'
 import { blockRoles, blockRoleClass, normalizeBlockRole } from '../lib/blockRole'
 import {
   blockFormatLabel,
-  categoryLabel,
   displayExerciseName,
   useT,
   workoutRoleLabel,
 } from '../lib/i18n'
 import { moveIndex, supersetPartners } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
-import {
-  distanceForInput,
-  distanceToM,
-  distanceUnitLabel,
-  weightForInput,
-  weightToKg,
-  weightUnitLabel,
-} from '../lib/units'
-import { IconChevronDown, IconCopy, IconGrip, IconPlus, IconTrash } from '../components/Icons'
+import { summarizePlannedItem } from '../lib/routineSummary'
+import { IconChevronDown, IconGrip, IconMore, IconPlus } from '../components/Icons'
 import { isPoolTemplate, templatePlanIds } from '../lib/programs/plans'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { formVideoUrl } from '../lib/video'
@@ -71,47 +64,54 @@ function newItem(exerciseId: string, position: number, isWarmup = false): Templa
   }
 }
 
-function structuredTempo(
-  item: TemplateItemInput,
-  patch: Partial<TemplateItemInput>,
-): string | null {
-  const next = { ...item, ...patch }
-  const hasPhase = [
-    next.tempo_eccentric,
-    next.tempo_stretch_pause,
-    next.tempo_concentric,
-    next.tempo_contracted_pause,
-  ].some((value) => value != null)
-  if (!hasPhase) return next.tempo ?? null
-  return [
-    next.tempo_eccentric ?? 0,
-    next.tempo_stretch_pause ?? 0,
-    next.tempo_intent === 'explosive' ? 'X' : next.tempo_concentric ?? 0,
-    next.tempo_contracted_pause ?? 0,
-  ].join('-')
-}
-
 const NEW_PLAN = '__new__'
 
-function hasAdvancedParams(item: TemplateItemInput): boolean {
+export interface MenuItem {
+  key: string
+  label: string
+  danger?: boolean
+  disabled?: boolean
+  onSelect(): void
+}
+
+/** Small anchored popover menu in the Material overflow-menu style. */
+function OverflowMenu({ label, items, onClose }: { label: string; items: MenuItem[]; onClose(): void }) {
+  const popRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    popRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    item.target_rpe_min != null ||
-    item.target_rpe_max != null ||
-    item.target_rir_min != null ||
-    item.target_rir_max != null ||
-    item.load_increment_kg != null ||
-    (item.side_mode != null && item.side_mode !== 'bilateral') ||
-    (item.directions != null && item.directions !== 1) ||
-    item.tempo_eccentric != null ||
-    item.tempo_stretch_pause != null ||
-    item.tempo_concentric != null ||
-    item.tempo_contracted_pause != null ||
-    (item.tempo_intent != null && item.tempo_intent !== 'controlled')
+    <>
+      <div className="menu-backdrop" onPointerDown={onClose} aria-hidden="true" />
+      <div ref={popRef} className="menu-pop" data-no-drag role="menu" aria-label={label}>
+        {items.map((menuItem) => (
+          <button
+            key={menuItem.key}
+            type="button"
+            role="menuitem"
+            className={`menu-pop__item${menuItem.danger ? ' menu-pop__item--danger' : ''}`}
+            disabled={menuItem.disabled}
+            onClick={() => {
+              menuItem.onSelect()
+              onClose()
+            }}
+          >
+            {menuItem.label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 }
 
 export function RoutineEditor() {
-  const { t } = useT()
+  const { t, locale } = useT()
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -135,11 +135,13 @@ export function RoutineEditor() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
-  const [openNotes, setOpenNotes] = useState<Record<number, boolean>>({})
-  const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [openAdvanced, setOpenAdvanced] = useState<Record<number, boolean>>({})
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>(queryPlan ? [queryPlan] : [])
   const [announce, setAnnounce] = useState('')
+  const [sheetIndex, setSheetIndex] = useState<number | null>(null)
+  const [rowMenuIndex, setRowMenuIndex] = useState<number | null>(null)
+  const [barMenuOpen, setBarMenuOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(isNew)
+  const reopenSheetRef = useRef(false)
 
   useEffect(() => {
     if (template && loadedFor !== template.id) {
@@ -162,8 +164,9 @@ export function RoutineEditor() {
             }
           }),
       )
-      setExpanded(new Set())
-      setOpenAdvanced({})
+      setSheetIndex(null)
+      setRowMenuIndex(null)
+      setDetailsOpen(false)
       setLoadedFor(template.id)
     }
   }, [template, templateItems, templateBlocks, planRoutines, loadedFor])
@@ -175,18 +178,7 @@ export function RoutineEditor() {
 
   const moveTo = useCallback((from: number, to: number) => {
     setItems((prev) => moveIndex(prev, from, to))
-    setOpenNotes({})
-    setOpenAdvanced({})
-    setExpanded((prev) => {
-      const next = new Set<number>()
-      for (const index of prev) {
-        if (index === from) next.add(to)
-        else if (from < to && index > from && index <= to) next.add(index - 1)
-        else if (to < from && index >= to && index < from) next.add(index + 1)
-        else next.add(index)
-      }
-      return next
-    })
+    setRowMenuIndex(null)
   }, [])
 
   const reorder = usePointerReorder({
@@ -201,6 +193,16 @@ export function RoutineEditor() {
 
   function update(index: number, patch: Partial<TemplateItemInput>) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)))
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index))
+    setRowMenuIndex(null)
+    setSheetIndex((current) => {
+      if (current === null) return null
+      if (current === index) return null
+      return current > index ? current - 1 : current
+    })
   }
 
   /** Toggle superset grouping on an item: consecutive items sharing a group
@@ -223,6 +225,80 @@ export function RoutineEditor() {
       return next
     })
   }
+
+  function openBackupPicker(index: number, fromSheet: boolean) {
+    // The picker is a modal: close the sheet first so the two overlays
+    // never stack, then reopen it when the picker closes.
+    reopenSheetRef.current = fromSheet
+    if (fromSheet) setSheetIndex(null)
+    setBackupPickerIndex(index)
+  }
+
+  function closeBackupPicker() {
+    const pickedFor = backupPickerIndex
+    setBackupPickerIndex(null)
+    if (reopenSheetRef.current && pickedFor !== null) {
+      setSheetIndex(pickedFor)
+    }
+    reopenSheetRef.current = false
+  }
+
+  function describeItem(index: number) {
+    const item = items[index]
+    if (!item) return null
+    const exercise = exerciseById.get(item.exercise_id)
+    const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
+    const itemName = exercise ? displayExerciseName(exercise) : t('editor.unknownExercise')
+    const backupExercise = item.backup_exercise_id
+      ? exerciseById.get(item.backup_exercise_id)
+      : null
+    const backupName = backupExercise ? displayExerciseName(backupExercise) : null
+    const itemBlock = item.block_id
+      ? templateBlocks.find((block) => block.id === item.block_id) ?? null
+      : null
+    const partnerName = (row: TemplateItemInput) => {
+      const partner = exerciseById.get(row.exercise_id)
+      return partner ? displayExerciseName(partner) : t('editor.unknownExercise')
+    }
+    const blockPartners = itemBlock?.format === 'superset'
+      ? items
+        .filter((row) => row.block_id === item.block_id && row !== item)
+        .map(partnerName)
+      : []
+    const legacyPartners = supersetPartners(items, item, partnerName)
+    const partners = blockPartners.length > 0 ? blockPartners : legacyPartners
+    const role = normalizeBlockRole(item.block_role)
+    return {
+      item,
+      name: itemName,
+      summary: summarizePlannedItem(item, measurement, units, locale),
+      exercise,
+      backupName,
+      partners,
+      role,
+      grouped: Boolean(item.superset_group) || itemBlock?.format === 'superset',
+      inBlock: itemBlock !== null,
+      blockBadge: itemBlock ? workoutRoleLabel(itemBlock.role) : null,
+      blockFormat: itemBlock ? blockFormatLabel(itemBlock.format) : '',
+      videoHref: formVideoUrl(exercise?.name),
+      bodyweightLoad: isBodyweightLoadExercise({ id: exercise?.id, name: exercise?.name }),
+    }
+  }
+
+  const sheet = sheetIndex !== null ? describeItem(sheetIndex) : null
+
+  const detailsHint = (() => {
+    const firstLine = notes.trim().split('\n')[0]
+    if (firstLine) return firstLine
+    if (!isNew && pool) {
+      const names = selectedPlanIds
+        .map((planId) => plans.find((plan) => plan.id === planId)?.name)
+        .filter((value): value is string => Boolean(value))
+      return names.length > 0 ? names.join(', ') : t('editor.noneUnassigned')
+    }
+    if (planChoice === NEW_PLAN) return newPlanName.trim() || t('editor.newPlan')
+    return plans.find((plan) => plan.id === planChoice)?.name ?? t('editor.noneUnassigned')
+  })()
 
   async function save() {
     const validation = validateRequiredName(name, t('editor.routineName'))
@@ -318,6 +394,105 @@ export function RoutineEditor() {
     }
   }
 
+  function copyRoutine() {
+    if (!template) return
+    void store
+      .cloneTemplate(template.id)
+      .then((copy) => {
+        void navigate(`/routines/${copy.id}`)
+      })
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : t('errors.copyRoutine'))
+      })
+  }
+
+  function exportRoutine() {
+    if (!template) return
+    void store
+      .exportRoutines([template.id])
+      .then((json) => {
+        downloadTextFile(
+          routinesExportFilename(template.name),
+          json,
+          'application/json',
+        )
+      })
+      .catch((caught: unknown) => {
+        setError(
+          caught instanceof Error ? caught.message : t('errors.exportRoutine'),
+        )
+      })
+  }
+
+  function rowMenuItems(index: number, itemName: string, hasBackup: boolean): MenuItem[] {
+    return [
+      {
+        key: 'edit',
+        label: t('editor.editAction'),
+        onSelect: () => setSheetIndex(index),
+      },
+      {
+        key: 'up',
+        label: t('editor.moveUp'),
+        disabled: index === 0,
+        onSelect: () => reorder.moveBy(index, -1),
+      },
+      {
+        key: 'down',
+        label: t('editor.moveDown'),
+        disabled: index === items.length - 1,
+        onSelect: () => reorder.moveBy(index, 1),
+      },
+      {
+        key: 'backup',
+        label: hasBackup ? t('editor.changeBackupExercise') : t('editor.addBackupExercise'),
+        onSelect: () => openBackupPicker(index, false),
+      },
+      {
+        key: 'remove',
+        label: t('editor.removeNamed', { name: itemName }),
+        danger: true,
+        onSelect: () => removeItem(index),
+      },
+    ]
+  }
+
+  const barMenuItems: MenuItem[] = template
+    ? [
+        ...(locked
+          ? []
+          : [
+              {
+                key: 'copy',
+                label: t('editor.copyRoutine'),
+                onSelect: copyRoutine,
+              } as MenuItem,
+            ]),
+        {
+          key: 'export',
+          label: t('routines.export'),
+          onSelect: exportRoutine,
+        },
+        {
+          key: 'delete',
+          label: t('common.delete'),
+          danger: true,
+          onSelect: () => void removeRoutine(),
+        },
+        {
+          key: 'back',
+          label: t('common.back'),
+          onSelect: () => void navigate('/routines'),
+        },
+      ]
+    : [
+        {
+          key: 'back',
+          label: t('common.back'),
+          onSelect: () => void navigate('/routines'),
+        },
+      ]
+
   return (
     <div>
       <div className="page-head">
@@ -334,116 +509,112 @@ export function RoutineEditor() {
           onChange={(e) => setName(e.target.value)}
         />
       </div>
-      <div className="field">
-        <label htmlFor="routine-notes">{t('editor.notes')}</label>
-        <textarea
-          id="routine-notes"
-          className="input"
-          rows={2}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
-      {!isNew && pool ? (
-        <fieldset className="field">
-          <legend>{t('editor.usedInPlans')}</legend>
-          <p className="muted" style={{ margin: '0 0 0.45rem' }}>
-            {t('editor.poolPlansHint')}
-          </p>
-          <div className="stack">
-            {plans.map((plan) => (
-              <label key={plan.id} className="field field--check">
-                <input
-                  type="checkbox"
-                  checked={selectedPlanIds.includes(plan.id)}
-                  onChange={(event) => {
-                    setSelectedPlanIds((prev) =>
-                      event.target.checked
-                        ? [...prev, plan.id]
-                        : prev.filter((value) => value !== plan.id),
-                    )
-                  }}
-                />
-                <span>{plan.name}</span>
-              </label>
-            ))}
-            <label className="field field--check">
-              <input
-                type="checkbox"
-                checked={planChoice === NEW_PLAN}
-                onChange={(event) => setPlanChoice(event.target.checked ? NEW_PLAN : '')}
+
+      <div className="advanced-block routine-details">
+        <button
+          type="button"
+          className="advanced-toggle"
+          aria-expanded={detailsOpen}
+          aria-controls="routine-details-body"
+          onClick={() => setDetailsOpen((open) => !open)}
+        >
+          <span className="advanced-toggle__label">{t('editor.details')}</span>
+          <span className="muted advanced-toggle__hint">{detailsHint}</span>
+          <IconChevronDown className="advanced-toggle__chevron" width={14} height={14} />
+        </button>
+        {detailsOpen ? (
+          <div className="routine-details__body" id="routine-details-body">
+            <div className="field">
+              <label htmlFor="routine-notes">{t('editor.notes')}</label>
+              <textarea
+                id="routine-notes"
+                className="input"
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
               />
-              <span>{t('editor.newPlan')}</span>
-            </label>
+            </div>
+            {!isNew && pool ? (
+              <fieldset className="field">
+                <legend>{t('editor.usedInPlans')}</legend>
+                <p className="muted" style={{ margin: '0 0 0.45rem' }}>
+                  {t('editor.poolPlansHint')}
+                </p>
+                <div className="stack">
+                  {plans.map((plan) => (
+                    <label key={plan.id} className="field field--check">
+                      <input
+                        type="checkbox"
+                        checked={selectedPlanIds.includes(plan.id)}
+                        onChange={(event) => {
+                          setSelectedPlanIds((prev) =>
+                            event.target.checked
+                              ? [...prev, plan.id]
+                              : prev.filter((value) => value !== plan.id),
+                          )
+                        }}
+                      />
+                      <span>{plan.name}</span>
+                    </label>
+                  ))}
+                  <label className="field field--check">
+                    <input
+                      type="checkbox"
+                      checked={planChoice === NEW_PLAN}
+                      onChange={(event) => setPlanChoice(event.target.checked ? NEW_PLAN : '')}
+                    />
+                    <span>{t('editor.newPlan')}</span>
+                  </label>
+                </div>
+              </fieldset>
+            ) : (
+              <div className="field">
+                <label htmlFor="routine-plan">{t('editor.trainingPlan')}</label>
+                <select
+                  id="routine-plan"
+                  className="input"
+                  value={planChoice}
+                  onChange={(e) => setPlanChoice(e.target.value)}
+                >
+                  <option value="">{t('editor.noneUnassigned')}</option>
+                  {plans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name}
+                    </option>
+                  ))}
+                  <option value={NEW_PLAN}>{t('editor.newPlan')}</option>
+                </select>
+              </div>
+            )}
+            {planChoice === NEW_PLAN ? (
+              <div className="field">
+                <label htmlFor="routine-new-plan">{t('editor.newPlanName')}</label>
+                <input
+                  id="routine-new-plan"
+                  className="input"
+                  placeholder={t('editor.planNamePlaceholder')}
+                  value={newPlanName}
+                  onChange={(e) => setNewPlanName(e.target.value)}
+                />
+              </div>
+            ) : null}
           </div>
-        </fieldset>
-      ) : (
-        <div className="field">
-          <label htmlFor="routine-plan">{t('editor.trainingPlan')}</label>
-          <select
-            id="routine-plan"
-            className="input"
-            value={planChoice}
-            onChange={(e) => setPlanChoice(e.target.value)}
-          >
-            <option value="">{t('editor.noneUnassigned')}</option>
-            {plans.map((plan) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.name}
-              </option>
-            ))}
-            <option value={NEW_PLAN}>{t('editor.newPlan')}</option>
-          </select>
-        </div>
-      )}
-      {planChoice === NEW_PLAN ? (
-        <div className="field">
-          <label htmlFor="routine-new-plan">{t('editor.newPlanName')}</label>
-          <input
-            id="routine-new-plan"
-            className="input"
-            placeholder={t('editor.planNamePlaceholder')}
-            value={newPlanName}
-            onChange={(e) => setNewPlanName(e.target.value)}
-          />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div className="section-title">{t('editor.exercises')}</div>
       {items.length === 0 ? (
-        <p className="muted">{t('editor.noExercises')}</p>
+        <>
+          <p className="muted">{t('editor.noExercises')}</p>
+          <button type="button" className="btn btn--block" onClick={() => setPickerOpen(true)}>
+            <IconPlus width={18} height={18} /> {t('editor.addExercise')}
+          </button>
+        </>
       ) : (
         <ol className="routine-items">
           {items.map((item, index) => {
-            const exercise = exerciseById.get(item.exercise_id)
-            const measurement: ExerciseMeasurement = exercise?.measurement ?? 'weight_reps'
-            const name = exercise ? displayExerciseName(exercise) : t('editor.unknownExercise')
-            const backupExercise = item.backup_exercise_id
-              ? exerciseById.get(item.backup_exercise_id)
-              : null
-            const backupName = backupExercise ? displayExerciseName(backupExercise) : null
-            const itemBlock = item.block_id
-              ? templateBlocks.find((block) => block.id === item.block_id) ?? null
-              : null
-            const partnerName = (row: TemplateItemInput) => {
-              const partner = exerciseById.get(row.exercise_id)
-              return partner ? displayExerciseName(partner) : t('editor.unknownExercise')
-            }
-            const blockPartners = itemBlock?.format === 'superset'
-              ? items
-                .filter((row) => row.block_id === item.block_id && row !== item)
-                .map(partnerName)
-              : []
-            const legacyPartners = supersetPartners(items, item, partnerName)
-            const partners = blockPartners.length > 0 ? blockPartners : legacyPartners
-            const notesOpen = Boolean(openNotes[index])
-            const isExpanded = expanded.has(index)
-            const role = normalizeBlockRole(item.block_role)
-            const bodyweightLoad = isBodyweightLoadExercise({
-              id: exercise?.id,
-              name: exercise?.name,
-            })
-            const videoHref = formVideoUrl(exercise?.name)
+            const described = describeItem(index)
+            if (!described) return null
             const dragging = reorder.active?.from === index
             const dropTarget =
               reorder.active !== null &&
@@ -453,547 +624,77 @@ export function RoutineEditor() {
               <li
                 key={item.id ?? `draft-${index}`}
                 ref={reorder.setItemRef(index)}
-                className={`exercise-card-item ${blockRoleClass(item.block_role)}${item.superset_group || itemBlock?.format === 'superset' ? ' routine-item--superset' : ''}${isExpanded ? ' routine-item--expanded' : ' routine-item--collapsed'}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+                className={`exercise-card-item routine-row ${blockRoleClass(item.block_role)}${described.grouped ? ' routine-row--superset' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
               >
-                <div className="exercise-head">
-                  <div className="exercise-head__drag" {...reorder.getHandleProps(index)}>
-                    <button
-                      type="button"
-                      className="exercise-grip"
-                      aria-label={t('editor.reorder', { name })}
-                      {...reorder.getHandleProps(index, { immediate: true })}
-                      onKeyDown={(event) => {
-                        if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
-                          event.preventDefault()
-                          reorder.moveBy(index, -1)
-                        } else if (
-                          event.key === 'ArrowDown' ||
-                          (event.altKey && event.key === 'ArrowDown')
-                        ) {
-                          event.preventDefault()
-                          reorder.moveBy(index, 1)
-                        }
-                      }}
-                    >
-                      <IconGrip width={16} height={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className="exercise-head__toggle"
-                      aria-expanded={isExpanded}
-                      aria-label={isExpanded ? t('editor.collapseNamed', { name }) : t('editor.expandNamed', { name })}
-                      onClick={() =>
-                        setExpanded((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(index)) next.delete(index)
-                          else next.add(index)
-                          return next
-                        })
-                      }
-                    >
-                      <strong className="exercise-head__title">{name}</strong>
-                    </button>
-                  </div>
-                  {videoHref ? (
-                    <a
-                      href={videoHref}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="form-link-icon"
-                      aria-label={t('editor.watchForm', { name })}
-                      title={t('editor.watchForm', { name })}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <span aria-hidden="true">▶️</span>
-                    </a>
-                  ) : null}
-                  {isExpanded ? null : (
-                    <>
-                      <span className={`badge role-chip role-chip--${role} is-selected`}>
-                        {blockRoles().find((row) => row.value === role)?.label ?? role}
-                      </span>
-                      {item.is_warmup ? (
-                        <span className="badge badge--planned">{t('workout.warmup')}</span>
-                      ) : null}
-                      {backupName ? (
-                        <span className="badge badge--neutral">
-                          {t('editor.backupBadge', { name: backupName })}
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="btn btn--icon btn--small btn--danger"
-                        data-no-drag
-                        aria-label={t('editor.removeNamed', { name })}
-                        onClick={() => {
-                          setItems((prev) => prev.filter((_, i) => i !== index))
-                          setExpanded((prev) => {
-                            const next = new Set<number>()
-                            for (const value of prev) {
-                              if (value === index) continue
-                              next.add(value > index ? value - 1 : value)
-                            }
-                            return next
-                          })
-                        }}
-                      >
-                        <IconTrash width={16} height={16} />
-                      </button>
-                    </>
-                  )}
-                </div>
-                {isExpanded ? (
-                <>
-                {exercise?.source_url && exercise.source_url !== videoHref ? (
-                  <div className="exercise-guide-row">
-                    <a
-                      href={exercise.source_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="form-link-icon"
-                      aria-label={t('editor.openGuide', { name })}
-                      title={t('editor.openGuide', { name })}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <span aria-hidden="true">📖</span>
-                    </a>
-                  </div>
-                ) : null}
-                {partners.length > 0 ? (
-                  <div className="exercise-superset">
-                    <span className="badge badge--in-progress">{t('blockFormat.superset')}</span>
-                    <span className="exercise-superset__with">
-                      {t('editor.withPartners', { names: partners.join(', ') })}
-                    </span>
-                  </div>
-                ) : null}
-                {item.block_id ? (
-                  <div className="exercise-superset">
-                    <span className="badge badge--neutral">
-                      {itemBlock ? workoutRoleLabel(itemBlock.role) : t('blockFormat.straight')}
-                    </span>
-                    <span className="exercise-superset__with">
-                      {itemBlock ? blockFormatLabel(itemBlock.format) : ''}
-                    </span>
-                  </div>
-                ) : null}
-                <div className="row row--wrap" role="group" aria-label={t('editor.roleFor', { name })}>
-                  {blockRoles().map((chip) => (
-                    <button
-                      key={chip.value}
-                      type="button"
-                      className={`btn btn--small role-chip role-chip--${chip.value}${role === chip.value ? ' is-selected' : ''}`}
-                      aria-pressed={role === chip.value}
-                      onClick={() => update(index, { block_role: chip.value })}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-                <label className="field field--check">
-                  <input
-                    type="checkbox"
-                    checked={item.is_warmup === true}
-                    onChange={(event) => update(index, { is_warmup: event.target.checked })}
-                  />
-                  <span>{t('editor.warmupExercise')}</span>
-                </label>
-
-                <div className="routine-backup">
-                  <div>
-                    <strong>{t('editor.backupExercise')}</strong>
-                    <small className="muted">
-                      {backupName ?? t('editor.noBackupExercise')}
-                    </small>
-                  </div>
-                  <div className="row row--wrap">
-                    <button
-                      type="button"
-                      className="btn btn--small"
-                      onClick={() => setBackupPickerIndex(index)}
-                    >
-                      {backupName ? t('editor.changeBackupExercise') : t('editor.addBackupExercise')}
-                    </button>
-                    {backupName ? (
-                      <button
-                        type="button"
-                        className="btn btn--small btn--ghost"
-                        aria-label={t('editor.removeBackupNamed', { name: backupName })}
-                        onClick={() => update(index, { backup_exercise_id: null })}
-                      >
-                        {t('common.remove')}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="exercise-meta-row">
-                  <small className="muted">
-                    {exercise ? categoryLabel(exercise.category) : ''} · {MEASUREMENT_LABELS(measurement)}
-                  </small>
+                <div className="routine-row__top" {...reorder.getHandleProps(index)}>
                   <button
                     type="button"
-                    className="btn btn--icon btn--small btn--danger"
-                    data-no-drag
-                    aria-label={t('editor.removeNamed', { name })}
-                    onClick={() => {
-                      setItems((prev) => prev.filter((_, i) => i !== index))
-                      setExpanded((prev) => {
-                        const next = new Set<number>()
-                        for (const value of prev) {
-                          if (value === index) continue
-                          next.add(value > index ? value - 1 : value)
-                        }
-                        return next
-                      })
+                    className="exercise-grip"
+                    aria-label={t('editor.reorder', { name: described.name })}
+                    {...reorder.getHandleProps(index, { immediate: true })}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowUp' || (event.altKey && event.key === 'ArrowUp')) {
+                        event.preventDefault()
+                        reorder.moveBy(index, -1)
+                      } else if (
+                        event.key === 'ArrowDown' ||
+                        (event.altKey && event.key === 'ArrowDown')
+                      ) {
+                        event.preventDefault()
+                        reorder.moveBy(index, 1)
+                      }
                     }}
                   >
-                    <IconTrash width={16} height={16} />
+                    <IconGrip width={16} height={16} />
                   </button>
-                </div>
-
-                <div className="routine-grid">
-                  <label className="field">
-                    <span>{t('editor.sets')}</span>
-                    <input
-                      className="input input--cell"
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={item.planned_sets}
-                      onChange={(e) =>
-                        update(index, {
-                          planned_sets: Math.max(1, Math.min(30, Number(e.target.value) || 1)),
-                        })
-                      }
-                    />
-                  </label>
-
-                  {measurement === 'weight_reps' ? (
-                    <>
-                      <label className="field">
-                        <span>
-                          {bodyweightLoad
-                            ? t('editor.addedLoad', { unit: weightUnitLabel(units) })
-                            : t('editor.targetWeight', { unit: weightUnitLabel(units) })}
-                        </span>
-                        <input
-                          className="input input--cell"
-                          type="number"
-                          min={0}
-                          step="0.5"
-                          value={weightForInput(item.target_weight_kg, units)}
-                          placeholder={bodyweightLoad ? t('set.bodyweight') : undefined}
-                          onChange={(e) =>
-                            update(index, {
-                              target_weight_kg:
-                                e.target.value === '' ? null : weightToKg(Number(e.target.value), units),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.minReps')}</span>
-                        <input
-                          className="input input--cell"
-                          type="number"
-                          min={0}
-                          value={item.target_reps_min ?? item.target_reps ?? ''}
-                          onChange={(e) => update(index, { target_reps_min: e.target.value === '' ? null : Number(e.target.value) })}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.maxReps')}</span>
-                        <input
-                          className="input input--cell"
-                          type="number"
-                          min={0}
-                          value={item.target_reps_max ?? item.target_reps ?? ''}
-                          onChange={(e) =>
-                            update(index, {
-                              target_reps: e.target.value === '' ? null : Number(e.target.value),
-                              target_reps_max: e.target.value === '' ? null : Number(e.target.value),
-                            })
-                          }
-                        />
-                      </label>
-                    </>
-                  ) : null}
-
-                  {measurement === 'reps' ? (
-                    <>
-                    <label className="field">
-                      <span>{t('editor.minReps')}</span>
-                      <input
-                        className="input input--cell"
-                        type="number"
-                        min={0}
-                        value={item.target_reps_min ?? item.target_reps ?? ''}
-                        onChange={(e) =>
-                          update(index, {
-                            target_reps_min: e.target.value === '' ? null : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>{t('editor.maxReps')}</span>
-                      <input className="input input--cell" type="number" min={0} value={item.target_reps_max ?? item.target_reps ?? ''} onChange={(e) => update(index, { target_reps: e.target.value === '' ? null : Number(e.target.value), target_reps_max: e.target.value === '' ? null : Number(e.target.value) })} />
-                    </label>
-                    </>
-                  ) : null}
-
-                  {measurement === 'weight_distance' ? (
-                    <>
-                      <label className="field">
-                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
-                        <input className="input input--cell" type="number" min={0} step="0.5" value={weightForInput(item.target_weight_kg, units)} onChange={(e) => update(index, { target_weight_kg: e.target.value === '' ? null : weightToKg(Number(e.target.value), units) })} />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.minDistance', { unit: distanceUnitLabel(units) })}</span>
-                        <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_min_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_min_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.maxDistance', { unit: distanceUnitLabel(units) })}</span>
-                        <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
-                      </label>
-                    </>
-                  ) : null}
-
-                  {measurement === 'weight_duration' ? (
-                    <>
-                      <label className="field">
-                        <span>{t('editor.targetWeight', { unit: weightUnitLabel(units) })}</span>
-                        <input
-                          className="input input--cell"
-                          type="number"
-                          min={0}
-                          step="0.5"
-                          value={weightForInput(item.target_weight_kg, units)}
-                          onChange={(e) =>
-                            update(index, {
-                              target_weight_kg:
-                                e.target.value === '' ? null : weightToKg(Number(e.target.value), units),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.minHold')}</span>
-                        <input
-                          className="input input--cell"
-                          type="number"
-                          min={0}
-                          value={item.target_duration_min_s ?? item.target_duration_s ?? ''}
-                          onChange={(e) =>
-                            update(index, {
-                              target_duration_min_s: e.target.value === '' ? null : Number(e.target.value),
-                            })
-                          }
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.maxHold')}</span>
-                        <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
-                      </label>
-                    </>
-                  ) : null}
-
-                  {measurement === 'duration' || measurement === 'distance_duration' ? (
-                    <>
-                      <label className="field">
-                        <span>{t('editor.minSeconds')}</span>
-                        <input className="input input--cell" type="number" min={0} value={item.target_duration_min_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_min_s: e.target.value === '' ? null : Number(e.target.value) })} />
-                      </label>
-                      <label className="field">
-                        <span>{t('editor.maxSeconds')}</span>
-                        <input className="input input--cell" type="number" min={0} value={item.target_duration_max_s ?? item.target_duration_s ?? ''} onChange={(e) => update(index, { target_duration_s: e.target.value === '' ? null : Number(e.target.value), target_duration_max_s: e.target.value === '' ? null : Number(e.target.value) })} />
-                      </label>
-                    </>
-                  ) : null}
-
-                  {measurement === 'distance_duration' ? (
-                    <>
-                      <label className="field">
-                      <span>{t('editor.minDistance', { unit: distanceUnitLabel(units) })}</span>
-                      <input
-                        className="input input--cell"
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        value={distanceForInput(item.target_distance_min_m ?? item.target_distance_m, units)}
-                        onChange={(e) =>
-                          update(index, {
-                            target_distance_min_m:
-                              e.target.value === '' ? null : distanceToM(Number(e.target.value), units),
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>{t('editor.maxDistance', { unit: distanceUnitLabel(units) })}</span>
-                      <input className="input input--cell" type="number" min={0} step="0.1" value={distanceForInput(item.target_distance_max_m ?? item.target_distance_m, units)} onChange={(e) => update(index, { target_distance_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units), target_distance_max_m: e.target.value === '' ? null : distanceToM(Number(e.target.value), units) })} />
-                    </label>
-                    </>
-                  ) : null}
-
-                  <label className="field">
-                    <span>{t('editor.tempo')}</span>
-                    <input
-                      className="input input--cell"
-                      type="text"
-                      inputMode="text"
-                      placeholder="3-0-1"
-                      maxLength={16}
-                      value={item.tempo ?? ''}
-                      onChange={(e) =>
-                        update(index, {
-                          tempo: e.target.value.trim() === '' ? null : e.target.value.trim(),
-                        })
-                      }
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span>{t('editor.rest')}</span>
-                    <input
-                      className="input input--cell"
-                      type="number"
-                      min={0}
-                      max={3600}
-                      value={item.rest_seconds ?? ''}
-                      onChange={(e) =>
-                        update(index, {
-                          rest_seconds: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-
-                <div className={`advanced-block${hasAdvancedParams(item) ? ' advanced-block--filled' : ''}`}>
                   <button
                     type="button"
-                    className="advanced-toggle"
+                    className="routine-row__main"
+                    aria-label={t('editor.editExercise', { name: described.name })}
+                    onClick={() => {
+                      setRowMenuIndex(null)
+                      setSheetIndex(index)
+                    }}
+                  >
+                    <strong className="routine-row__title">{described.name}</strong>
+                    <span className="routine-row__meta">{described.summary}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--icon btn--ghost routine-row__menu-btn"
                     data-no-drag
-                    aria-expanded={Boolean(openAdvanced[index])}
-                    aria-controls={`routine-advanced-${item.id ?? index}`}
+                    aria-label={t('editor.exerciseOptions', { name: described.name })}
+                    aria-expanded={rowMenuIndex === index}
+                    aria-haspopup="menu"
                     onClick={() =>
-                      setOpenAdvanced((prev) => ({ ...prev, [index]: !prev[index] }))
+                      setRowMenuIndex((current) => (current === index ? null : index))
                     }
                   >
-                    <span className="advanced-toggle__label">
-                      {openAdvanced[index] ? t('editor.hideAdvanced') : t('editor.showAdvanced')}
-                    </span>
-                    <span className="muted advanced-toggle__hint">{t('editor.advancedHint')}</span>
-                    <IconChevronDown className="advanced-toggle__chevron" width={14} height={14} />
+                    <IconMore width={20} height={20} />
                   </button>
-                  {openAdvanced[index] ? (
-                    <div className="routine-grid" id={`routine-advanced-${item.id ?? index}`}>
-                  {([
-                    ['tempo_eccentric', 'editor.eccentric'],
-                    ['tempo_stretch_pause', 'editor.stretchPause'],
-                    ['tempo_concentric', 'editor.concentric'],
-                    ['tempo_contracted_pause', 'editor.contractedPause'],
-                  ] as const).map(([field, labelKey]) => (
-                    <label className="field" key={field}>
-                      <span>{t(labelKey)}</span>
-                      <input
-                        className="input input--cell"
-                        type="number"
-                        min={0}
-                        step="0.5"
-                        value={item[field] ?? ''}
-                        onChange={(e) => {
-                          const patch = { [field]: e.target.value === '' ? null : Number(e.target.value) }
-                          update(index, { ...patch, tempo: structuredTempo(item, patch) })
-                        }}
-                      />
-                    </label>
-                  ))}
-                  <label className="field">
-                    <span>{t('editor.sideMode')}</span>
-                    <select className="input input--cell" value={item.side_mode ?? 'bilateral'} onChange={(e) => update(index, { side_mode: e.target.value as NonNullable<TemplateItemInput['side_mode']> })}>
-                      <option value="bilateral">{t('editor.bilateral')}</option>
-                      <option value="per_side">{t('editor.perSide')}</option>
-                      <option value="per_leg">{t('editor.perLeg')}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.directions')}</span>
-                    <input className="input input--cell" type="number" min={1} max={4} value={item.directions ?? 1} onChange={(e) => update(index, { directions: Math.max(1, Math.min(4, Number(e.target.value) || 1)) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.rpeMin')}</span>
-                    <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_min ?? ''} onChange={(e) => update(index, { target_rpe_min: e.target.value === '' ? null : Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.rpeMax')}</span>
-                    <input className="input input--cell" type="number" min={1} max={10} step="0.5" value={item.target_rpe_max ?? ''} onChange={(e) => update(index, { target_rpe_max: e.target.value === '' ? null : Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.rirMin')}</span>
-                    <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_min ?? ''} onChange={(e) => update(index, { target_rir_min: e.target.value === '' ? null : Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.rirMax')}</span>
-                    <input className="input input--cell" type="number" min={0} max={10} step="0.5" value={item.target_rir_max ?? ''} onChange={(e) => update(index, { target_rir_max: e.target.value === '' ? null : Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.loadIncrement')}</span>
-                    <input className="input input--cell" type="number" min={0} step="0.5" value={item.load_increment_kg ?? ''} onChange={(e) => update(index, { load_increment_kg: e.target.value === '' ? null : Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>{t('editor.tempoIntent')}</span>
-                    <select className="input input--cell" value={item.tempo_intent ?? 'controlled'} onChange={(e) => {
-                      const patch = { tempo_intent: e.target.value as 'controlled' | 'explosive' }
-                      update(index, { ...patch, tempo: structuredTempo(item, patch) })
-                    }}>
-                      <option value="controlled">{t('editor.controlled')}</option>
-                      <option value="explosive">{t('editor.explosive')}</option>
-                    </select>
-                  </label>
-                    </div>
+                </div>
+                <div className="routine-row__tags">
+                  <span className={`badge role-chip role-chip--${described.role} is-selected`}>
+                    {blockRoles().find((row) => row.value === described.role)?.label ?? described.role}
+                  </span>
+                  {item.is_warmup ? (
+                    <span className="badge badge--planned">{t('workout.warmup')}</span>
+                  ) : null}
+                  {described.grouped ? (
+                    <span className="badge badge--in-progress">{t('blockFormat.superset')}</span>
+                  ) : null}
+                  {described.backupName ? (
+                    <span className="badge badge--neutral routine-row__backup">
+                      {t('editor.shortBackupBadge', { name: described.backupName })}
+                    </span>
                   ) : null}
                 </div>
-
-                <NotesDisclosure
-                  label={item.notes ? t('editor.notesItem') : t('editor.addNotes')}
-                  preview={item.notes}
-                  open={notesOpen}
-                  filled={Boolean(item.notes)}
-                  onToggle={() =>
-                    setOpenNotes((prev) => ({ ...prev, [index]: !prev[index] }))
-                  }
-                  panelId={`routine-notes-${item.id ?? index}`}
-                >
-                  <label className="field">
-                    <span className="visually-hidden">{t('editor.notesItem')}</span>
-                    <textarea
-                      className="input"
-                      rows={2}
-                      placeholder={t('editor.notesPlaceholder')}
-                      value={item.notes ?? ''}
-                      onChange={(e) =>
-                        update(index, { notes: e.target.value === '' ? null : e.target.value })
-                      }
-                    />
-                  </label>
-                </NotesDisclosure>
-
-                {itemBlock ? (
-                  <small className="muted">{t('editor.groupingV2')}</small>
-                ) : (
-                  <button
-                    type="button"
-                    className={`btn btn--small ${item.superset_group ? 'btn--accent' : ''}`}
-                    aria-pressed={Boolean(item.superset_group)}
-                    onClick={() => toggleSuperset(index)}
-                  >
-                    {item.superset_group ? t('editor.inSuperset') : t('editor.supersetNext')}
-                  </button>
-                )}
-                </>
+                {rowMenuIndex === index ? (
+                  <OverflowMenu
+                    label={t('editor.exerciseOptions', { name: described.name })}
+                    items={rowMenuItems(index, described.name, described.backupName !== null)}
+                    onClose={() => setRowMenuIndex(null)}
+                  />
                 ) : null}
               </li>
             )
@@ -1004,73 +705,51 @@ export function RoutineEditor() {
         {announce}
       </span>
 
-      <button type="button" className="btn" style={{ marginTop: '0.75rem' }} onClick={() => setPickerOpen(true)}>
-        <IconPlus width={18} height={18} /> {t('editor.addExercise')}
-      </button>
-
       {error ? (
         <p className="field-error" role="alert" style={{ marginTop: '0.75rem' }}>
           {error}
         </p>
       ) : null}
 
-      <div className="row row--wrap editor-save">
-        {locked ? <p className="muted">{t('errors.assignedReadOnly')}</p> : null}
-        <button type="button" className="btn btn--primary" onClick={() => void save()} disabled={busy || locked}>
+      {locked ? <p className="muted">{t('errors.assignedReadOnly')}</p> : null}
+      <div className="editor-bar">
+        <button
+          type="button"
+          className="btn btn--primary editor-bar__save"
+          onClick={() => void save()}
+          disabled={busy || locked}
+        >
           {busy ? t('common.saving') : t('editor.saveRoutine')}
         </button>
-        {!isNew && template ? (
-          <>
-            {locked ? null : (
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => {
-                  void store
-                    .cloneTemplate(template.id)
-                    .then((copy) => {
-                      void navigate(`/routines/${copy.id}`)
-                    })
-                    .catch((caught: unknown) => {
-                      setError(caught instanceof Error ? caught.message : t('errors.copyRoutine'))
-                    })
-                }}
-              >
-                <IconCopy width={16} height={16} /> {t('editor.copyRoutine')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                void store
-                  .exportRoutines([template.id])
-                  .then((json) => {
-                    downloadTextFile(
-                      routinesExportFilename(template.name),
-                      json,
-                      'application/json',
-                    )
-                  })
-                  .catch((caught: unknown) => {
-                    setError(
-                      caught instanceof Error ? caught.message : t('errors.exportRoutine'),
-                    )
-                  })
-              }}
-            >
-              {t('routines.export')}
-            </button>
-            <button type="button" className="btn btn--danger" onClick={() => void removeRoutine()}>
-              {t('common.delete')}
-            </button>
-          </>
-        ) : null}
-        <button type="button" className="btn btn--ghost" onClick={() => void navigate('/routines')}>
-          {t('common.back')}
+        <button
+          type="button"
+          className="btn editor-bar__add"
+          onClick={() => setPickerOpen(true)}
+          aria-label={t('editor.addExercise')}
+          title={t('editor.addExercise')}
+        >
+          <IconPlus width={18} height={18} />
+          <span className="editor-bar__add-label">{t('editor.addExercise')}</span>
         </button>
+        <div className="editor-bar__menu">
+          <button
+            type="button"
+            className="btn btn--icon"
+            aria-label={t('editor.routineOptions')}
+            aria-expanded={barMenuOpen}
+            aria-haspopup="menu"
+            onClick={() => setBarMenuOpen((open) => !open)}
+          >
+            <IconMore width={20} height={20} />
+          </button>
+          {barMenuOpen ? (
+            <OverflowMenu
+              label={t('editor.routineOptions')}
+              items={barMenuItems}
+              onClose={() => setBarMenuOpen(false)}
+            />
+          ) : null}
+        </div>
       </div>
 
       {pickerOpen ? (
@@ -1081,17 +760,40 @@ export function RoutineEditor() {
             onSelect={(exerciseId, options) => {
               const nextIndex = items.length
               setItems((prev) => [...prev, newItem(exerciseId, prev.length, options?.isWarmup === true)])
-              setExpanded((keys) => new Set(keys).add(nextIndex))
+              setSheetIndex(nextIndex)
             }}
           />
         </Modal>
+      ) : null}
+
+      {sheet && sheetIndex !== null ? (
+        <ExerciseItemSheet
+          item={sheet.item}
+          name={sheet.name}
+          summary={sheet.summary}
+          exercise={sheet.exercise}
+          backupName={sheet.backupName}
+          partners={sheet.partners}
+          blockBadge={sheet.blockBadge}
+          blockFormat={sheet.blockFormat}
+          inBlock={sheet.inBlock}
+          units={units}
+          videoHref={sheet.videoHref}
+          bodyweightLoad={sheet.bodyweightLoad}
+          onPatch={(patch) => update(sheetIndex, patch)}
+          onToggleSuperset={() => toggleSuperset(sheetIndex)}
+          onPickBackup={() => openBackupPicker(sheetIndex, true)}
+          onClearBackup={() => update(sheetIndex, { backup_exercise_id: null })}
+          onRemove={() => removeItem(sheetIndex)}
+          onClose={() => setSheetIndex(null)}
+        />
       ) : null}
 
       {backupPickerIndex !== null && items[backupPickerIndex] ? (
         <ExercisePicker
           title={t('editor.chooseBackupExercise')}
           excludeIds={[items[backupPickerIndex].exercise_id]}
-          onClose={() => setBackupPickerIndex(null)}
+          onClose={closeBackupPicker}
           onSelect={(exerciseId) => {
             update(backupPickerIndex, { backup_exercise_id: exerciseId })
           }}

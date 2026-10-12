@@ -225,7 +225,10 @@ export function Calendar() {
             aerobic={selectedAerobic}
             onStart={(templateId, scheduleId) => {
               setSelectedDay(null)
+              // The day sheet is the current history entry. Replace it so Back
+              // returns to the month instead of that extra slot.
               void navigate('/workout', {
+                replace: true,
                 state: { templateId, scheduleItemId: scheduleId, plannedDate: selectedDay },
               })
             }}
@@ -351,7 +354,10 @@ function DayDetail({
               <button
                 type="button"
                 className="calendar-session-open"
-                onClick={() => void navigate(`/history/${session.id}`)}
+                onClick={() => {
+                  // Replace the day-sheet entry so this review is not popped on close.
+                  void navigate(`/history/${session.id}`, { replace: true })
+                }}
               >
                 <span>{session.name}</span>
                 <StatusBadge status={sessionBadge(session.status)} />

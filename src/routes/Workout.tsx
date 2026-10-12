@@ -321,7 +321,8 @@ export function Workout() {
               await store.finishSession(active.id, summary)
               intervalTimer.reset()
               skipRest()
-              void navigate(`/history/${active.id}`)
+              // Replace the finish sheet's history entry so Back does not return to it.
+              void navigate(`/history/${active.id}`, { replace: true })
             } catch (caught) {
               setFinishError(
                 caught instanceof Error ? caught.message : t('errors.finishWorkout'),

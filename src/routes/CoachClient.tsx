@@ -19,6 +19,7 @@ import { aerobicGoalSeconds, resolveAerobicGoalMinutes } from '../lib/aerobicGoa
 import { aerobicSecondsInWeek } from '../lib/prescription'
 import { formatLoggedSet } from '../lib/setDisplay'
 import { sessionVolume } from '../lib/metrics'
+import { sessionDurationSeconds } from '../lib/sessionDuration'
 import { formatDuration, formatGirth, formatWeight } from '../lib/units'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import type {
@@ -32,10 +33,7 @@ import './coach.css'
 
 function durationOf(session: SessionDoc): number | null {
   if (!session.ended_at) return null
-  return Math.max(
-    0,
-    Math.round((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000),
-  )
+  return sessionDurationSeconds(session)
 }
 
 const GIRTH_FIELDS: { key: MessageKey; read: (row: BodyMeasureRow) => number | null }[] = [

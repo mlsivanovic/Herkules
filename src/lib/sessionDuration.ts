@@ -1,4 +1,6 @@
-// Read-only notes for an unusually long session. Nothing here rewrites history.
+// Logged workout length runs from Start workout to the last completed set.
+// Finish only closes the session. A late tap must not stretch the clock, including
+// for sessions that were already saved. No set timestamps are rewritten.
 
 export const LONG_SESSION_SECONDS = 4 * 60 * 60
 const GAP_AFTER_LAST_SET_SECONDS = 30 * 60
@@ -13,7 +15,6 @@ export interface DurationDiagnosis {
 
 interface DurationSet {
   completed_at: string | null
-  updated_at: string
   is_warmup?: boolean
 }
 
@@ -27,7 +28,40 @@ interface DurationBlock {
   role: string
 }
 
-/** Explain a long clock span without clipping it or ignoring later conditioning. */
+interface DurationSession {
+  started_at: string
+  ended_at: string | null
+  session_exercises?: DurationExercise[]
+}
+
+/** Latest moment a set was logged. Incomplete planned sets do not count. */
+export function lastLoggedSetMs(session: DurationSession): number | null {
+  let last = Number.NEGATIVE_INFINITY
+  for (const exercise of session.session_exercises ?? []) {
+    for (const set of exercise.sets) {
+      if (!set.completed_at) continue
+      const time = new Date(set.completed_at).getTime()
+      if (Number.isFinite(time) && time > last) last = time
+    }
+  }
+  return Number.isFinite(last) ? last : null
+}
+
+/**
+ * Seconds from start to the last logged set.
+ * With no completed sets, falls back to `ended_at`, then to `nowMs` when given.
+ */
+export function sessionDurationSeconds(session: DurationSession, nowMs?: number): number | null {
+  const start = new Date(session.started_at).getTime()
+  if (!Number.isFinite(start)) return null
+  const lastSet = lastLoggedSetMs(session)
+  const ended = session.ended_at ? new Date(session.ended_at).getTime() : Number.NaN
+  const end = lastSet ?? (Number.isFinite(ended) ? ended : nowMs)
+  if (end == null || !Number.isFinite(end)) return null
+  return Math.max(0, Math.round((end - start) / 1000))
+}
+
+/** Explain a long logged span. Later conditioning still counts, because it is a logged set. */
 export function diagnoseSessionDuration(
   session: {
     status: string
@@ -38,26 +72,19 @@ export function diagnoseSessionDuration(
   },
   nowMs = Date.now(),
 ): DurationDiagnosis {
-  const start = new Date(session.started_at).getTime()
-  const end = session.ended_at ? new Date(session.ended_at).getTime() : nowMs
-  const elapsedSeconds = Number.isFinite(start) && Number.isFinite(end)
-    ? Math.max(0, Math.round((end - start) / 1000))
-    : 0
+  const elapsedSeconds = sessionDurationSeconds(session, nowMs) ?? 0
   const unusuallyLong = elapsedSeconds > LONG_SESSION_SECONDS
   if (!unusuallyLong) return { elapsedSeconds, unusuallyLong: false, flags: [] }
 
   const flags: DurationFlag[] = []
   if (session.status === 'in_progress' || !session.ended_at) flags.push('open_session')
 
-  const completedTimes = session.session_exercises
-    .flatMap((exercise) => exercise.sets)
-    .filter((set) => set.completed_at)
-    .map((set) => new Date(set.completed_at ?? set.updated_at).getTime())
-    .filter((time) => Number.isFinite(time))
-  if (session.ended_at && completedTimes.length > 0) {
-    const last = Math.max(...completedTimes)
+  const lastSet = lastLoggedSetMs(session)
+  if (session.ended_at && lastSet != null) {
     const ended = new Date(session.ended_at).getTime()
-    if (ended - last > GAP_AFTER_LAST_SET_SECONDS * 1000) flags.push('gap_after_last_set')
+    if (Number.isFinite(ended) && ended - lastSet > GAP_AFTER_LAST_SET_SECONDS * 1000) {
+      flags.push('gap_after_last_set')
+    }
   }
 
   const conditioningIds = new Set(

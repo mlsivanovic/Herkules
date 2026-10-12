@@ -8,7 +8,7 @@ import { formatDateLong } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { sessionVolume } from '../lib/metrics'
-import { diagnoseSessionDuration } from '../lib/sessionDuration'
+import { diagnoseSessionDuration, sessionDurationSeconds } from '../lib/sessionDuration'
 import { blockRoleClass } from '../lib/blockRole'
 import { EmptyState, Loader, Modal, StatusBadge } from '../components/ui'
 import { SetEditor, AddSetButton } from '../components/SetEditor'
@@ -29,12 +29,7 @@ export function HistoryDetail() {
 
   const duration = useMemo(() => {
     if (!session?.ended_at) return null
-    return Math.max(
-      0,
-      Math.round(
-        (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000,
-      ),
-    )
+    return sessionDurationSeconds(session)
   }, [session])
 
   const units = store.profile?.unit_system ?? 'metric'

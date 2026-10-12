@@ -7,6 +7,7 @@ import type {
   SetRow,
 } from '../types/db'
 import { addDays, isoWeekday, startOfWeek, type DateKey } from './dates'
+import { sessionDurationSeconds } from './sessionDuration'
 
 /** A set counts toward stats once it has been checked (completed). */
 export function isCompleted(set: SetRow): boolean {
@@ -468,10 +469,7 @@ export interface Totals {
 /** Totals over completed sessions. */
 export function sessionTotals(sessions: SessionDoc[]): Totals {
   const completed = sessions.filter((s) => s.status === 'completed')
-  const minutes = completed.reduce((sum, s) => {
-    if (!s.ended_at) return sum
-    return sum + (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60000
-  }, 0)
+  const minutes = completed.reduce((sum, s) => sum + (sessionDurationSeconds(s) ?? 0) / 60, 0)
   return {
     workouts: completed.length,
     totalMinutes: Math.round(minutes),

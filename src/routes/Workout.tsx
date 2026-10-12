@@ -9,7 +9,7 @@ import { formatDuration } from '../lib/units'
 import { BottomSheet, EmptyState, Loader, Modal } from '../components/ui'
 import { WorkoutLogger } from '../components/WorkoutLogger'
 import { sessionFlowProgress } from '../lib/workoutFlow'
-import { diagnoseSessionDuration } from '../lib/sessionDuration'
+import { diagnoseSessionDuration, sessionDurationSeconds } from '../lib/sessionDuration'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { IntervalTimerDock, IntervalTimerModal } from '../components/IntervalTimer'
 import { progressionSuggestions } from '../lib/prescription'
@@ -524,6 +524,8 @@ function StartScreen({ onStarted, error }: { onStarted(): void; error: string | 
   )
 }
 
+// Keeps ticking while the workout is open, including rest between sets.
+// The length saved on finish stops at the last logged set.
 function Elapsed({ startedAt }: { startedAt: string }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -638,8 +640,7 @@ function FinishModal({
 }
 
 function elapsedOf(session: SessionDoc): number {
-  const end = session.ended_at ? new Date(session.ended_at).getTime() : Date.now()
-  return Math.max(0, Math.floor((end - new Date(session.started_at).getTime()) / 1000))
+  return sessionDurationSeconds(session, Date.now()) ?? 0
 }
 
 function RestChip({

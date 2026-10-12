@@ -408,6 +408,21 @@ describe('aggregations', () => {
     expect(totals.avgMinutes).toBe(53)
   })
 
+  it('stops a completed session at the last logged set when finish was late', () => {
+    const late = makeSession({
+      id: 'late',
+      started_at: '2026-08-17T10:00:00Z',
+      ended_at: '2026-08-17T18:00:00Z',
+      session_exercises: [
+        makeSessionEx({}, [
+          makeSet({ completed_at: '2026-08-17T10:40:00Z' }),
+          makeSet({ completed_at: '2026-08-17T11:00:00Z' }),
+        ]),
+      ],
+    })
+    expect(sessionTotals([late]).totalMinutes).toBe(60)
+  })
+
   it('zero-fills weekly volume buckets', () => {
     const weeks = weeklyVolume([], 4, 'monday', '2026-08-19')
     expect(weeks).toHaveLength(4)

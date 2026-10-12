@@ -7,6 +7,7 @@ import type { SessionDoc } from '../types/db'
 import { formatDateShort, formatMonthLabel } from '../lib/dates'
 import { formatDuration, formatWeight } from '../lib/units'
 import { sessionVolume } from '../lib/metrics'
+import { sessionDurationSeconds } from '../lib/sessionDuration'
 import { EmptyState, Loader, StatusBadge } from '../components/ui'
 import { useT } from '../lib/i18n'
 import './history.css'
@@ -18,12 +19,7 @@ function dayKey(session: SessionDoc): string {
 
 function durationOf(session: SessionDoc): number | null {
   if (!session.ended_at) return null
-  return Math.max(
-    0,
-    Math.round(
-      (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000,
-    ),
-  )
+  return sessionDurationSeconds(session)
 }
 
 export function History() {

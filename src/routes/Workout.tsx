@@ -17,7 +17,6 @@ import {
   IconChevronLeft,
   IconPlay,
   IconPlus,
-  IconMore,
   IconSun,
   IconTimer,
   IconTrash,
@@ -70,7 +69,6 @@ export function Workout() {
     wakeLockEnabled && active !== null,
   )
   const startingRef = useRef(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [focusToken, setFocusToken] = useState(0)
   const dockRef = useRef<HTMLDivElement>(null)
   const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
@@ -141,22 +139,24 @@ export function Workout() {
             <IconChevronLeft width={22} height={22} />
           </button>
           <h1 className="workout-title">{active.name}</h1>
-          <button
-            type="button"
-            className={`btn workout-finish${finishReady ? ' btn--primary' : ''}`}
-            onClick={() => setFinishOpen(true)}
-          >
-            {t('workout.finish')}
-          </button>
-          <button
-            type="button"
-            className="btn btn--icon"
-            aria-label={t('workout.menu')}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <IconMore width={18} height={18} />
-          </button>
+          <div className="workout-header__end">
+            <button
+              type="button"
+              className="btn btn--icon btn--danger workout-discard"
+              aria-label={t('workout.discard')}
+              title={t('workout.discard')}
+              onClick={() => setDiscardOpen(true)}
+            >
+              <IconTrash width={22} height={22} />
+            </button>
+            <button
+              type="button"
+              className={`btn workout-finish${finishReady ? ' btn--primary' : ''}`}
+              onClick={() => setFinishOpen(true)}
+            >
+              {t('workout.finish')}
+            </button>
+          </div>
         </div>
         <div className="workout-header__meta">
           <div className="workout-header__stats">
@@ -171,27 +171,35 @@ export function Workout() {
               <span className="workout-stat__label" aria-hidden="true">{t('workout.setsLabel')}</span>
             </span>
           </div>
-        </div>
-        {menuOpen ? (
-          <div className="workout-menu">
+          <div className="workout-header__tools">
             {wakeLockSupported ? (
-              <button type="button" className="btn" onClick={() => setWakeLockEnabled((prev) => !prev)}>
-                <IconSun width={18} height={18} /> {wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+              <button
+                type="button"
+                className={`btn btn--icon workout-tool${wakeLockEnabled ? ' is-on' : ''}`}
+                aria-pressed={wakeLockEnabled}
+                aria-label={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+                title={wakeLocked ? t('workout.wakeLockEnabled') : t('workout.wakeLockDisabled')}
+                onClick={() => setWakeLockEnabled((prev) => !prev)}
+              >
+                <IconSun width={26} height={26} />
               </button>
             ) : null}
-            <button type="button" className="btn" onClick={() => { setMenuOpen(false); setIntervalsOpen(true) }}>
-              <IconTimer width={18} height={18} /> {t('workout.intervalTimer')}
+            <button
+              type="button"
+              className={`btn btn--icon workout-tool${intervalTimer.active ? ' is-on' : ''}`}
+              aria-label={t('workout.intervalTimer')}
+              title={t('workout.intervalTimer')}
+              onClick={() => setIntervalsOpen(true)}
+            >
+              <IconTimer width={26} height={26} />
             </button>
             {caps.canRestructureWorkout ? (
-              <button type="button" className="btn" onClick={() => { setMenuOpen(false); setPickerMode('add') }}>
+              <button type="button" className="btn workout-header__add" onClick={() => setPickerMode('add')}>
                 <IconPlus width={18} height={18} /> {t('workout.addExercise')}
               </button>
             ) : null}
-            <button type="button" className="btn btn--danger" onClick={() => { setMenuOpen(false); setDiscardOpen(true) }}>
-              <IconTrash width={18} height={18} /> {t('workout.discard')}
-            </button>
           </div>
-        ) : null}
+        </div>
       </header>
 
       {active.session_exercises.length === 0 ? (

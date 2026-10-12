@@ -39,7 +39,7 @@ import {
 import { blockFormatLabel, displaySnapshotName, useT } from '../lib/i18n'
 import { SetEditor, AddSetButton, type SetSuggestion } from './SetEditor'
 import { BottomSheet, Modal, NotesDisclosure } from './ui'
-import { IconSwap, IconTrash } from './Icons'
+import { IconCircleMinus, IconSwap, IconYouTube } from './Icons'
 
 const MANY_SETS = 6
 
@@ -62,18 +62,6 @@ function prescriptionLine(exercise: SessionExerciseDoc, units: 'metric' | 'imper
     bits.push(`RIR ${rangeLabel(exercise.target_rir_min, exercise.target_rir_max)}`)
   }
   return bits.join(' ')
-}
-
-function draftFromLogged(set: SetRow, units: 'metric' | 'imperial', bodyweight: boolean): SetDraftInput {
-  const bw = set.weight_kg === 0 || (bodyweight && set.weight_kg == null)
-  return {
-    weight: bw ? '' : weightForInput(set.weight_kg, units),
-    bodyweight: bw,
-    reps: set.reps == null ? '' : String(set.reps),
-    duration: set.duration_s == null ? '' : formatDuration(set.duration_s),
-    distance: distanceForInput(set.distance_m, units),
-    rpe: set.rpe == null ? '' : String(set.rpe),
-  }
 }
 
 export function WorkoutLogger({
@@ -114,8 +102,6 @@ export function WorkoutLogger({
   const [announce, setAnnounce] = useState('')
   const [offerId, setOfferId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<string, SetDraftInput>>(() => readSetDrafts(userId, session.id))
-  const [draftVersion, setDraftVersion] = useState(0)
-  const [externalDraft, setExternalDraft] = useState<SetDraftInput | null>(null)
   const [undo, setUndo] = useState<{ before: SetRow; sourceId: string | null; name: string; n: number } | null>(null)
 
   useEffect(() => {
@@ -253,20 +239,6 @@ export function WorkoutLogger({
       updated_at: now,
     }
     void store.upsertSet(session.id, row)
-  }
-
-  function repeatLast() {
-    if (!exercise || !activeSet) return
-    const previous = [...exercise.sets]
-      .filter((row) => row.completed_at && row.id !== activeSet.id)
-      .sort((a, b) => a.position - b.position)
-      .at(-1)
-    if (!previous) return
-    const bodyweight = isBodyweightLoadExercise({ id: exercise.exercise_id, name: exercise.name_snapshot })
-    const draft = draftFromLogged(previous, units, bodyweight)
-    setExternalDraft(draft)
-    setDraftVersion((version) => version + 1)
-    rememberDraft(activeSet.id, draft)
   }
 
   function suggestionFor(current: SessionExerciseDoc, row: SetRow): SetSuggestion {
@@ -447,7 +419,56 @@ export function WorkoutLogger({
                 })}
               </ol>
             ) : null}
-            <h2 className="workout-station__name">{shownName}</h2>
+            <div className="workout-station__head">
+              <h2 className="workout-station__title">
+                {canRestructure ? (
+                  <button
+                    type="button"
+                    className="workout-station__swap"
+                    aria-label={t('workout.swapNamed', { name: shownName })}
+                    title={t('workout.swapNamed', { name: shownName })}
+                    onClick={() => onSwap(exercise.id)}
+                  >
+                    <span className="workout-station__name">{shownName}</span>
+                    <IconSwap width={18} height={18} />
+                  </button>
+                ) : (
+                  <span className="workout-station__name">{shownName}</span>
+                )}
+              </h2>
+              {canRestructure ? (
+                <button
+                  type="button"
+                  className="btn btn--icon workout-remove"
+                  aria-label={t('workout.removeFromWorkout', { name: shownName })}
+                  title={t('workout.removeFromWorkout', { name: shownName })}
+                  onClick={() => {
+                    const hasData = exercise.sets.some((row) =>
+                      row.completed_at || row.weight_kg != null || row.reps != null || row.duration_s != null || row.distance_m != null,
+                    )
+                    if (!hasData) {
+                      void store.removeSessionExercise(session.id, exercise.id)
+                      return
+                    }
+                    setRemoveId(exercise.id)
+                  }}
+                >
+                  <IconCircleMinus width={22} height={22} />
+                </button>
+              ) : null}
+              {video ? (
+                <a
+                  className="workout-youtube"
+                  href={video}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={t('editor.watchForm', { name: shownName })}
+                  title={t('editor.watchForm', { name: shownName })}
+                >
+                  <IconYouTube width={28} height={28} />
+                </a>
+              ) : null}
+            </div>
             <p className="workout-plan">
               {prescriptionLine(exercise, units)}
               {exercise.is_warmup || block?.role === 'warmup' ? ` · ${t('workout.warmup')}` : ''}
@@ -479,8 +500,6 @@ export function WorkoutLogger({
                   active={row.id === focus?.setId}
                   suggestion={suggestionFor(exercise, row)}
                   persistedDraft={drafts[row.id] ?? null}
-                  draftVersion={row.id === focus?.setId ? draftVersion : 0}
-                  externalDraft={row.id === focus?.setId ? externalDraft : null}
                   onDraft={(draft) => rememberDraft(row.id, draft)}
                   onChange={(next) => void store.upsertSet(session.id, next)}
                   onComplete={(next) => handleComplete(exercise, next)}
@@ -498,9 +517,6 @@ export function WorkoutLogger({
               {exercise.is_warmup || block?.role === 'warmup' ? null : (
                 <AddSetButton onAdd={() => addSet(true)} label={t('set.addWarmup')} />
               )}
-              <button type="button" className="btn set-add" onClick={repeatLast}>
-                {t('workout.repeatLast')}
-              </button>
             </div>
             <div className="workout-step">
               <button
@@ -528,32 +544,6 @@ export function WorkoutLogger({
               </button>
             </div>
             {nextHint ? <p className="workout-next-hint">{nextHint}</p> : null}
-            <div className="workout-tools">
-              {video ? (
-                <a className="btn" href={video} target="_blank" rel="noreferrer noopener">
-                  {t('editor.watchForm', { name: shownName })}
-                </a>
-              ) : null}
-              {canRestructure ? (
-                <>
-                  <button type="button" className="btn" onClick={() => onSwap(exercise.id)}>
-                    <IconSwap width={16} height={16} /> {t('workout.swapNamed', { name: shownName })}
-                  </button>
-                  <button type="button" className="btn" onClick={() => {
-                    const hasData = exercise.sets.some((row) =>
-                      row.completed_at || row.weight_kg != null || row.reps != null || row.duration_s != null || row.distance_m != null,
-                    )
-                    if (!hasData) {
-                      void store.removeSessionExercise(session.id, exercise.id)
-                      return
-                    }
-                    setRemoveId(exercise.id)
-                  }}>
-                    <IconTrash width={16} height={16} /> {t('workout.removeFromWorkout', { name: shownName })}
-                  </button>
-                </>
-              ) : null}
-            </div>
           </>
         ) : null}
 

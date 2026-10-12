@@ -4,8 +4,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.4rem 0.35rem;
+  gap: 0.35rem 0.4rem;
+  padding: 0.35rem 0.35rem 0.4rem;
   border-radius: var(--radius-s);
 }
 
@@ -64,8 +64,58 @@
   width: 100%;
   min-height: 48px;
   font-size: 16px;
-  scroll-margin-top: 5.5rem;
+  scroll-margin-top: 8rem;
   scroll-margin-bottom: calc(var(--workout-dock-h, 4.5rem) + 1.25rem);
+}
+
+.set-square {
+  position: relative;
+  flex: 0 0 3.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.set-square .input {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0.2rem 0.15rem 0.95rem;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  scroll-margin-top: 8rem;
+  scroll-margin-bottom: calc(var(--workout-dock-h, 4.5rem) + 1.25rem);
+}
+
+.set-square__unit {
+  position: absolute;
+  left: 0.1rem;
+  right: 0.1rem;
+  bottom: 0.28rem;
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--c-muted);
+  pointer-events: none;
+}
+
+.set-square:not(.is-filled):not(:focus-within) .set-square__unit {
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.84rem;
+}
+
+.set-inputs:has(.set-bw) .set-square {
+  flex-basis: 3.15rem;
+  width: 3.15rem;
+  height: 3.15rem;
 }
 
 .set-summary {
@@ -98,9 +148,10 @@
 
 .set-previous {
   flex: 1 0 100%;
-  margin: 0;
+  margin: 0.1rem 0 0;
+  padding-left: calc(44px + 0.55rem);
   color: var(--c-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.35;
 }
 
@@ -111,7 +162,8 @@
 
 .set-error {
   flex: 1 0 100%;
-  margin: 0;
+  margin: 0.1rem 0 0;
+  padding-left: calc(44px + 0.55rem);
 }
 
 .set-log,
@@ -142,7 +194,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.65rem;
-  margin-left: 34px;
+  margin-left: calc(44px + 0.45rem);
   padding: 0.55rem;
   border-radius: var(--radius-s);
   background: var(--c-bg-raised);
@@ -191,9 +243,11 @@
 }
 
 @media (max-width: 400px) {
-  .set-row { gap: 0.35rem; padding-inline: 0; }
+  .set-row { gap: 0.3rem 0.35rem; padding-inline: 0.15rem; }
   .set-actions { gap: 0.2rem; }
-  .set-advanced { margin-left: 29px; }
+  .set-previous,
+  .set-error { padding-left: calc(44px + 0.45rem); }
+  .set-advanced { margin-left: calc(44px + 0.35rem); }
 }
 
 /* Warm-up sets: accent wash so they read apart from working sets */

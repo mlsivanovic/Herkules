@@ -299,3 +299,21 @@ export function IconTrophy(props: IconProps) {
     </svg>
   )
 }
+
+export function IconCircleMinus(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12h8" />
+    </svg>
+  )
+}
+
+export function IconYouTube(props: IconProps) {
+  return (
+    <svg {...base(props)} fill="currentColor" stroke="none">
+      <path d="M23 12.2s0-3.2-.4-4.6a3 3 0 0 0-2.1-2.1C18.8 5 12 5 12 5s-6.8 0-8.5.5a3 3 0 0 0-2.1 2.1C1 9 1 12.2 1 12.2s0 3.2.4 4.6a3 3 0 0 0 2.1 2.1C5.2 19.4 12 19.4 12 19.4s6.8 0 8.5-.5a3 3 0 0 0 2.1-2.1c.4-1.4.4-4.6.4-4.6Z" />
+      <path d="M10 9.2v5.6l5.2-2.8L10 9.2Z" fill="#fff" />
+    </svg>
+  )
+}

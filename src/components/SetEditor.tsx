@@ -73,6 +73,17 @@ function hasSavedMetrics(set: SetRow): boolean {
   )
 }
 
+function withSuggestion(draft: SetDraftInput, suggestion: SetSuggestion | undefined): SetDraftInput {
+  if (!suggestion) return draft
+  return {
+    ...draft,
+    weight: draft.weight !== '' ? draft.weight : suggestion.weight ?? '',
+    reps: draft.reps !== '' ? draft.reps : suggestion.reps ?? '',
+    duration: draft.duration !== '' ? draft.duration : suggestion.duration ?? '',
+    distance: draft.distance !== '' ? draft.distance : suggestion.distance ?? '',
+  }
+}
+
 export interface SetSuggestion {
   weight?: string
   reps?: string
@@ -166,8 +177,8 @@ export function SetEditor({
   const treatEmptyAsBw = bodyweightLoad === true
   const showBwToggle = measurementHasWeight(measurement) && (treatEmptyAsBw || warmup)
   const { t } = useT()
-  const [draft, setDraft] = useState<SetDraftInput>(() =>
-    persistedDraft ?? prefill(set, units, treatEmptyAsBw, suggestion),
+  const [draft, setDraft] = useState<SetDraftInput>(
+    () => persistedDraft ?? draftFromSet(set, units, treatEmptyAsBw),
   )
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [editing, setEditing] = useState(set.completed_at === null)
@@ -177,7 +188,27 @@ export function SetEditor({
   const dirtyRef = useRef(Boolean(persistedDraft))
   const busyRef = useRef(false)
   const seenVersion = useRef(draftVersion)
+  const revealedRef = useRef(false)
   const unit = weightUnitLabel(units)
+
+  // Previous load stays out of the square until the field is focused, then it
+  // fills every empty metric so one tap prepares kg and reps together.
+  function revealSuggestion() {
+    if (revealedRef.current || hasSavedMetrics(set) || !suggestion) return
+    const next = withSuggestion(draft, suggestion)
+    revealedRef.current = true
+    if (
+      next.weight === draft.weight &&
+      next.reps === draft.reps &&
+      next.duration === draft.duration &&
+      next.distance === draft.distance
+    ) {
+      return
+    }
+    dirtyRef.current = true
+    setDraft(next)
+    onDraft?.(next)
+  }
 
   useEffect(() => {
     if (sameValues(lastEmitted.current, set)) return
@@ -306,66 +337,48 @@ export function SetEditor({
             </button>
           ) : null}
           {measurementHasWeight(measurement) && !(draft.bodyweight && !treatEmptyAsBw) ? (
-            <label className="set-field">
-              <span className="set-field__label">{treatEmptyAsBw ? t('set.bodyweight') : unit}</span>
-              <input
-                className="input input--cell"
-                type="text"
-                inputMode="decimal"
-                enterKeyHint="done"
-                aria-label={treatEmptyAsBw ? t('set.addedLoad', { unit }) : t('set.weightIn', { unit })}
-                placeholder={unit}
-                value={draft.weight}
-                disabled={readonly || busy}
-                onChange={(event) => update({ weight: event.target.value })}
-              />
-            </label>
+            <SquareField
+              label={treatEmptyAsBw ? t('set.bodyweight') : unit}
+              value={draft.weight}
+              inputMode="decimal"
+              ariaLabel={treatEmptyAsBw ? t('set.addedLoad', { unit }) : t('set.weightIn', { unit })}
+              disabled={readonly || busy}
+              onFocus={revealSuggestion}
+              onChange={(weight) => update({ weight })}
+            />
           ) : null}
           {measurement === 'weight_reps' || measurement === 'reps' ? (
-            <label className="set-field">
-              <span className="set-field__label">{t('set.reps')}</span>
-              <input
-                className="input input--cell"
-                type="text"
-                inputMode="numeric"
-                enterKeyHint="done"
-                aria-label={`${t('set.repetitions')}, ${nameForAria}`}
-                placeholder={t('set.reps')}
-                value={draft.reps}
-                disabled={readonly || busy}
-                onChange={(event) => update({ reps: event.target.value })}
-              />
-            </label>
+            <SquareField
+              label={t('set.reps')}
+              value={draft.reps}
+              inputMode="numeric"
+              ariaLabel={`${t('set.repetitions')}, ${nameForAria}`}
+              disabled={readonly || busy}
+              onFocus={revealSuggestion}
+              onChange={(reps) => update({ reps })}
+            />
           ) : null}
           {measurement === 'duration' || measurement === 'distance_duration' || measurement === 'weight_duration' ? (
-            <label className="set-field">
-              <span className="set-field__label">{t('set.durationPh')}</span>
-              <input
-                className="input input--cell"
-                type="text"
-                inputMode="numeric"
-                aria-label={t('set.durationAria')}
-                placeholder={t('set.durationPh')}
-                value={draft.duration}
-                disabled={readonly || busy}
-                onChange={(event) => update({ duration: event.target.value })}
-              />
-            </label>
+            <SquareField
+              label={t('set.durationPh')}
+              value={draft.duration}
+              inputMode="numeric"
+              ariaLabel={t('set.durationAria')}
+              disabled={readonly || busy}
+              onFocus={revealSuggestion}
+              onChange={(duration) => update({ duration })}
+            />
           ) : null}
           {measurement === 'distance_duration' || measurement === 'weight_distance' ? (
-            <label className="set-field">
-              <span className="set-field__label">{distanceUnitLabel(units)}</span>
-              <input
-                className="input input--cell"
-                type="text"
-                inputMode="decimal"
-                aria-label={t('set.distanceIn', { unit: distanceUnitLabel(units) })}
-                placeholder={distanceUnitLabel(units)}
-                value={draft.distance}
-                disabled={readonly || busy}
-                onChange={(event) => update({ distance: event.target.value })}
-              />
-            </label>
+            <SquareField
+              label={distanceUnitLabel(units)}
+              value={draft.distance}
+              inputMode="decimal"
+              ariaLabel={t('set.distanceIn', { unit: distanceUnitLabel(units) })}
+              disabled={readonly || busy}
+              onFocus={revealSuggestion}
+              onChange={(distance) => update({ distance })}
+            />
           ) : null}
         </div>
       )}
@@ -441,21 +454,40 @@ export function SetEditor({
   )
 }
 
-function prefill(
-  set: SetRow,
-  units: UnitSystem,
-  treatEmptyAsBw: boolean,
-  suggestion: SetSuggestion | undefined,
-): SetDraftInput {
-  const fromSet = draftFromSet(set, units, treatEmptyAsBw)
-  if (hasSavedMetrics(set) || !suggestion) return fromSet
-  return {
-    ...fromSet,
-    weight: suggestion.weight || fromSet.weight,
-    reps: suggestion.reps || fromSet.reps,
-    duration: suggestion.duration || fromSet.duration,
-    distance: suggestion.distance || fromSet.distance,
-  }
+function SquareField({
+  label,
+  value,
+  ariaLabel,
+  inputMode,
+  disabled,
+  onFocus,
+  onChange,
+}: {
+  label: string
+  value: string
+  ariaLabel: string
+  inputMode: 'decimal' | 'numeric'
+  disabled?: boolean
+  onFocus(): void
+  onChange(value: string): void
+}) {
+  const filled = value.trim() !== ''
+  return (
+    <label className={`set-square${filled ? ' is-filled' : ''}`}>
+      <input
+        className="input input--cell"
+        type="text"
+        inputMode={inputMode}
+        enterKeyHint="done"
+        aria-label={ariaLabel}
+        value={value}
+        disabled={disabled}
+        onFocus={onFocus}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <span className="set-square__unit" aria-hidden="true">{label}</span>
+    </label>
+  )
 }
 
 export function AddSetButton({ onAdd, label }: { onAdd(): void; label?: string }) {

@@ -69,8 +69,12 @@
   text-overflow: ellipsis;
 }
 
-.routine-row__menu-btn {
+.routine-row__action-btn {
   flex-shrink: 0;
+}
+
+.routine-row__delete-btn {
+  color: var(--c-danger);
 }
 
 .routine-row__tags {

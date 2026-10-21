@@ -63,7 +63,8 @@ export function ExerciseItemSheet({
   partners,
   blockBadge,
   blockFormat,
-  inBlock,
+  supersetActive,
+  canSupersetNext,
   units,
   videoHref,
   bodyweightLoad,
@@ -82,7 +83,8 @@ export function ExerciseItemSheet({
   partners: string[]
   blockBadge: string | null
   blockFormat: string
-  inBlock: boolean
+  supersetActive: boolean
+  canSupersetNext: boolean
   units: UnitSystem
   videoHref: string | null
   bodyweightLoad: boolean
@@ -419,18 +421,18 @@ export function ExerciseItemSheet({
           </div>
         </div>
 
-        {inBlock ? (
-          <small className="muted">{t('editor.groupingV2')}</small>
-        ) : (
-          <button
-            type="button"
-            className={`btn btn--small ${item.superset_group ? 'btn--accent' : ''}`}
-            aria-pressed={Boolean(item.superset_group)}
-            onClick={onToggleSuperset}
-          >
-            {item.superset_group ? t('editor.inSuperset') : t('editor.supersetNext')}
-          </button>
-        )}
+        <button
+          type="button"
+          className={`btn btn--small ${supersetActive ? 'btn--accent' : ''}`}
+          aria-pressed={supersetActive}
+          disabled={!supersetActive && !canSupersetNext}
+          onClick={onToggleSuperset}
+        >
+          {supersetActive ? t('editor.inSuperset') : t('editor.supersetNext')}
+        </button>
+        {!supersetActive && !canSupersetNext ? (
+          <small className="muted">{t('editor.supersetNoNext')}</small>
+        ) : null}
 
         <NotesDisclosure
           label={item.notes ? t('editor.notesItem') : t('editor.addNotes')}

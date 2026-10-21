@@ -106,6 +106,15 @@ export function IconMinus(props: IconProps) {
   )
 }
 
+export function IconPencil(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M17 3a2.8 2.8 0 1 1 4 4L8 20l-5 1 1-5Z" />
+      <path d="M15 5l4 4" />
+    </svg>
+  )
+}
+
 export function IconTrash(props: IconProps) {
   return (
     <svg {...base(props)}>

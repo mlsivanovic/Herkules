@@ -15,10 +15,17 @@ import {
   useT,
   workoutRoleLabel,
 } from '../lib/i18n'
-import { moveIndex, supersetPartners } from '../lib/reorder'
+import { moveIndex, supersetPartners, toggleSupersetWithNext } from '../lib/reorder'
 import { usePointerReorder } from '../lib/usePointerReorder'
 import { summarizePlannedItem } from '../lib/routineSummary'
-import { IconChevronDown, IconGrip, IconMore, IconPlus } from '../components/Icons'
+import {
+  IconChevronDown,
+  IconGrip,
+  IconMore,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from '../components/Icons'
 import { isPoolTemplate, templatePlanIds } from '../lib/programs/plans'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { formVideoUrl } from '../lib/video'
@@ -138,7 +145,6 @@ export function RoutineEditor() {
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>(queryPlan ? [queryPlan] : [])
   const [announce, setAnnounce] = useState('')
   const [sheetIndex, setSheetIndex] = useState<number | null>(null)
-  const [rowMenuIndex, setRowMenuIndex] = useState<number | null>(null)
   const [barMenuOpen, setBarMenuOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(isNew)
   const reopenSheetRef = useRef(false)
@@ -165,7 +171,6 @@ export function RoutineEditor() {
           }),
       )
       setSheetIndex(null)
-      setRowMenuIndex(null)
       setDetailsOpen(false)
       setLoadedFor(template.id)
     }
@@ -178,7 +183,6 @@ export function RoutineEditor() {
 
   const moveTo = useCallback((from: number, to: number) => {
     setItems((prev) => moveIndex(prev, from, to))
-    setRowMenuIndex(null)
   }, [])
 
   const reorder = usePointerReorder({
@@ -197,7 +201,6 @@ export function RoutineEditor() {
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index))
-    setRowMenuIndex(null)
     setSheetIndex((current) => {
       if (current === null) return null
       if (current === index) return null
@@ -205,25 +208,13 @@ export function RoutineEditor() {
     })
   }
 
-  /** Toggle superset grouping on an item: consecutive items sharing a group
-   * id form a superset/circuit block. */
+  /** Toggle superset grouping with the next item. Items inside a structured
+   * (V2) block are detached from a grouped block so the pair takes effect. */
   function toggleSuperset(index: number) {
-    setItems((prev) => {
-      const next = [...prev]
-      const item = next[index]
-      if (!item) return prev
-      if (item.superset_group) {
-        next[index] = { ...item, superset_group: null }
-      } else {
-        const neighbor = next[index + 1] ?? next[index - 1]
-        const group = neighbor?.superset_group ?? newId()
-        next[index] = { ...item, superset_group: group }
-        if (neighbor && !neighbor.superset_group && next[index + 1]) {
-          next[index + 1] = { ...next[index + 1], superset_group: group } as TemplateItemInput
-        }
-      }
-      return next
-    })
+    const groupedBlockIds = new Set(
+      templateBlocks.filter((block) => block.format !== 'straight').map((block) => block.id),
+    )
+    setItems((prev) => toggleSupersetWithNext(prev, index, groupedBlockIds, newId))
   }
 
   function openBackupPicker(index: number, fromSheet: boolean) {
@@ -277,7 +268,8 @@ export function RoutineEditor() {
       partners,
       role,
       grouped: Boolean(item.superset_group) || itemBlock?.format === 'superset',
-      inBlock: itemBlock !== null,
+      supersetActive: partners.length > 0,
+      canSupersetNext: index < items.length - 1,
       blockBadge: itemBlock ? workoutRoleLabel(itemBlock.role) : null,
       blockFormat: itemBlock ? blockFormatLabel(itemBlock.format) : '',
       videoHref: formVideoUrl(exercise?.name),
@@ -422,39 +414,6 @@ export function RoutineEditor() {
           caught instanceof Error ? caught.message : t('errors.exportRoutine'),
         )
       })
-  }
-
-  function rowMenuItems(index: number, itemName: string, hasBackup: boolean): MenuItem[] {
-    return [
-      {
-        key: 'edit',
-        label: t('editor.editAction'),
-        onSelect: () => setSheetIndex(index),
-      },
-      {
-        key: 'up',
-        label: t('editor.moveUp'),
-        disabled: index === 0,
-        onSelect: () => reorder.moveBy(index, -1),
-      },
-      {
-        key: 'down',
-        label: t('editor.moveDown'),
-        disabled: index === items.length - 1,
-        onSelect: () => reorder.moveBy(index, 1),
-      },
-      {
-        key: 'backup',
-        label: hasBackup ? t('editor.changeBackupExercise') : t('editor.addBackupExercise'),
-        onSelect: () => openBackupPicker(index, false),
-      },
-      {
-        key: 'remove',
-        label: t('editor.removeNamed', { name: itemName }),
-        danger: true,
-        onSelect: () => removeItem(index),
-      },
-    ]
   }
 
   const barMenuItems: MenuItem[] = template
@@ -651,26 +610,30 @@ export function RoutineEditor() {
                     type="button"
                     className="routine-row__main"
                     aria-label={t('editor.editExercise', { name: described.name })}
-                    onClick={() => {
-                      setRowMenuIndex(null)
-                      setSheetIndex(index)
-                    }}
+                    onClick={() => setSheetIndex(index)}
                   >
                     <strong className="routine-row__title">{described.name}</strong>
                     <span className="routine-row__meta">{described.summary}</span>
                   </button>
                   <button
                     type="button"
-                    className="btn btn--icon btn--ghost routine-row__menu-btn"
+                    className="btn btn--icon btn--ghost routine-row__action-btn"
                     data-no-drag
-                    aria-label={t('editor.exerciseOptions', { name: described.name })}
-                    aria-expanded={rowMenuIndex === index}
-                    aria-haspopup="menu"
-                    onClick={() =>
-                      setRowMenuIndex((current) => (current === index ? null : index))
-                    }
+                    aria-label={t('editor.editExercise', { name: described.name })}
+                    title={t('editor.editAction')}
+                    onClick={() => setSheetIndex(index)}
                   >
-                    <IconMore width={20} height={20} />
+                    <IconPencil width={18} height={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--icon btn--ghost routine-row__action-btn routine-row__delete-btn"
+                    data-no-drag
+                    aria-label={t('editor.removeNamed', { name: described.name })}
+                    title={t('editor.removeExercise')}
+                    onClick={() => removeItem(index)}
+                  >
+                    <IconTrash width={18} height={18} />
                   </button>
                 </div>
                 <div className="routine-row__tags">
@@ -689,13 +652,6 @@ export function RoutineEditor() {
                     </span>
                   ) : null}
                 </div>
-                {rowMenuIndex === index ? (
-                  <OverflowMenu
-                    label={t('editor.exerciseOptions', { name: described.name })}
-                    items={rowMenuItems(index, described.name, described.backupName !== null)}
-                    onClose={() => setRowMenuIndex(null)}
-                  />
-                ) : null}
               </li>
             )
           })}
@@ -776,7 +732,8 @@ export function RoutineEditor() {
           partners={sheet.partners}
           blockBadge={sheet.blockBadge}
           blockFormat={sheet.blockFormat}
-          inBlock={sheet.inBlock}
+          supersetActive={sheet.supersetActive}
+          canSupersetNext={sheet.canSupersetNext}
           units={units}
           videoHref={sheet.videoHref}
           bodyweightLoad={sheet.bodyweightLoad}

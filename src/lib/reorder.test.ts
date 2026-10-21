@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { indexAtClientY, moveIndex, sortByPosition, supersetPartners } from './reorder'
+import {
+  indexAtClientY,
+  moveIndex,
+  sortByPosition,
+  supersetPartners,
+  toggleSupersetWithNext,
+} from './reorder'
 
 describe('moveIndex', () => {
   it('moves an item to a new index', () => {
@@ -65,5 +71,80 @@ describe('supersetPartners', () => {
   it('returns nothing for ungrouped or orphaned items', () => {
     expect(supersetPartners(items, d, (item) => item.name)).toEqual([])
     expect(supersetPartners(items, e, (item) => item.name)).toEqual([])
+  })
+})
+
+describe('toggleSupersetWithNext', () => {
+  const noBlocks = new Set<string>()
+  let seq = 0
+  const newGroup = () => `group-${++seq}`
+
+  it('pairs an ungrouped item with the next one', () => {
+    const items = [
+      { superset_group: null, block_id: null },
+      { superset_group: null, block_id: null },
+      { superset_group: null, block_id: null },
+    ]
+    const next = toggleSupersetWithNext(items, 0, noBlocks, newGroup)
+    expect(next[0]?.superset_group).not.toBeNull()
+    expect(next[0]?.superset_group).toBe(next[1]?.superset_group)
+    expect(next[2]?.superset_group).toBeNull()
+  })
+
+  it('pairs an item that sits in a straight V2 block', () => {
+    const items = [
+      { superset_group: null, block_id: 'straight-1' },
+      { superset_group: null, block_id: 'straight-2' },
+    ]
+    const next = toggleSupersetWithNext(items, 0, noBlocks, newGroup)
+    expect(next[0]?.superset_group).toBe(next[1]?.superset_group)
+    expect(next[0]?.block_id).toBe('straight-1')
+  })
+
+  it('removing a member detaches it and its lone block partner', () => {
+    const items = [
+      { superset_group: null, block_id: 'superset-block' },
+      { superset_group: null, block_id: 'superset-block' },
+      { superset_group: null, block_id: 'straight-3' },
+    ]
+    const next = toggleSupersetWithNext(items, 1, new Set(['superset-block']), newGroup)
+    // Item 1 was grouped with item 0, so this is a removal.
+    expect(next[1]?.block_id).toBeNull()
+    expect(next[1]?.superset_group).toBeNull()
+    // The block is left with one member, which is detached too.
+    expect(next[0]?.block_id).toBeNull()
+  })
+
+  it('forms a pair with the next item even when it is in a grouped block', () => {
+    const items = [
+      { superset_group: null, block_id: null },
+      { superset_group: null, block_id: 'superset-block' },
+      { superset_group: null, block_id: 'superset-block' },
+    ]
+    const next = toggleSupersetWithNext(items, 0, new Set(['superset-block']), newGroup)
+    expect(next[0]?.superset_group).not.toBeNull()
+    expect(next[0]?.superset_group).toBe(next[1]?.superset_group)
+    expect(next[1]?.block_id).toBeNull()
+    // The old block partner is not left alone in a superset block.
+    expect(next[2]?.block_id).toBeNull()
+  })
+
+  it('removes an item from a legacy superset and clears a lone remainder', () => {
+    const items = [
+      { superset_group: 'g1', block_id: null },
+      { superset_group: 'g1', block_id: null },
+      { superset_group: null, block_id: null },
+    ]
+    const next = toggleSupersetWithNext(items, 0, noBlocks, newGroup)
+    expect(next.map((row) => row.superset_group)).toEqual([null, null, null])
+  })
+
+  it('is a no-op for the last item', () => {
+    const items = [
+      { superset_group: null, block_id: null },
+      { superset_group: null, block_id: null },
+    ]
+    const next = toggleSupersetWithNext(items, 1, noBlocks, newGroup)
+    expect(next.map((row) => row.superset_group)).toEqual([null, null])
   })
 })

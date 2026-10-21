@@ -256,6 +256,7 @@ export const sr: Messages = {
     aerobic: 'Aerobno',
     aerobicCount: '{count} aerobnih',
     aerobicMinutes: '{minutes} min',
+    trainingTime: 'Vreme treninga: {duration}',
   },
   routines: {
     moreActions: 'Još opcija za rutine',

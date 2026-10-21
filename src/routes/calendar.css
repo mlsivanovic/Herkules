@@ -149,6 +149,18 @@
   cursor: default;
 }
 
+.calendar-session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.calendar-session-meta small {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .calendar-aerobic {
   display: flex;
   align-items: center;

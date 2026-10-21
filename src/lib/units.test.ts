@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatDistance,
   formatDuration,
+  formatDurationHoursMinutes,
   formatHeight,
   formatWeight,
   ageYears,
@@ -88,6 +89,18 @@ describe('duration formatting', () => {
 
   it('clamps negative input', () => {
     expect(formatDuration(-5)).toBe('0:00')
+  })
+
+  it('formats hours and minutes without seconds', () => {
+    expect(formatDurationHoursMinutes(45 * 60)).toBe('0:45')
+    expect(formatDurationHoursMinutes(65 * 60)).toBe('1:05')
+    expect(formatDurationHoursMinutes(2 * 3600 + 5 * 60)).toBe('2:05')
+  })
+
+  it('rounds to the nearest minute and clamps negative input', () => {
+    expect(formatDurationHoursMinutes(89)).toBe('0:01')
+    expect(formatDurationHoursMinutes(90)).toBe('0:02')
+    expect(formatDurationHoursMinutes(-5)).toBe('0:00')
   })
 })
 

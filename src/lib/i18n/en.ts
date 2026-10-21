@@ -255,6 +255,7 @@ export const en = {
     aerobic: 'Aerobic',
     aerobicCount: '{count} aerobic',
     aerobicMinutes: '{minutes} min',
+    trainingTime: 'Training time: {duration}',
   },
   routines: {
     moreActions: 'More routine actions',

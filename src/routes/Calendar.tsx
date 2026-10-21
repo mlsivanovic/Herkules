@@ -20,7 +20,9 @@ import { templatesGroupedByPlan } from '../lib/programs/catalog'
 import { nextTemplateForPlan } from '../lib/programs/plans'
 import { aerobicActivityLabel, bcp47, useT } from '../lib/i18n'
 import { isLightAccount, programmingForAccount } from '../lib/capabilities'
-import type { AerobicActivityRow } from '../types/db'
+import { sessionDurationSeconds } from '../lib/sessionDuration'
+import { formatDurationHoursMinutes } from '../lib/units'
+import type { AerobicActivityRow, SessionDoc } from '../types/db'
 import { PlanSectionNav } from '../components/SectionNav'
 import './calendar.css'
 
@@ -250,6 +252,12 @@ export function Calendar() {
   )
 }
 
+function trainingTimeLabel(session: SessionDoc): string | null {
+  if (session.status === 'skipped' || !session.ended_at) return null
+  const seconds = sessionDurationSeconds(session)
+  return seconds === null ? null : formatDurationHoursMinutes(seconds)
+}
+
 function sessionBadge(status: string): 'in-progress' | 'completed' | 'skipped' {
   if (status === 'in_progress') return 'in-progress'
   if (status === 'skipped') return 'skipped'
@@ -266,7 +274,7 @@ function DayDetail({
 }: {
   dayKey: DateKey
   planned: { scheduleId: string; template: { id: string; name: string } | undefined }[]
-  sessions: { id: string; name: string; status: string; schedule_item_id: string | null }[]
+  sessions: SessionDoc[]
   aerobic: AerobicActivityRow[]
   onStart(templateId: string, scheduleId: string): void
   onSchedule(): void
@@ -348,6 +356,15 @@ function DayDetail({
       {items.sessions.map((session) => {
         const canOpen = session.status !== 'skipped'
         const canDelete = session.status === 'completed' || session.status === 'skipped'
+        const duration = trainingTimeLabel(session)
+        const label = (
+          <span className="calendar-session-meta">
+            <span>{session.name}</span>
+            {duration ? (
+              <small className="muted">{t('calendar.trainingTime', { duration })}</small>
+            ) : null}
+          </span>
+        )
         return (
           <div key={session.id} className="card calendar-session">
             {canOpen ? (
@@ -359,12 +376,12 @@ function DayDetail({
                   void navigate(`/history/${session.id}`, { replace: true })
                 }}
               >
-                <span>{session.name}</span>
+                {label}
                 <StatusBadge status={sessionBadge(session.status)} />
               </button>
             ) : (
               <div className="calendar-session-open calendar-session-open--static">
-                <span>{session.name}</span>
+                {label}
                 <StatusBadge status={sessionBadge(session.status)} />
               </div>
             )}

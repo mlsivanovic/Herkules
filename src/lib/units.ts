@@ -58,6 +58,14 @@ export function formatDuration(totalSeconds: number): string {
   return `${h > 0 ? `${h}:` : ''}${mm}:${String(sec).padStart(2, '0')}`
 }
 
+/** Display duration (stored s) as hours:minutes, e.g. "0:45" / "1:05". */
+export function formatDurationHoursMinutes(totalSeconds: number): string {
+  const totalMinutes = Math.max(0, Math.round(totalSeconds / 60))
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${h}:${String(m).padStart(2, '0')}`
+}
+
 /** Convert a value typed in the display unit back to canonical kg (2 decimals). */
 export function weightToKg(displayValue: number, units: UnitSystem): number {
   const kg = units === 'imperial' ? lbToKg(displayValue) : displayValue

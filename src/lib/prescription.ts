@@ -1,5 +1,6 @@
 import type {
   AerobicActivityRow,
+  ExerciseMeasurement,
   SessionBlockRow,
   SessionDoc,
   SessionExerciseDoc,
@@ -165,6 +166,46 @@ export function materializePlannedSets(input: {
     }
   }
   return rows
+}
+
+/** An exercise picked mid-workout, with its planned set rows ready to log. */
+export function addedSessionExercise(input: {
+  sessionId: string
+  sessionExerciseId: string
+  exercise: { id: string; name: string; measurement: ExerciseMeasurement }
+  position: number
+  now: string
+  newId: () => string
+}): SessionExerciseDoc {
+  const row: SessionExerciseRow = {
+    id: input.sessionExerciseId,
+    session_id: input.sessionId,
+    exercise_id: input.exercise.id,
+    name_snapshot: input.exercise.name,
+    measurement_snapshot: input.exercise.measurement,
+    primary_exercise_id: input.exercise.id,
+    primary_name_snapshot: input.exercise.name,
+    primary_measurement_snapshot: input.exercise.measurement,
+    primary_target_weight_kg: null,
+    backup_exercise_id: null,
+    backup_name_snapshot: null,
+    backup_measurement_snapshot: null,
+    uses_backup: false,
+    position: input.position,
+    planned_sets: 3,
+    rest_seconds: null,
+    tempo: null,
+    notes: null,
+    superset_group: null,
+    block_role: 'gym',
+    is_warmup: false,
+    created_at: input.now,
+    updated_at: input.now,
+  }
+  return {
+    ...row,
+    sets: materializePlannedSets({ exercise: row, block: null, newId: input.newId, now: input.now }),
+  }
 }
 
 export type BackupSwitchResult =

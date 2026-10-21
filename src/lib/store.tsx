@@ -129,6 +129,7 @@ import {
   type TrainingFrequency,
 } from './programs/rotate'
 import {
+  addedSessionExercise,
   cycleWeek,
   materializePlannedSets,
   progressionSuggestions,
@@ -2322,40 +2323,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const exercise = await readOne<ExerciseRow>('exercises', exerciseId)
         if (!doc || !exercise) throw new Error(t('errors.sessionOrExercise'))
         const maxPos = doc.session_exercises.reduce((m, se) => Math.max(m, se.position), -1)
-        const se: SessionExerciseRow & { sets: SetRow[] } = {
-          id: newId(),
-          session_id: sessionId,
-          exercise_id: exercise.id,
-          name_snapshot: exercise.name,
-          measurement_snapshot: exercise.measurement,
-          primary_exercise_id: exercise.id,
-          primary_name_snapshot: exercise.name,
-          primary_measurement_snapshot: exercise.measurement,
-          primary_target_weight_kg: null,
-          backup_exercise_id: null,
-          backup_name_snapshot: null,
-          backup_measurement_snapshot: null,
-          uses_backup: false,
+        const stamp = nowIso()
+        const se = addedSessionExercise({
+          sessionId,
+          sessionExerciseId: newId(),
+          exercise,
           position: maxPos + 1,
-          planned_sets: 3,
-          rest_seconds: null,
-          tempo: null,
-          notes: null,
-          superset_group: null,
-          block_role: 'gym',
-          is_warmup: false,
-          created_at: nowIso(),
-          updated_at: nowIso(),
-          sets: [],
-        }
+          now: stamp,
+          newId,
+        })
         const row: SessionDoc = {
           ...doc,
           session_exercises: [...doc.session_exercises, se],
-          updated_at: nowIso(),
+          updated_at: stamp,
         }
         await commit(
           [{ store: 'sessions', row }],
-          [upsert('session_exercises', stripSessionExercise(se))],
+          [
+            upsert('session_exercises', stripSessionExercise(se)),
+            ...se.sets.map((set) => upsert('workout_sets', set)),
+          ],
         )
       },
 
@@ -2397,6 +2384,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!target) return
 
         const ops: OutboxOp[] = []
+        const stamp = nowIso()
         const updated = {
           ...target,
           exercise_id: exercise.id,
@@ -2410,24 +2398,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           backup_name_snapshot: null,
           backup_measurement_snapshot: null,
           uses_backup: false,
-          updated_at: nowIso(),
+          updated_at: stamp,
         }
         let nextExercises: (SessionExerciseRow & { sets: SetRow[] })[]
 
-        if (target.measurement_snapshot === exercise.measurement) {
+        if (target.measurement_snapshot === exercise.measurement && target.sets.length > 0) {
           nextExercises = doc.session_exercises.map((se) =>
             se.id === sessionExerciseId ? updated : se,
           )
         } else {
-          // Measurement changed: old values would be meaningless — drop the sets.
+          // Measurement changed: old values would be meaningless — drop the sets
+          // and materialize fresh planned rows for the new exercise.
           for (const set of target.sets) {
             await removeMatchingOps(
               (op) => op.kind === 'upsert' && op.table === 'workout_sets' && String(op.row.id) === set.id,
             )
             ops.push({ kind: 'delete', table: 'workout_sets', id: set.id })
           }
+          const block =
+            doc.session_blocks?.find((row) => row.id === target.session_block_id) ?? null
+          const freshSets = materializePlannedSets({
+            exercise: updated,
+            block,
+            newId,
+            now: stamp,
+          })
+          ops.push(...freshSets.map((set) => upsert('workout_sets', set)))
           nextExercises = doc.session_exercises.map((se) =>
-            se.id === sessionExerciseId ? { ...updated, sets: [] } : se,
+            se.id === sessionExerciseId ? { ...updated, sets: freshSets } : se,
           )
         }
         const row: SessionDoc = { ...doc, session_exercises: nextExercises, updated_at: nowIso() }

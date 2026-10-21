@@ -281,6 +281,12 @@ describe('focus recovery and progress', () => {
     expect(resolveFocus(exercises, { exerciseId: 'gone', setId: 'x' })).toEqual({ exerciseId: 'c', setId: 'c1' })
     expect(resolveFocus(exercises, { exerciseId: 'a', setId: 'missing' })?.setId).toBe('a1')
     expect(resolveFocus([exercise({ id: 'empty', position: 0, sets: [] })], null)).toBeNull()
+    // An exercise added mid-workout may have no set rows yet; choosing it in
+    // the overview must still land on that exercise so a set can be added.
+    expect(resolveFocus(exercises, { exerciseId: 'b', setId: 'missing' })).toEqual({
+      exerciseId: 'b',
+      setId: '',
+    })
   })
 
   it('counts work groups separately from warm-ups and block rounds', () => {

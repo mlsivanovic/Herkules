@@ -8,6 +8,7 @@ import type {
   TemplateItemRow,
 } from '../types/db'
 import {
+  addedSessionExercise,
   aerobicSecondsInWeek,
   cycleWeek,
   isBlockRoundComplete,
@@ -129,6 +130,29 @@ describe('V2 session prescription', () => {
       ok: false,
       reason: 'completed_set',
     })
+  })
+
+  it('gives an exercise added mid-workout its planned set rows', () => {
+    let id = 0
+    const added = addedSessionExercise({
+      sessionId: 's-1',
+      sessionExerciseId: 'se-new',
+      exercise: { id: 'e-9', name: 'Cable row', measurement: 'weight_reps' },
+      position: 4,
+      now: NOW,
+      newId: () => `set-${++id}`,
+    })
+    expect(added).toMatchObject({
+      id: 'se-new',
+      exercise_id: 'e-9',
+      name_snapshot: 'Cable row',
+      measurement_snapshot: 'weight_reps',
+      position: 4,
+      planned_sets: 3,
+    })
+    expect(added.sets).toHaveLength(3)
+    expect(added.sets.map((row) => row.session_exercise_id)).toEqual(['se-new', 'se-new', 'se-new'])
+    expect(added.sets.every((row) => row.completed_at === null && row.weight_kg === null && row.reps === null)).toBe(true)
   })
 
   it('materializes one shared planned row per unilateral set', () => {

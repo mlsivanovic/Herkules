@@ -337,7 +337,12 @@ export function advanceAfterConfirm(input: {
   }
 }
 
-/** Keep a saved choice when it still exists. Otherwise the first open row, then the first row. */
+/**
+ * Keep a saved choice when it still exists. Otherwise the first open row, then the first row.
+ * A chosen exercise with no set rows yet (added mid-workout, or every set deleted)
+ * keeps an exercise-level focus with an empty setId so it can still be opened
+ * and given its first set.
+ */
 export function resolveFocus(exercises: FlowExercise[], preferred: FlowFocus | null): FlowFocus | null {
   const ordered = [...exercises].sort(byPosition)
   if (preferred) {
@@ -347,6 +352,7 @@ export function resolveFocus(exercises: FlowExercise[], preferred: FlowFocus | n
       const open = [...exercise.sets].sort(byPosition).find((set) => !set.completed)
       const fallback = open ?? [...exercise.sets].sort(byPosition)[0]
       if (fallback) return { exerciseId: exercise.id, setId: fallback.id }
+      return { exerciseId: exercise.id, setId: '' }
     }
   }
   for (const exercise of ordered) {

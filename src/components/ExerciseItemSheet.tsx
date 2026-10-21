@@ -65,6 +65,7 @@ export function ExerciseItemSheet({
   blockFormat,
   supersetActive,
   canSupersetNext,
+  nextName,
   units,
   videoHref,
   bodyweightLoad,
@@ -85,6 +86,7 @@ export function ExerciseItemSheet({
   blockFormat: string
   supersetActive: boolean
   canSupersetNext: boolean
+  nextName: string | null
   units: UnitSystem
   videoHref: string | null
   bodyweightLoad: boolean
@@ -397,6 +399,30 @@ export function ExerciseItemSheet({
           <span>{t('editor.warmupExercise')}</span>
         </label>
 
+        <div className={`superset-row${supersetActive ? ' superset-row--active' : ''}`}>
+          <div className="superset-row__text">
+            <strong>{t('blockFormat.superset')}</strong>
+            <small className="muted">
+              {supersetActive
+                ? t('editor.withPartners', { names: partners.join(', ') })
+                : nextName
+                  ? t('editor.supersetPairWith', { name: nextName })
+                  : t('editor.supersetNoNext')}
+            </small>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={supersetActive}
+            aria-label={t('editor.supersetNext')}
+            className="superset-switch"
+            disabled={!supersetActive && !canSupersetNext}
+            onClick={onToggleSuperset}
+          >
+            <span className="superset-switch__knob" aria-hidden="true" />
+          </button>
+        </div>
+
         <div className="routine-backup">
           <div>
             <strong>{t('editor.backupExercise')}</strong>
@@ -420,19 +446,6 @@ export function ExerciseItemSheet({
             ) : null}
           </div>
         </div>
-
-        <button
-          type="button"
-          className={`btn btn--small ${supersetActive ? 'btn--accent' : ''}`}
-          aria-pressed={supersetActive}
-          disabled={!supersetActive && !canSupersetNext}
-          onClick={onToggleSuperset}
-        >
-          {supersetActive ? t('editor.inSuperset') : t('editor.supersetNext')}
-        </button>
-        {!supersetActive && !canSupersetNext ? (
-          <small className="muted">{t('editor.supersetNoNext')}</small>
-        ) : null}
 
         <NotesDisclosure
           label={item.notes ? t('editor.notesItem') : t('editor.addNotes')}

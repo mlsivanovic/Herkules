@@ -168,6 +168,7 @@
 }
 
 .sheet-section .routine-backup,
+.sheet-section .superset-row,
 .sheet-section .notes-block,
 .sheet-section .advanced-block {
   margin-top: 0.6rem;
@@ -253,6 +254,79 @@
 .routine-backup > div:first-child {
   display: grid;
   gap: 0.2rem;
+}
+
+.superset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-s);
+  background: var(--c-bg-raised);
+}
+
+.superset-row--active {
+  background: var(--c-accent-soft);
+}
+
+.superset-row__text {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.superset-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  background: var(--c-track);
+  cursor: pointer;
+}
+
+/* Transparent extension so the 32px pill keeps a 44px touch target. */
+.superset-switch::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+}
+
+.superset-switch__knob {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--c-card);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transform: translateY(-50%);
+  transition: left 0.15s ease;
+}
+
+.superset-switch[aria-checked='true'] {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.superset-switch[aria-checked='true'] .superset-switch__knob {
+  left: calc(100% - 27px);
+}
+
+.superset-switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .superset-switch__knob {
+    transition: none;
+  }
 }
 
 .routine-grid .field {

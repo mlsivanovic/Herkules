@@ -270,6 +270,7 @@ export function RoutineEditor() {
       grouped: Boolean(item.superset_group) || itemBlock?.format === 'superset',
       supersetActive: partners.length > 0,
       canSupersetNext: index < items.length - 1,
+      nextName: items[index + 1] ? partnerName(items[index + 1]) : null,
       blockBadge: itemBlock ? workoutRoleLabel(itemBlock.role) : null,
       blockFormat: itemBlock ? blockFormatLabel(itemBlock.format) : '',
       videoHref: formVideoUrl(exercise?.name),
@@ -734,6 +735,7 @@ export function RoutineEditor() {
           blockFormat={sheet.blockFormat}
           supersetActive={sheet.supersetActive}
           canSupersetNext={sheet.canSupersetNext}
+          nextName={sheet.nextName}
           units={units}
           videoHref={sheet.videoHref}
           bodyweightLoad={sheet.bodyweightLoad}

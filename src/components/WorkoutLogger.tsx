@@ -1,6 +1,6 @@
 // Focused logger for the active session. One station at a time, same set rows
 // and the same store writes as the rest of the app.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionDoc, SessionExerciseDoc, SetRow } from '../types/db'
 import { isBodyweightLoadExercise } from '../lib/bodyweightLoad'
 import { newId, useStore } from '../lib/store'
@@ -37,9 +37,11 @@ import {
   weightForInput,
 } from '../lib/units'
 import { blockFormatLabel, displaySnapshotName, useT } from '../lib/i18n'
+import { moveIndex } from '../lib/reorder'
+import { usePointerReorder } from '../lib/usePointerReorder'
 import { SetEditor, AddSetButton, type SetSuggestion } from './SetEditor'
 import { BottomSheet, Modal, NotesDisclosure } from './ui'
-import { IconCircleMinus, IconSwap, IconYouTube } from './Icons'
+import { IconCircleMinus, IconGrip, IconSwap, IconYouTube } from './Icons'
 
 const MANY_SETS = 6
 
@@ -379,6 +381,9 @@ export function WorkoutLogger({
           ordered={ordered}
           progress={progress}
           activeId={exercise?.id ?? null}
+          canReorder={canRestructure}
+          onReorder={(orderedIds) => void store.reorderSessionExercises(session.id, orderedIds)}
+          onAnnounce={setAnnounce}
           onChoose={(exerciseId) => choose(resolveFocus(flow.exercises, { exerciseId, setId: 'missing' }))}
         />
       </div>
@@ -563,6 +568,9 @@ export function WorkoutLogger({
             ordered={ordered}
             progress={progress}
             activeId={exercise?.id ?? null}
+            canReorder={canRestructure}
+            onReorder={(orderedIds) => void store.reorderSessionExercises(session.id, orderedIds)}
+            onAnnounce={setAnnounce}
             onChoose={(exerciseId) => {
               choose(resolveFocus(flow.exercises, { exerciseId, setId: 'missing' }))
               setOverview(false)
@@ -601,14 +609,45 @@ function OverviewList({
   progress,
   activeId,
   onChoose,
+  canReorder = false,
+  onReorder,
+  onAnnounce,
 }: {
   groups: { id: string; title: string; exerciseIds: string[] }[]
   ordered: SessionExerciseDoc[]
   progress: ReturnType<typeof sessionProgress>
   activeId: string | null
   onChoose(exerciseId: string): void
+  canReorder?: boolean
+  onReorder?(orderedIds: string[]): void
+  onAnnounce?(message: string): void
 }) {
   const { t } = useT()
+  // Drag indices follow the visual order (grouped sections flattened), so a
+  // drop lands where the pointer is even inside a superset/circuit section.
+  const visualIds = groups.flatMap((group) => group.exerciseIds)
+  const flatIndexById = new Map(visualIds.map((id, index) => [id, index]))
+  const move = useCallback(
+    (from: number, to: number) => {
+      const next = moveIndex(visualIds, from, to)
+      if (next !== visualIds) onReorder?.(next)
+    },
+    // visualIds is rebuilt per render; the drag handlers capture the order
+    // as it was when the hold started, which is the order being dragged.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [onReorder],
+  )
+  const reorder = usePointerReorder({
+    itemCount: visualIds.length,
+    onMove: move,
+    announce: onAnnounce,
+  })
+  // A hold that turned into a drag also fires a click on release; swallow
+  // that one click so reordering does not jump to (or close on) the exercise.
+  const draggedRef = useRef(false)
+  useEffect(() => {
+    if (reorder.active) draggedRef.current = true
+  }, [reorder.active])
   return (
     <div className="workout-overview-list">
       {groups.map((group) => (
@@ -630,21 +669,71 @@ function OverviewList({
               : itemProgress.warmupTotal > 0
                 ? t('workout.warmupProgress', { done: itemProgress.warmupDone, total: itemProgress.warmupTotal })
                 : ''
+            const name = displaySnapshotName(row.name_snapshot, row.exercise_id)
+            const flatIndex = flatIndexById.get(id) ?? 0
+            const dragging = canReorder && reorder.active?.from === flatIndex
+            const dropTarget =
+              canReorder &&
+              reorder.active !== null &&
+              reorder.active.over === flatIndex &&
+              reorder.active.from !== flatIndex
+            const handleProps = canReorder ? reorder.getHandleProps(flatIndex) : null
             return (
-              <button
+              <div
                 key={id}
-                type="button"
-                className={`workout-overview-item${id === activeId ? ' is-active' : ''}`}
-                aria-current={id === activeId ? 'true' : undefined}
-                onClick={() => onChoose(id)}
+                ref={canReorder ? reorder.setItemRef(flatIndex) : undefined}
+                className={`workout-overview-item${id === activeId ? ' is-active' : ''}${dragging ? ' is-dragging' : ''}${dropTarget ? ' is-drop-target' : ''}`}
+                {...handleProps}
+                onPointerDown={(event) => {
+                  draggedRef.current = false
+                  handleProps?.onPointerDown(event)
+                }}
+                onClickCapture={(event) => {
+                  if (!draggedRef.current) return
+                  draggedRef.current = false
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
               >
-                <strong>{displaySnapshotName(row.name_snapshot, row.exercise_id)}</strong>
-                <small>
-                  {row.is_warmup ? `${t('workout.warmup')} · ` : ''}
-                  {status}
-                  {count ? ` · ${count}` : ''}
-                </small>
-              </button>
+                {canReorder ? (
+                  <button
+                    type="button"
+                    className="exercise-grip"
+                    aria-label={t('editor.reorder', { name })}
+                    {...reorder.getHandleProps(flatIndex, { immediate: true })}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowUp') {
+                        event.preventDefault()
+                        reorder.moveBy(flatIndex, -1)
+                      } else if (event.key === 'ArrowDown') {
+                        event.preventDefault()
+                        reorder.moveBy(flatIndex, 1)
+                      }
+                    }}
+                  >
+                    <IconGrip width={16} height={16} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="workout-overview-item__main"
+                  aria-current={id === activeId ? 'true' : undefined}
+                  onClick={() => {
+                    if (draggedRef.current) {
+                      draggedRef.current = false
+                      return
+                    }
+                    onChoose(id)
+                  }}
+                >
+                  <strong>{name}</strong>
+                  <small>
+                    {row.is_warmup ? `${t('workout.warmup')} · ` : ''}
+                    {status}
+                    {count ? ` · ${count}` : ''}
+                  </small>
+                </button>
+              </div>
             )
           })}
         </section>

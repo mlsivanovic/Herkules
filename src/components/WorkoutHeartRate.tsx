@@ -96,24 +96,38 @@ export function WorkoutHeartRate({ sessionId }: { sessionId: string }) {
     }
   }
 
+  const connected = status === 'connected'
+  const message = status === 'failed' ? 'heartRate.failed'
+    : status === 'lost' ? 'heartRate.lost'
+    : saveFailed ? 'heartRate.saveFailed' : null
+
   return (
-    <div className="row workout-heart-rate">
-      {status === 'connected' ? (
-        <>
-          <span>{reading === null ? t('heartRate.waiting') : t('heartRate.bpm', { bpm: reading })}</span>
-          <button type="button" className="btn" onClick={() => {
-            cleanup.current?.()
-            setStatus('idle')
-          }}>{t('heartRate.disconnect')}</button>
-        </>
-      ) : (
-        <button type="button" className="btn" disabled={status === 'connecting'} onClick={() => void connect()}>
-          {status === 'connecting' ? t('heartRate.connecting') : t('heartRate.connect')}
+    <div className="workout-heart-rate">
+      <div className="workout-heart-rate__bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12h5l3-7 4 14 3-7h5" />
+        </svg>
+        <span className="workout-heart-rate__value">
+          {reading !== null && connected
+            ? t('heartRate.bpm', { bpm: reading })
+            : t(connected ? 'heartRate.waiting' : 'heartRate.label')}
+        </span>
+        <button type="button" className="btn workout-heart-rate__action"
+          disabled={status === 'connecting'}
+          aria-label={t(connected ? 'heartRate.disconnect' : 'heartRate.connect')}
+          onClick={() => {
+            if (connected) {
+              cleanup.current?.()
+              setStatus('idle')
+            } else {
+              void connect()
+            }
+          }}>
+          {t(connected ? 'heartRate.disconnectShort' : status === 'connecting' ? 'heartRate.connecting' : 'heartRate.connectShort')}
         </button>
-      )}
-      {status === 'failed' && <span role="status">{t('heartRate.failed')}</span>}
-      {status === 'lost' && <span role="status">{t('heartRate.lost')}</span>}
-      {saveFailed && <span role="status">{t('heartRate.saveFailed')}</span>}
+      </div>
+      {message && <p className="workout-heart-rate__message" role="status">{t(message)}</p>}
     </div>
   )
 }

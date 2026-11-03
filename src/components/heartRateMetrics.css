@@ -1,0 +1,17 @@
+.heart-rate-metrics {
+  border-inline-start: 0.25rem solid var(--c-danger);
+}
+
+.heart-rate-metrics .chart {
+  background: var(--c-danger-soft);
+  border-radius: 0.75rem;
+}
+
+.heart-rate-metrics__periods {
+  flex-wrap: wrap;
+}
+
+.heart-rate-metrics__periods [aria-pressed='true'] {
+  color: var(--c-danger);
+  background: var(--c-danger-soft);
+}

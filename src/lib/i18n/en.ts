@@ -627,6 +627,9 @@ export const en = {
     coachNotes: 'Coach notes',
   },
   heartRate: {
+    label: 'Heart rate',
+    connectShort: 'Connect',
+    disconnectShort: 'Disconnect',
     timeline: 'Heart rate over time',
     progress: 'Workout heart rate',
     period7: 'Last 7 days',
@@ -640,7 +643,7 @@ export const en = {
     connecting: 'Connecting…',
     disconnect: 'Disconnect sensor',
     bpm: 'Heart rate: {bpm} bpm',
-    waiting: 'Waiting for heart rate…',
+    waiting: 'Waiting for pulse…',
     failed: 'Could not connect to the heart-rate sensor.',
     lost: 'Heart-rate sensor disconnected.',
     saveFailed: 'Could not save heart-rate readings.',

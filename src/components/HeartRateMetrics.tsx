@@ -1,3 +1,4 @@
+import './heartRateMetrics.css'
 import { useEffect, useMemo, useState } from 'react'
 import { readHeartRate } from '../lib/db'
 import { addDays, toDateKey, todayKey } from '../lib/dates'
@@ -40,11 +41,11 @@ export function SessionHeartRate({ session }: { session: SessionDoc }) {
   }).join(' ')
 
   return (
-    <section className="card stack">
+    <section className="card stack heart-rate-metrics">
       <h2>{t('heartRate.timeline')}</h2>
       <p>{t('heartRate.summary', stats)}</p>
       <svg viewBox="0 0 320 130" className="chart" role="img" aria-label={t('heartRate.timeline')}>
-        <path d={path} fill="none" stroke="var(--c-primary)" strokeWidth="2" strokeLinecap="round" />
+        <path d={path} fill="none" stroke="var(--c-danger)" strokeWidth="2" strokeLinecap="round" />
         <text x="12" y="125" className="chart-label">{formatDuration(0)}</text>
         <text x="308" y="125" textAnchor="end" className="chart-label">
           {formatDuration(Math.round((end - start) / 1000))}
@@ -70,9 +71,9 @@ export function HeartRateProgress({ sessions }: { sessions: SessionDoc[] }) {
   const stats = rows ? summarizeHeartRate(rows.flat()) : null
 
   return (
-    <section className="card stack">
+    <section className="card stack heart-rate-metrics">
       <h2>{t('heartRate.progress')}</h2>
-      <div className="row" style={{ flexWrap: 'wrap' }}>
+      <div className="row heart-rate-metrics__periods">
         {PERIODS.map((period) => (
           <button type="button" className="btn" key={period} aria-pressed={days === period} onClick={() => setDays(period)}>
             {t(`heartRate.period${period}`)}

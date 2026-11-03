@@ -628,6 +628,9 @@ export const sr: Messages = {
     coachNotes: 'Beleške trenera',
   },
   heartRate: {
+    label: 'Puls',
+    connectShort: 'Poveži',
+    disconnectShort: 'Odvoji',
     timeline: 'Puls tokom treninga',
     progress: 'Puls na treninzima',
     period7: 'Poslednjih 7 dana',
@@ -641,7 +644,7 @@ export const sr: Messages = {
     connecting: 'Povezivanje…',
     disconnect: 'Odvoji senzor',
     bpm: 'Puls: {bpm} otk/min',
-    waiting: 'Čekanje na očitavanje pulsa…',
+    waiting: 'Čekanje na puls…',
     failed: 'Povezivanje sa senzorom pulsa nije uspelo.',
     lost: 'Senzor pulsa je odvojen.',
     saveFailed: 'Čuvanje očitavanja pulsa nije uspelo.',

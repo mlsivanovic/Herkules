@@ -1,3 +1,4 @@
+import { HeartRateProgress } from '../components/HeartRateMetrics'
 // Progress: totals, streak, adherence, combined body/volume trends, muscle sets,
 // personal records and per-exercise trend charts.
 import { useMemo, useState } from 'react'
@@ -153,6 +154,7 @@ export function Progress() {
       </div>
 
       {trends}
+      <HeartRateProgress sessions={sessions} />
 
       <div className="section-title">{t('progress.muscleSets')}</div>
       <div className="card">

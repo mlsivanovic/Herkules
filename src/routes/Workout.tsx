@@ -1,3 +1,4 @@
+import { WorkoutHeartRate } from '../components/WorkoutHeartRate'
 // Active workout screen: elapsed timer, previous values, set logging for all
 // measurement types, automatic rest timer, RPE, notes, reorder/swap/remove,
 // finish (works fully offline — everything lands in IndexedDB + outbox).
@@ -200,6 +201,7 @@ export function Workout() {
             ) : null}
           </div>
         </div>
+        <WorkoutHeartRate key={active.id} sessionId={active.id} />
       </header>
 
       {active.session_exercises.length === 0 ? (

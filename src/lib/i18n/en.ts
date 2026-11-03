@@ -626,6 +626,17 @@ export const en = {
     keepIt: 'Keep it',
     coachNotes: 'Coach notes',
   },
+  heartRate: {
+    summary: 'Heart rate: {average} bpm average, {peak} bpm peak',
+    connect: 'Connect heart-rate sensor',
+    connecting: 'Connecting…',
+    disconnect: 'Disconnect sensor',
+    bpm: 'Heart rate: {bpm} bpm',
+    waiting: 'Waiting for heart rate…',
+    failed: 'Could not connect to the heart-rate sensor.',
+    lost: 'Heart-rate sensor disconnected.',
+    saveFailed: 'Could not save heart-rate readings.',
+  },
   workout: {
     preparing: 'Preparing workout…',
     back: '← Back',

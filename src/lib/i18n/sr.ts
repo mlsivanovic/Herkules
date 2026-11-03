@@ -627,6 +627,17 @@ export const sr: Messages = {
     keepIt: 'Zadrži',
     coachNotes: 'Beleške trenera',
   },
+  heartRate: {
+    summary: 'Puls: prosek {average} otk/min, maksimum {peak} otk/min',
+    connect: 'Poveži senzor pulsa',
+    connecting: 'Povezivanje…',
+    disconnect: 'Odvoji senzor',
+    bpm: 'Puls: {bpm} otk/min',
+    waiting: 'Čekanje na očitavanje pulsa…',
+    failed: 'Povezivanje sa senzorom pulsa nije uspelo.',
+    lost: 'Senzor pulsa je odvojen.',
+    saveFailed: 'Čuvanje očitavanja pulsa nije uspelo.',
+  },
   workout: {
     preparing: 'Priprema treninga…',
     back: '← Nazad',

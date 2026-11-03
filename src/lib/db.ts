@@ -48,6 +48,7 @@ interface DirtyRow {
 }
 
 interface HerkulesDB extends DBSchema {
+  heartRate: { key: number; value: { sessionId: string; at: number; bpm: number }; indexes: { sessionId: string } }
   meta: { key: string; value: unknown }
   profiles: { key: string; value: DirtyRow }
   exercises: { key: string; value: DirtyRow }
@@ -68,7 +69,7 @@ interface HerkulesDB extends DBSchema {
 }
 
 const DB_NAME = 'herkules'
-const DB_VERSION = 9
+const DB_VERSION = 10
 
 let dbPromise: Promise<IDBPDatabase<HerkulesDB>> | null = null
 
@@ -76,6 +77,9 @@ export function getDb(): Promise<IDBPDatabase<HerkulesDB>> {
   if (!dbPromise) {
     dbPromise = openDB<HerkulesDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
+        if (oldVersion < 10) {
+          db.createObjectStore('heartRate', { autoIncrement: true }).createIndex('sessionId', 'sessionId')
+        }
         if (oldVersion < 1) {
           db.createObjectStore('meta')
           for (const name of [
@@ -494,13 +498,25 @@ export async function pendingBreakdown(): Promise<{ table: string; count: number
 // ---------------------------------------------------------------- lifecycle
 
 export async function removeFrom(store: StoreName, id: string): Promise<void> {
-  await (await getDb()).delete(store, id)
+  const db = await getDb()
+  if (store !== 'sessions') {
+    await db.delete(store, id)
+    return
+  }
+  const tx = db.transaction(['sessions', 'heartRate'], 'readwrite')
+  await tx.objectStore('sessions').delete(id)
+  const samples = tx.objectStore('heartRate')
+  for (const key of await samples.index('sessionId').getAllKeys(id)) {
+    await samples.delete(key)
+  }
+  await tx.done
 }
 
 export async function wipeLocalData(): Promise<void> {
   const db = await getDb()
   const stores = [
     'meta',
+    'heartRate',
     'profiles',
     'exercises',
     'plans',
@@ -523,4 +539,17 @@ export async function wipeLocalData(): Promise<void> {
     await tx.objectStore(store).clear()
   }
   await tx.done
+}
+
+export async function recordHeartRate(sessionId: string, at: number, bpm: number): Promise<void> {
+  const tx = (await getDb()).transaction(['sessions', 'heartRate'], 'readwrite')
+  const session = await tx.objectStore('sessions').get(sessionId)
+  if (session?.value.status === 'in_progress') {
+    await tx.objectStore('heartRate').add({ sessionId, at, bpm })
+  }
+  await tx.done
+}
+
+export async function readHeartRate(sessionId: string) {
+  return (await getDb()).getAllFromIndex('heartRate', 'sessionId', sessionId)
 }

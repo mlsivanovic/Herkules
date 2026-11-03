@@ -589,3 +589,8 @@
   border-radius: var(--radius-s);
   background: var(--c-bg-raised);
 }
+
+.workout-heart-rate {
+  flex-wrap: wrap;
+  padding: 0.5rem 1rem;
+}

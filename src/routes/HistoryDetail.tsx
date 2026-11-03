@@ -1,6 +1,7 @@
+import { readHeartRate } from '../lib/db'
 // Session history detail: review a completed (or active) workout and edit it
 // afterwards — edits touch only this session's snapshot, never the routine.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore, newId } from '../lib/store'
 import type { SessionDoc, SetRow } from '../types/db'
@@ -22,6 +23,24 @@ export function HistoryDetail() {
   const navigate = useNavigate()
   const store = useStore()
   const session = store.sessions.find((s) => s.id === id) ?? null
+  const sessionId = session?.id
+  const [heartRate, setHeartRate] = useState<{ sessionId: string; average: number; peak: number } | null>(null)
+  useEffect(() => {
+    if (!sessionId) return
+    let current = true
+    void readHeartRate(sessionId).then((samples) => {
+      if (!current || samples.length === 0) return
+      let sum = 0
+      let peak = 0
+      for (const { bpm } of samples) {
+        sum += bpm
+        peak = Math.max(peak, bpm)
+      }
+      setHeartRate({ sessionId, average: Math.round(sum / samples.length), peak })
+    }).catch(() => {})
+    return () => { current = false }
+  }, [sessionId])
+
   const [notes, setNotes] = useState(session?.notes ?? '')
   const [notesDirty, setNotesDirty] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(false)
@@ -110,6 +129,10 @@ export function HistoryDetail() {
         </div>
       </div>
       <p className="muted">{t('history.reviewHint')}</p>
+      {heartRate?.sessionId === session.id && (
+        <p className="muted">{t('heartRate.summary', { average: heartRate.average, peak: heartRate.peak })}</p>
+      )}
+
       {session && diagnoseSessionDuration(session).unusuallyLong ? (
         <p className="muted">{t('history.longSession')}</p>
       ) : null}

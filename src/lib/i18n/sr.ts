@@ -850,6 +850,13 @@ export const sr: Messages = {
       'Zabeleži vrat, struk i opcione obime za danas ili drugi datum. Jedan unos po danu — ponovno čuvanje ga ažurira.',
     saveBody: 'Sačuvaj unos',
     updateBody: 'Ažuriraj unos',
+    history: 'Sačuvani unosi',
+    historyEmpty: 'Još nema unosa. Sačuvaj jedan iznad i pojaviće se ovde.',
+    historyAria: 'Otvori unos od {date}',
+    detailTitle: 'Unos',
+    detailWeight: 'Težina tog dana',
+    detailEmpty: 'Ništa nije upisano',
+    editCheckin: 'Izmeni ovaj unos',
     tendonTitle: 'Tetive',
     todayCount: '{count} danas',
     tendonHint:

@@ -850,6 +850,13 @@ export const en = {
       'Log neck, waist and optional limb girths for today or another date. One entry per day — saving again updates it.',
     saveBody: 'Save check-in',
     updateBody: 'Update check-in',
+    history: 'Saved check-ins',
+    historyEmpty: 'No check-ins yet. Save one above and it will show up here.',
+    historyAria: 'Open check-in from {date}',
+    detailTitle: 'Check-in',
+    detailWeight: 'Weight that day',
+    detailEmpty: 'Nothing recorded',
+    editCheckin: 'Edit this check-in',
     tendonTitle: 'Tendon check-in',
     todayCount: '{count} today',
     tendonHint:

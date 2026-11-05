@@ -50,6 +50,7 @@ import {
   pendingCount,
   putDirty,
   readAll,
+  readHeartRateBySession,
   readOne,
   readProfile,
   reconcileProfile,
@@ -1951,7 +1952,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           capabilitiesFor(await readProfile()).canImportExport,
           t('errors.lightNoImportExport'),
         )
-        return serializeWorkoutCsv((await readAll()).sessions)
+        const all = await readAll()
+        return serializeWorkoutCsv(all.sessions, {
+          bodyWeights: all.bodyWeights,
+          aerobicActivities: all.aerobicActivities,
+          heartRate: await readHeartRateBySession(),
+        })
       },
 
       async exportBackup() {

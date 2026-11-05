@@ -4,6 +4,7 @@
 // at the read boundary (readOne/readAll).
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { resolveAerobicGoalMinutes } from './aerobicGoal'
+import type { HeartRateSample } from './heartRate'
 import { collapseOps, uniqueOpCount } from './outbox'
 import { sortByPosition } from './reorder'
 import type {
@@ -552,4 +553,17 @@ export async function recordHeartRate(sessionId: string, at: number, bpm: number
 
 export async function readHeartRate(sessionId: string) {
   return (await getDb()).getAllFromIndex('heartRate', 'sessionId', sessionId)
+}
+
+/** All stored heart-rate samples grouped by session, for the CSV export. */
+export async function readHeartRateBySession(): Promise<Map<string, HeartRateSample[]>> {
+  const samples = await (await getDb()).getAll('heartRate')
+  const grouped = new Map<string, HeartRateSample[]>()
+  for (const { sessionId, at, bpm } of samples) {
+    const list = grouped.get(sessionId)
+    if (list) list.push({ at, bpm })
+    else grouped.set(sessionId, [{ at, bpm }])
+  }
+  for (const list of grouped.values()) list.sort((a, b) => a.at - b.at)
+  return grouped
 }

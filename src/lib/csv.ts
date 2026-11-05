@@ -1,10 +1,20 @@
 // Workout CSV import/export. Canonical units (kg / m / s) so a file
 // round-trips across metric and imperial display settings.
 
-import type { ExerciseMeasurement, ExerciseRow, SessionDoc, SessionStatus, SetRow } from '../types/db'
+import type {
+  AerobicActivityRow,
+  BodyWeightRow,
+  ExerciseMeasurement,
+  ExerciseRow,
+  SessionDoc,
+  SessionStatus,
+  SetRow,
+} from '../types/db'
+import { summarizeHeartRate, type HeartRateSample } from './heartRate'
 import { t } from './i18n'
 
 export const WORKOUT_CSV_HEADERS = [
+  'record_type',
   'session_id',
   'date',
   'workout_name',
@@ -25,9 +35,16 @@ export const WORKOUT_CSV_HEADERS = [
   'direction',
   'is_warmup',
   'completed_at',
+  'activity_type',
+  'moderate',
+  'hr_avg_bpm',
+  'hr_peak_bpm',
+  'hr_samples',
+  'note',
 ] as const
 
 export interface WorkoutCsvRow {
+  record_type: string
   session_id: string
   date: string
   workout_name: string
@@ -48,6 +65,12 @@ export interface WorkoutCsvRow {
   direction: string
   is_warmup: string
   completed_at: string
+  activity_type: string
+  moderate: string
+  hr_avg_bpm: string
+  hr_peak_bpm: string
+  hr_samples: string
+  note: string
 }
 
 function escapeCell(value: string): string {
@@ -58,6 +81,14 @@ function escapeCell(value: string): string {
 function cell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return ''
   return String(value)
+}
+
+type CsvCellValue = string | number | boolean | null | undefined
+type CsvCells = Partial<Record<(typeof WORKOUT_CSV_HEADERS)[number], CsvCellValue>>
+
+/** Builds a line by header name so positional mistakes cannot shift columns. */
+function formatRow(cells: CsvCells): string {
+  return WORKOUT_CSV_HEADERS.map((header) => escapeCell(cell(cells[header]))).join(',')
 }
 
 /** RFC 4180-ish parser that understands quoted commas and newlines. */
@@ -107,17 +138,32 @@ export function parseCsv(text: string): string[][] {
   return rows
 }
 
-export function serializeWorkoutCsv(sessions: SessionDoc[]): string {
+export interface WorkoutCsvExtras {
+  /** Every recorded body-weight entry, exported as `body_weight` rows. */
+  bodyWeights?: readonly BodyWeightRow[]
+  /** Every recorded aerobic activity, exported as `aerobic` rows. */
+  aerobicActivities?: readonly AerobicActivityRow[]
+  /** Per-session heart-rate samples, summarized into one `heart_rate` row each. */
+  heartRate?: ReadonlyMap<string, readonly HeartRateSample[]>
+}
+
+export function serializeWorkoutCsv(
+  sessions: SessionDoc[],
+  extras: WorkoutCsvExtras = {},
+): string {
   const lines = [WORKOUT_CSV_HEADERS.join(',')]
   const exported = sessions
     .filter((s) => s.status === 'completed' || s.status === 'skipped')
     .sort((a, b) => a.started_at.localeCompare(b.started_at))
 
+  const sessionDate = (session: SessionDoc): string =>
+    session.planned_date ?? session.started_at.slice(0, 10)
+
   for (const session of exported) {
-    const date = session.planned_date ?? session.started_at.slice(0, 10)
     const base = {
+      record_type: 'set' as const,
       session_id: session.id,
-      date,
+      date: sessionDate(session),
       workout_name: session.name,
       status: session.status,
       session_notes: session.notes ?? '',
@@ -125,30 +171,7 @@ export function serializeWorkoutCsv(sessions: SessionDoc[]): string {
     }
 
     if (session.session_exercises.length === 0) {
-      lines.push(
-        [
-          base.session_id,
-          base.date,
-          escapeCell(base.workout_name),
-          base.status,
-          escapeCell(base.session_notes),
-          base.session_rpe,
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-        ].join(','),
-      )
+      lines.push(formatRow(base))
       continue
     }
 
@@ -157,31 +180,74 @@ export function serializeWorkoutCsv(sessions: SessionDoc[]): string {
       const sets = completedSets.length > 0 ? completedSets : [null]
       for (const set of sets) {
         lines.push(
-          [
-            base.session_id,
-            base.date,
-            escapeCell(base.workout_name),
-            base.status,
-            escapeCell(base.session_notes),
-            base.session_rpe,
-            escapeCell(exercise.name_snapshot),
-            exercise.measurement_snapshot,
-            set ? String(set.position) : '',
-            set ? cell(set.weight_kg) : '',
-            set ? cell(set.reps) : '',
-            set ? cell(set.duration_s) : '',
-            set ? cell(set.distance_m) : '',
-            set ? cell(set.rpe) : '',
-            set ? escapeCell(set.notes ?? '') : '',
-            set ? cell(set.round_index) : '',
-            set ? cell(set.side) : '',
-            set ? cell(set.direction) : '',
-            set ? cell(set.is_warmup) : '',
-            set ? cell(set.completed_at) : '',
-          ].join(','),
+          formatRow({
+            ...base,
+            exercise_name: exercise.name_snapshot,
+            measurement: exercise.measurement_snapshot,
+            set_number: set ? set.position : '',
+            weight_kg: set ? set.weight_kg : '',
+            reps: set ? set.reps : '',
+            duration_s: set ? set.duration_s : '',
+            distance_m: set ? set.distance_m : '',
+            set_rpe: set ? set.rpe : '',
+            set_notes: set ? set.notes ?? '' : '',
+            round_index: set ? set.round_index : '',
+            side: set ? set.side : '',
+            direction: set ? set.direction : '',
+            is_warmup: set ? set.is_warmup : '',
+            completed_at: set ? set.completed_at : '',
+          }),
         )
       }
     }
+  }
+
+  const bodyWeights = [...(extras.bodyWeights ?? [])].sort(
+    (a, b) => a.recorded_on.localeCompare(b.recorded_on) || a.id.localeCompare(b.id),
+  )
+  for (const entry of bodyWeights) {
+    lines.push(
+      formatRow({
+        record_type: 'body_weight',
+        date: entry.recorded_on,
+        weight_kg: entry.weight_kg,
+        note: entry.notes ?? '',
+      }),
+    )
+  }
+
+  const aerobicActivities = [...(extras.aerobicActivities ?? [])].sort(
+    (a, b) => a.recorded_on.localeCompare(b.recorded_on) || a.id.localeCompare(b.id),
+  )
+  for (const activity of aerobicActivities) {
+    lines.push(
+      formatRow({
+        record_type: 'aerobic',
+        date: activity.recorded_on,
+        activity_type: activity.activity_type,
+        duration_s: activity.duration_s,
+        moderate: activity.moderate,
+        note: activity.notes ?? '',
+      }),
+    )
+  }
+
+  for (const session of exported) {
+    const samples = extras.heartRate?.get(session.id)
+    if (!samples || samples.length === 0) continue
+    const summary = summarizeHeartRate(samples)
+    if (!summary) continue
+    lines.push(
+      formatRow({
+        record_type: 'heart_rate',
+        session_id: session.id,
+        date: sessionDate(session),
+        workout_name: session.name,
+        hr_avg_bpm: summary.average,
+        hr_peak_bpm: summary.peak,
+        hr_samples: samples.length,
+      }),
+    )
   }
 
   return `${lines.join('\n')}\n`
@@ -242,6 +308,7 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
   const index = (name: string): number => header.indexOf(name)
 
   const col = {
+    record_type: index('record_type'),
     session_id: index('session_id'),
     date: index('date'),
     workout_name: index('workout_name'),
@@ -278,6 +345,11 @@ export function parseWorkoutCsv(text: string): ParsedWorkoutImport[] {
   const body = table.slice(1)
 
   body.forEach((row, rowIndex) => {
+    // Newer exports also carry body weights, aerobic activities and heart-rate
+    // rows in the same table; only set rows belong to the workout import.
+    const recordType = take(row, 'record_type')
+    if (col.record_type >= 0 && (recordType === '' || recordType !== 'set')) return
+
     const sessionId = take(row, 'session_id') || `import-${rowIndex}`
     const existing = bySession.get(sessionId)
     const session: ParsedWorkoutImport = existing ?? {

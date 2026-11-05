@@ -168,6 +168,110 @@ describe('workout csv', () => {
     expect(parsed[0]?.exercises).toHaveLength(0)
   })
 
+  it('adds body-weight, aerobic and heart-rate records to the same table', () => {
+    const csv = serializeWorkoutCsv([session()], {
+      bodyWeights: [
+        {
+          id: 'bw-1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-16',
+          weight_kg: 82.4,
+          notes: 'morning, fasted',
+          created_at: '2026-08-16T07:00:00.000Z',
+          updated_at: '2026-08-16T07:00:00.000Z',
+        },
+      ],
+      aerobicActivities: [
+        {
+          id: 'ae-1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-17',
+          activity_type: 'walking',
+          duration_s: 2700,
+          moderate: true,
+          notes: null,
+          created_at: '2026-08-17T18:00:00.000Z',
+          updated_at: '2026-08-17T18:00:00.000Z',
+        },
+      ],
+      heartRate: new Map([
+        [
+          '11111111-1111-4111-8111-111111111001',
+          [
+            { at: 1_000, bpm: 120 },
+            { at: 2_000, bpm: 130 },
+            { at: 3_000, bpm: 150 },
+          ],
+        ],
+      ]),
+    })
+
+    const [header, ...rows] = parseCsv(csv)
+    const records = rows.map((row) => Object.fromEntries((header ?? []).map((key, i) => [key, row[i]])))
+    const byType = (type: string) => records.filter((record) => record.record_type === type)
+
+    expect(byType('set')).toHaveLength(1)
+    expect(byType('body_weight')[0]).toMatchObject({ date: '2026-08-16', weight_kg: '82.4', note: 'morning, fasted' })
+    expect(byType('aerobic')[0]).toMatchObject({
+      date: '2026-08-17',
+      activity_type: 'walking',
+      duration_s: '2700',
+      moderate: 'true',
+    })
+    expect(byType('heart_rate')[0]).toMatchObject({
+      session_id: '11111111-1111-4111-8111-111111111001',
+      hr_avg_bpm: '133',
+      hr_peak_bpm: '150',
+      hr_samples: '3',
+    })
+  })
+
+  it('imports only the workout rows from an export that carries extra data', () => {
+    const csv = serializeWorkoutCsv([session()], {
+      bodyWeights: [
+        {
+          id: 'bw-1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-16',
+          weight_kg: 82.4,
+          notes: null,
+          created_at: '2026-08-16T07:00:00.000Z',
+          updated_at: '2026-08-16T07:00:00.000Z',
+        },
+      ],
+      aerobicActivities: [
+        {
+          id: 'ae-1',
+          owner_id: 'u1',
+          recorded_on: '2026-08-17',
+          activity_type: 'cycling',
+          duration_s: 3600,
+          moderate: false,
+          notes: null,
+          created_at: '2026-08-17T18:00:00.000Z',
+          updated_at: '2026-08-17T18:00:00.000Z',
+        },
+      ],
+    })
+
+    const parsed = parseWorkoutCsv(csv)
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.sessionId).toBe('11111111-1111-4111-8111-111111111001')
+    expect(parsed[0]?.name).toBe('Push')
+    expect(parsed[0]?.exercises[0]?.sets).toHaveLength(1)
+  })
+
+  it('still imports a legacy export without the record_type column', () => {
+    const csv =
+      'session_id,date,workout_name,status,session_notes,session_rpe,exercise_name,measurement,' +
+      'set_number,weight_kg,reps,duration_s,distance_m,set_rpe,set_notes,round_index,side,' +
+      'direction,is_warmup,completed_at\n' +
+      'legacy-1,2026-08-17,Push,completed,,7,Barbell Bench Press,weight_reps,1,80,5,,,,,,,false,2026-08-17T10:10:00.000Z\n'
+    const parsed = parseWorkoutCsv(csv)
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.exercises[0]?.sets[0]?.weight_kg).toBe(80)
+  })
+
   it('rejects a file that is not a workout export', () => {
     expect(() => parseWorkoutCsv('foo,bar\n1,2\n')).toThrow(/not a Herkules workout CSV/)
   })

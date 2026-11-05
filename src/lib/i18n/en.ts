@@ -1018,7 +1018,8 @@ export const en = {
     data: 'Data',
     dataSummary: 'Workouts, routines and backup',
     workouts: 'Workouts',
-    csvHint: 'CSV of completed and skipped workouts. Units are stored as kg, meters and seconds.',
+    csvHint:
+      'CSV of completed and skipped workouts, body-weight entries, aerobic activities and workout heart rate. Units are stored as kg, meters and seconds.',
     exportCsv: 'Export workouts CSV',
     importCsv: 'Import workouts CSV',
     importing: 'Importing…',

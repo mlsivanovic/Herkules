@@ -1017,7 +1017,8 @@ export const sr: Messages = {
     data: 'Podaci',
     dataSummary: 'Treninzi, rutine i rezervna kopija',
     workouts: 'Treninzi',
-    csvHint: 'CSV završenih i preskočenih treninga. Jedinice su kg, metri i sekunde.',
+    csvHint:
+      'CSV završenih i preskočenih treninga, merenja telesne težine, aerobnih aktivnosti i pulsa tokom treninga. Jedinice su kg, metri i sekunde.',
     exportCsv: 'Izvezi treninge (CSV)',
     importCsv: 'Uvezi treninge (CSV)',
     importing: 'Uvoz…',

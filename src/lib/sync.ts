@@ -34,8 +34,14 @@ function isMissingRelation(error: { message: string; code?: string } | null): bo
   return (
     error.code === '42P01' ||
     error.code === 'PGRST205' ||
-    /session_comments|plan_routines|session_heart_rate|schema cache/i.test(error.message)
+    /session_comments|plan_routines|schema cache/i.test(error.message)
   )
+}
+
+/** Only a genuinely absent table, never RLS, FK or constraint errors that mention it. */
+function isMissingTable(error: { message: string; code?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '42P01' || error.code === 'PGRST205' || /schema cache/i.test(error.message)
 }
 
 function uniquePlanRoutineRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
@@ -90,13 +96,13 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
       )
       if (error) {
         // Heart rate waits in the outbox until its migration is applied.
-        if (batch.table === 'session_heart_rate' && isMissingRelation(error)) continue
+        if (batch.table === 'session_heart_rate' && isMissingTable(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     } else {
       const { error } = await client.from(batch.table).delete().in('id', batch.ids)
       if (error) {
-        if (batch.table === 'session_heart_rate' && isMissingRelation(error)) continue
+        if (batch.table === 'session_heart_rate' && isMissingTable(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     }
@@ -229,7 +235,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     itemsRes.error ??
     (isMissingRelation(commentsRes.error) ? null : commentsRes.error) ??
     (isMissingRelation(planRoutinesRes.error) ? null : planRoutinesRes.error) ??
-    (isMissingRelation(heartRateRes.error) ? null : heartRateRes.error)
+    (isMissingTable(heartRateRes.error) ? null : heartRateRes.error)
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {

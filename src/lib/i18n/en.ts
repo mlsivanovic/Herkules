@@ -1035,7 +1035,7 @@ export const en = {
       'Strong and Hevy CSV exports. Re-importing the same file updates instead of duplicating.',
     samsungImport: 'Import from Samsung Health…',
     samsungHint:
-      'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files. Imported heart rate stays on this device.',
+      'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files. Heart rate is saved with the workout and syncs to your other devices.',
     samsungTitle: 'Import Samsung Health workouts',
     samsungBody:
       'Heart rate is written into the Herkules workout logged at the same time. Workouts without a match can be saved as new gym sessions without sets.',

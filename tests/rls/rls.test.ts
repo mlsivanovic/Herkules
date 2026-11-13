@@ -206,6 +206,13 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(activityError).toBeNull()
       aliceIds.aerobicActivity = activity.id
 
+      const { error: heartRateError } = await alice.from('session_heart_rate').insert({
+        id: aliceIds.session,
+        sample_at: [1794511493000, 1794511494000],
+        sample_bpm: [99, 100],
+      })
+      expect(heartRateError).toBeNull()
+
       const { data: measure, error: measureError } = await alice
         .from('body_measure_entries')
         .insert({
@@ -357,6 +364,29 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
       expect(error).toBeDefined()
     })
 
+    it('cannot read, overwrite or attach to Alice heart rate', async () => {
+      const { data } = await bob.from('session_heart_rate').select().eq('id', aliceIds.session)
+      expect(data).toHaveLength(0)
+      const { data: updated } = await bob
+        .from('session_heart_rate')
+        .update({ sample_bpm: [1, 1] })
+        .eq('id', aliceIds.session)
+        .select()
+      expect(updated ?? []).toHaveLength(0)
+      const { error } = await bob.from('session_heart_rate').upsert({
+        id: aliceIds.session,
+        sample_at: [1],
+        sample_bpm: [60],
+      })
+      expect(error).toBeTruthy()
+      const { data: still } = await alice
+        .from('session_heart_rate')
+        .select('sample_count')
+        .eq('id', aliceIds.session)
+        .single()
+      expect(still?.sample_count).toBe(2)
+    })
+
     it('cannot read or write Alice aerobic activities', async () => {
       const { data } = await bob
         .from('aerobic_activities')
@@ -428,6 +458,7 @@ describe.skipIf(!url || !anonKey)('Row Level Security (two users)', () => {
         'plan_routines',
         'aerobic_activities',
         'body_measure_entries',
+        'session_heart_rate',
       ]
       for (const table of tables) {
         const { error } = await anon.from(table).select().limit(1)

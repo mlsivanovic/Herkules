@@ -566,6 +566,19 @@ export async function replaceHeartRate(
   await tx.done
 }
 
+/** Number of stored samples per session (keys only, no sample values read). */
+export async function localHeartRateCounts(): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  const tx = (await getDb()).transaction('heartRate')
+  let cursor = await tx.store.index('sessionId').openKeyCursor()
+  while (cursor) {
+    const id = String(cursor.key)
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+    cursor = await cursor.continue()
+  }
+  return counts
+}
+
 /** Ids of sessions that already have at least one stored heart-rate sample. */
 export async function sessionIdsWithHeartRate(): Promise<Set<string>> {
   const ids = new Set<string>()

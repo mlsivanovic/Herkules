@@ -23,6 +23,8 @@ const UPSERT_ORDER: SyncTable[] = [
   'body_measure_entries',
   'tendon_checkins',
   'aerobic_activities',
+  // Last, so a project without this migration yet never blocks other tables.
+  'session_heart_rate',
 ]
 
 /** Children before parents so deletes never violate FKs. */

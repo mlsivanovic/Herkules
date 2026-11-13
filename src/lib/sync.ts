@@ -13,6 +13,7 @@ import type {
   SessionCommentRow,
   SessionDoc,
   SessionExerciseDoc,
+  SessionHeartRateRow,
   SessionBlockRow,
   SetRow,
   TemplateItemRow,
@@ -33,7 +34,7 @@ function isMissingRelation(error: { message: string; code?: string } | null): bo
   return (
     error.code === '42P01' ||
     error.code === 'PGRST205' ||
-    /session_comments|plan_routines|schema cache/i.test(error.message)
+    /session_comments|plan_routines|session_heart_rate|schema cache/i.test(error.message)
   )
 }
 
@@ -88,11 +89,14 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
         { onConflict },
       )
       if (error) {
+        // Heart rate waits in the outbox until its migration is applied.
+        if (batch.table === 'session_heart_rate' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     } else {
       const { error } = await client.from(batch.table).delete().in('id', batch.ids)
       if (error) {
+        if (batch.table === 'session_heart_rate' && isMissingRelation(error)) continue
         throw new SyncError(`Sync failed on ${batch.table}: ${error.message}`)
       }
     }
@@ -122,6 +126,8 @@ export interface ServerSnapshot {
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
   sessionComments: SessionCommentRow[]
+  /** Sample count per session with server heart rate; null if the table is missing. */
+  heartRateCounts: Map<string, number> | null
 }
 
 interface NestedSession
@@ -192,7 +198,7 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
   const sessions = (sessionsRes.data as NestedSession[] | null) ?? []
   const sessionIds = sessions.map((row) => row.id)
 
-  const [blocksRes, itemsRes, commentsRes, planRoutinesRes] = await Promise.all([
+  const [blocksRes, itemsRes, commentsRes, planRoutinesRes, heartRateRes] = await Promise.all([
     templateIds.length > 0
       ? client.from('template_blocks').select('*').in('template_id', templateIds)
       : Promise.resolve({ data: [], error: null }),
@@ -203,6 +209,8 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
       ? client.from('session_comments').select('*').in('session_id', sessionIds).order('created_at')
       : Promise.resolve({ data: [], error: null }),
     client.from('plan_routines').select('*').eq(owned(), uid).order('position'),
+    // Counts only: full samples are downloaded on demand by fetchHeartRate.
+    client.from('session_heart_rate').select('id, sample_count').eq(owned(), uid),
   ])
 
   const firstError =
@@ -220,7 +228,8 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     blocksRes.error ??
     itemsRes.error ??
     (isMissingRelation(commentsRes.error) ? null : commentsRes.error) ??
-    (isMissingRelation(planRoutinesRes.error) ? null : planRoutinesRes.error)
+    (isMissingRelation(planRoutinesRes.error) ? null : planRoutinesRes.error) ??
+    (isMissingRelation(heartRateRes.error) ? null : heartRateRes.error)
   if (firstError) throw new SyncError(`Pull failed: ${firstError.message}`)
 
   return {
@@ -241,5 +250,30 @@ export async function fetchSnapshot(client: SupabaseClient): Promise<ServerSnaps
     checkins: (checkinsRes.data as TendonCheckinRow[]) ?? [],
     aerobicActivities: (aerobicRes.data as AerobicActivityRow[]) ?? [],
     sessionComments: (commentsRes.data as SessionCommentRow[]) ?? [],
+    heartRateCounts: heartRateRes.error
+      ? null
+      : new Map(
+          ((heartRateRes.data as { id: string; sample_count: number }[] | null) ?? []).map((row) => [
+            row.id,
+            row.sample_count,
+          ]),
+        ),
   }
+}
+
+/** Full heart-rate rows for the given sessions, in chunks to keep URLs short. */
+export async function fetchHeartRate(
+  client: SupabaseClient,
+  sessionIds: string[],
+): Promise<SessionHeartRateRow[]> {
+  const rows: SessionHeartRateRow[] = []
+  for (let i = 0; i < sessionIds.length; i += 50) {
+    const { data, error } = await client
+      .from('session_heart_rate')
+      .select('id, owner_id, sample_at, sample_bpm')
+      .in('id', sessionIds.slice(i, i + 50))
+    if (error) throw new SyncError(`Pull failed: ${error.message}`)
+    rows.push(...((data as SessionHeartRateRow[] | null) ?? []))
+  }
+  return rows
 }

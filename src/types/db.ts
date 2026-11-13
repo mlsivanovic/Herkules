@@ -426,6 +426,19 @@ export interface AerobicActivityRow {
   updated_at: string
 }
 
+/** Heart rate of one workout; `id` is the workout session id. */
+export interface SessionHeartRateRow {
+  id: string
+  owner_id: string
+  /** Unix ms timestamps, parallel to sample_bpm. */
+  sample_at: number[]
+  sample_bpm: number[]
+  /** Server-generated; absent on rows built by the client. */
+  sample_count?: number
+  created_at?: string
+  updated_at?: string
+}
+
 /** Tables that can appear in the sync outbox. */
 export type SyncTable =
   | 'profiles'
@@ -445,6 +458,7 @@ export type SyncTable =
   | 'body_measure_entries'
   | 'tendon_checkins'
   | 'aerobic_activities'
+  | 'session_heart_rate'
 
 export type OutboxOp =
   | { kind: 'upsert'; table: SyncTable; row: Record<string, unknown> }

@@ -46,6 +46,8 @@ import {
   clearDirtyFlags,
   clearProfileDirty,
   getMeta,
+  listOps,
+  localHeartRateCounts,
   pendingBreakdown,
   pendingCount,
   putDirty,
@@ -63,7 +65,8 @@ import {
   wipeLocalData,
   type StoreName,
 } from './db'
-import { flushOutbox, fetchSnapshot } from './sync'
+import { fetchHeartRate, flushOutbox, fetchSnapshot } from './sync'
+import { heartRateRow, planHeartRateSync, samplesFromRow } from './heartRate'
 import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkoutImport } from './csv'
 import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
@@ -172,6 +175,12 @@ function nowIso(): string {
 
 function upsert(table: SyncTable, row: object): OutboxOp {
   return { kind: 'upsert', table, row: row as Record<string, unknown> }
+}
+
+/** Queue the session's locally stored heart rate for the server, if it has any. */
+async function heartRateUpload(sessionId: string, ownerId: string): Promise<OutboxOp[]> {
+  const samples = await readHeartRate(sessionId)
+  return samples.length > 0 ? [upsert('session_heart_rate', heartRateRow(sessionId, ownerId, samples))] : []
 }
 
 function membershipRow(input: {
@@ -584,6 +593,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reconcileStore('aerobicActivities', snapshot.aerobicActivities),
         reconcileStore('sessionComments', snapshot.sessionComments),
       ])
+      // Null means the heart-rate migration is not applied yet: keep local copies untouched.
+      if (snapshot.heartRateCounts) {
+        const [local, ops, mirror] = await Promise.all([localHeartRateCounts(), listOps(), readAll()])
+        const plan = planHeartRateSync({
+          local,
+          server: snapshot.heartRateCounts,
+          pending: new Set(
+            ops.filter((op) => op.table === 'session_heart_rate').map((op) => (op.kind === 'upsert' ? String(op.row.id) : op.id)),
+          ),
+          sessions: new Map(mirror.sessions.map((row) => [row.id, row.status])),
+          serverSessions: new Set(snapshot.sessions.map((row) => row.id)),
+        })
+        for (const row of await fetchHeartRate(client, plan.download)) {
+          await replaceHeartRate(row.id, samplesFromRow(row))
+        }
+        for (const id of plan.dropLocal) await replaceHeartRate(id, [])
+        const uploads: OutboxOp[] = []
+        for (const id of plan.upload) uploads.push(...(await heartRateUpload(id, userIdRef.current ?? '')))
+        await appendOps(uploads)
+        // Push the backfill right away instead of waiting for the next sync.
+        if (uploads.length > 0) await flushOutbox(client)
+      }
       await reloadFromDb()
       await actionsRef.current?.ensureHybridV2()
       setState((prev) => ({ ...prev, syncError: null, lastSyncedAt: nowIso() }))
@@ -1856,7 +1887,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rpe: summary.rpe ?? doc.rpe,
           updated_at: nowIso(),
         }
-        await commit([{ store: 'sessions', row }], [upsert('workout_sessions', stripNested(row))])
+        await commit([{ store: 'sessions', row }], [
+          upsert('workout_sessions', stripNested(row)),
+          ...(await heartRateUpload(id, userIdRef.current ?? '')),
+        ])
       },
 
       async applyProgressionSuggestions(id) {
@@ -1901,6 +1935,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (op.table === 'workout_sessions' && String(op.row.id) === id) return true
           if (op.table === 'session_exercises' && exerciseIds.includes(String(op.row.id))) return true
           if (op.table === 'workout_sets' && setIds.includes(String(op.row.id))) return true
+          // Its FK target may never reach the server; the session delete cascades anyway.
+          if (op.table === 'session_heart_rate' && String(op.row.id) === id) return true
           return false
         })
         await removeFrom('sessions', id)
@@ -1994,6 +2030,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           sessions: all.sessions,
           checkins: all.checkins,
           aerobicActivities: all.aerobicActivities,
+          heartRate: [...(await readHeartRateBySession())].map(([sessionId, samples]) =>
+            heartRateRow(sessionId, profile?.id ?? userIdRef.current ?? '', samples),
+          ),
         })
       },
 
@@ -2120,6 +2159,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        const restoredSessions = new Set(file.sessions.map((doc) => doc.id))
+        for (const row of file.heartRate) {
+          if (!restoredSessions.has(row.id)) continue
+          const samples = samplesFromRow(row)
+          if (samples.length === 0) continue
+          await replaceHeartRate(row.id, samples)
+          ops.push(upsert('session_heart_rate', heartRateRow(row.id, owner, samples)))
+        }
+
         await commit(writes, ops)
         return {
           sessions: sessionCount,
@@ -2223,6 +2271,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           t('errors.lightNoImportExport'),
         )
         const fresh: ParsedWorkoutImport[] = []
+        const heartRateOps: OutboxOp[] = []
         let linked = 0
         let skipped = 0
         for (const { parsed: incoming, targetSessionId } of items) {
@@ -2236,11 +2285,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ) {
             // Keep the session (and any edits); only fill in missing heart rate.
             await replaceHeartRate(existing.id, incoming.heartRate)
+            heartRateOps.push(
+              upsert('session_heart_rate', heartRateRow(existing.id, userIdRef.current ?? '', incoming.heartRate)),
+            )
             linked += 1
           } else {
             skipped += 1
           }
         }
+        if (heartRateOps.length > 0) await commit([], heartRateOps)
         if (fresh.length > 0) await actionsRef.current?.importWorkouts(fresh)
         return { created: fresh.length, linked, skipped }
       },
@@ -2354,8 +2407,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ops.push(upsert('session_exercises', stripSessionExercise(se)))
             for (const set of se.sets) ops.push(upsert('workout_sets', set))
           }
+          if (incoming.heartRate?.length) {
+            await replaceHeartRate(sessionId, incoming.heartRate)
+            ops.push(upsert('session_heart_rate', heartRateRow(sessionId, userIdRef.current ?? '', incoming.heartRate)))
+          }
           await commit([{ store: 'sessions', row: doc }], ops)
-          if (incoming.heartRate?.length) await replaceHeartRate(sessionId, incoming.heartRate)
         }
 
         return { sessions: parsed.length, sets: setCount, createdExercises }

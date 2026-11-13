@@ -1033,7 +1033,7 @@ export const sr: Messages = {
     importStrongHint: 'CSV izvoz iz Strong i Hevy. Ponovni uvoz ažurira umesto da duplira.',
     samsungImport: 'Uvezi iz Samsung Healtha…',
     samsungHint:
-      'Izaberi CSV sa treninzima iz Samsung Health izvoza zajedno sa odgovarajućim live_data JSON fajlovima. Uvezeni puls ostaje na ovom uređaju.',
+      'Izaberi CSV sa treninzima iz Samsung Health izvoza zajedno sa odgovarajućim live_data JSON fajlovima. Puls se čuva uz trening i sinhronizuje na ostale uređaje.',
     samsungTitle: 'Uvoz treninga iz Samsung Healtha',
     samsungBody:
       'Puls se upisuje u Herkules trening zabeležen u isto vreme. Treninzi bez para mogu da se sačuvaju kao novi treninzi u teretani bez serija.',

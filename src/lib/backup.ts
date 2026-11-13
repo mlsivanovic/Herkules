@@ -10,6 +10,7 @@ import type {
   RecurrenceRuleRow,
   ScheduleItemRow,
   SessionDoc,
+  SessionHeartRateRow,
   TemplateItemRow,
   TemplateBlockRow,
   TemplateRow,
@@ -20,7 +21,7 @@ import type {
 import { t } from './i18n'
 
 export const BACKUP_FORMAT = 'herkules-backup'
-export const BACKUP_VERSION = 6
+export const BACKUP_VERSION = 7
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT
@@ -41,6 +42,8 @@ export interface BackupFile {
   sessions: SessionDoc[]
   checkins: TendonCheckinRow[]
   aerobicActivities: AerobicActivityRow[]
+  /** Workout heart rate per session (version 7+; older files have none). */
+  heartRate: SessionHeartRateRow[]
 }
 
 type BackupInput = Omit<
@@ -52,7 +55,8 @@ type BackupInput = Omit<
   | 'aerobicActivities'
   | 'bodyMeasures'
   | 'planRoutines'
-> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures' | 'planRoutines'>>
+  | 'heartRate'
+> & Partial<Pick<BackupFile, 'templateBlocks' | 'aerobicActivities' | 'bodyMeasures' | 'planRoutines' | 'heartRate'>>
 
 export function serializeBackup(input: BackupInput): string {
   const file: BackupFile = {
@@ -64,6 +68,7 @@ export function serializeBackup(input: BackupInput): string {
     aerobicActivities: input.aerobicActivities ?? [],
     bodyMeasures: input.bodyMeasures ?? [],
     planRoutines: input.planRoutines ?? [],
+    heartRate: input.heartRate ?? [],
   }
   return JSON.stringify(file, null, 2)
 }
@@ -142,6 +147,7 @@ export function parseBackup(text: string): BackupFile {
     bodyMeasures,
     templates,
     planRoutines,
+    heartRate: Array.isArray(file.heartRate) ? (file.heartRate as SessionHeartRateRow[]) : [],
   }
 }
 

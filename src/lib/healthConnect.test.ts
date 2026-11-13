@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  aerobicTypeForHealth,
   dedupeHealthWorkouts,
+  healthAerobicId,
   healthOriginKind,
   healthSessionId,
   healthWorkoutName,
@@ -8,6 +10,7 @@ import {
   mergeHeartRate,
   planHealthImport,
   thinHeartRate,
+  toHealthAerobic,
   toHealthImport,
   type HealthWorkout,
 } from './healthConnect'
@@ -187,5 +190,69 @@ describe('heartRateForFinishedSession', () => {
       heartRate: [{ at: START + 60_000, bpm: 100 }],
     })
     expect(heartRateForFinishedSession(session, [workout(), second], [])).toBeNull()
+  })
+})
+
+describe('aerobic destination', () => {
+  it('maps watch sports to aerobic log types', () => {
+    expect(aerobicTypeForHealth(79)).toBe('walking')
+    expect(aerobicTypeForHealth(56)).toBe('running')
+    expect(aerobicTypeForHealth(57)).toBe('running')
+    expect(aerobicTypeForHealth(74)).toBe('swimming')
+    expect(aerobicTypeForHealth(64)).toBe('football')
+    expect(aerobicTypeForHealth(36)).toBe('other')
+  })
+
+  it('defaults cardio to aerobic and gym types to a session', () => {
+    const [run] = planHealthImport([workout()], [])
+    expect(run.defaultDestination).toBe('aerobic')
+    expect(run.aerobicType).toBe('running')
+    const [lift] = planHealthImport([workout({ exerciseType: 70 })], [])
+    expect(lift.defaultDestination).toBe('session')
+  })
+
+  it('defaults to the overlapping gym session', () => {
+    const session = {
+      id: 'gym-1',
+      status: 'completed',
+      started_at: new Date(START - 5 * 60_000).toISOString(),
+      ended_at: new Date(END + 5 * 60_000).toISOString(),
+      session_exercises: [{ sets: [{ completed_at: new Date(END).toISOString() }] }],
+    }
+    const [row] = planHealthImport([workout()], [session])
+    expect(row.defaultDestination).toBe('session')
+    expect(row.defaultTarget).toBe('gym-1')
+  })
+
+  it('marks an earlier aerobic import', () => {
+    const watch = workout()
+    const [row] = planHealthImport([watch], [], [{ id: healthAerobicId(watch) }])
+    expect(row.aerobicImported).toBe(true)
+    expect(row.defaultDestination).toBe('aerobic')
+  })
+
+  it('carries the local date', () => {
+    const [row] = planHealthImport([workout()], [])
+    const local = new Date(START)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    expect(row.date).toBe(`${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}`)
+  })
+
+  it('builds an aerobic entry with heart rate and a stable id', () => {
+    const watch = workout()
+    const entry = toHealthAerobic(watch, 'walking')
+    expect(entry.id).toBe(healthAerobicId(watch))
+    expect(entry.id).not.toBe(healthSessionId(watch))
+    expect(entry.activityType).toBe('walking')
+    expect(entry.durationS).toBe(30 * 60)
+    expect(entry.avgBpm).toBe(145)
+    expect(entry.maxBpm).toBe(150)
+  })
+
+  it('keeps short workouts at the one-minute minimum and no heart rate as null', () => {
+    const entry = toHealthAerobic(workout({ endMs: START + 20_000, heartRate: [] }), 'other')
+    expect(entry.durationS).toBe(60)
+    expect(entry.avgBpm).toBeNull()
+    expect(entry.maxBpm).toBeNull()
   })
 })

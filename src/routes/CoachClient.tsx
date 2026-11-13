@@ -555,6 +555,9 @@ function AerobicCard({ activities }: { activities: AerobicActivityRow[] }) {
                   <strong>{aerobicActivityLabel(row.activity_type)}</strong>{' '}
                   <small className="muted">
                     {formatDateShort(row.recorded_on)}
+                    {row.avg_bpm && row.max_bpm
+                      ? ` · ${t('aerobic.entryHeartRate', { average: row.avg_bpm, peak: row.max_bpm })}`
+                      : ''}
                     {row.notes ? ` · ${row.notes}` : ''}
                   </small>
                 </span>

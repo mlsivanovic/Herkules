@@ -123,6 +123,9 @@ export function AerobicGoal() {
                         <strong>{activity}</strong>{' '}
                         <small className="muted">
                           {when} · {t('aerobic.entryMinutes', { minutes: Math.round(row.duration_s / 60) })}
+                          {row.avg_bpm && row.max_bpm
+                            ? ` · ${t('aerobic.entryHeartRate', { average: row.avg_bpm, peak: row.max_bpm })}`
+                            : ''}
                         </small>
                       </span>
                       <button

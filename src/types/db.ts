@@ -397,8 +397,11 @@ export interface SessionDoc extends SessionRow {
 
 export const AEROBIC_ACTIVITY_TYPES = [
   'walking',
+  'running',
+  'hiking',
   'cycling',
   'rowing',
+  'elliptical',
   'basketball',
   'table_tennis',
   'tennis',
@@ -422,6 +425,9 @@ export interface AerobicActivityRow {
   duration_s: number
   moderate: boolean
   notes: string | null
+  /** Watch heart rate for imported activities. Missing on manual entries. */
+  avg_bpm?: number | null
+  max_bpm?: number | null
   created_at: string
   updated_at: string
 }

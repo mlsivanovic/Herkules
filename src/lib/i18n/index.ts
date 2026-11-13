@@ -45,8 +45,11 @@ export function blockFormatLabel(value: string): string {
 
 const AEROBIC_LABELS: Record<AerobicActivityType, MessageKey> = {
   walking: 'aerobic.walking',
+  running: 'aerobic.running',
+  hiking: 'aerobic.hiking',
   cycling: 'aerobic.cycling',
   rowing: 'aerobic.rowing',
+  elliptical: 'aerobic.elliptical',
   basketball: 'aerobic.basketball',
   table_tennis: 'aerobic.tableTennis',
   tennis: 'aerobic.tennis',

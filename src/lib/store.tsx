@@ -465,6 +465,18 @@ export interface StoreActions {
     notes?: string | null
   }): Promise<void>
   deleteAerobicActivity(id: string): Promise<void>
+  /** Upserts watch workouts into the aerobic log by their stable id. Returns rows written. */
+  importAerobicActivities(
+    items: {
+      id: string
+      date: string
+      activityType: AerobicActivityRow['activity_type']
+      durationS: number
+      avgBpm: number | null
+      maxBpm: number | null
+      notes: string | null
+    }[],
+  ): Promise<number>
 
   // auth-related
   attemptSync(): Promise<boolean>
@@ -2842,6 +2854,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           updated_at: stamp,
         }
         await commit([{ store: 'aerobicActivities', row }], [upsert('aerobic_activities', row)])
+      },
+
+      async importAerobicActivities(items) {
+        if (items.length === 0) return 0
+        const all = await readAll()
+        const known = new Map(all.aerobicActivities.map((row) => [row.id, row]))
+        const stamp = nowIso()
+        const rows: AerobicActivityRow[] = items.map((item) => {
+          const existing = known.get(item.id)
+          const avg = item.avgBpm !== null && item.avgBpm > 0 ? Math.min(250, Math.round(item.avgBpm)) : null
+          const max = item.maxBpm !== null && item.maxBpm > 0 ? Math.min(250, Math.round(item.maxBpm)) : null
+          return {
+            id: item.id,
+            owner_id: existing?.owner_id ?? userIdRef.current ?? '',
+            recorded_on: item.date,
+            activity_type: item.activityType,
+            duration_s: Math.min(86_400, Math.max(60, Math.round(item.durationS))),
+            moderate: true,
+            notes: item.notes,
+            avg_bpm: avg,
+            max_bpm: avg !== null && max !== null ? Math.max(avg, max) : max,
+            created_at: existing?.created_at ?? stamp,
+            updated_at: stamp,
+          }
+        })
+        await commit(
+          rows.map((row) => ({ store: 'aerobicActivities' as const, row })),
+          rows.map((row) => upsert('aerobic_activities', row)),
+        )
+        return rows.length
       },
 
       async deleteAerobicActivity(id) {

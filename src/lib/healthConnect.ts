@@ -1,8 +1,9 @@
 // Maps Health Connect workouts into the same import shape as Samsung Health.
 // Watch S1 arrives via Mi Fitness, Galaxy Watch 7 via Samsung Health. Both
 // write on-device records; this module never talks to a vendor cloud.
+import type { AerobicActivityType } from '../types/db'
 import type { ParsedWorkoutImport } from './csv'
-import type { HeartRateSample } from './heartRate'
+import { summarizeHeartRate, type HeartRateSample } from './heartRate'
 import { deterministicUuid } from './importExternal'
 import { linkCandidates, sessionWindow, type SessionWindow } from './samsungHealth'
 import { LONG_SESSION_SECONDS } from './sessionDuration'
@@ -35,10 +36,20 @@ export interface HealthSessionRef {
   session_exercises?: { sets: { completed_at: string | null }[] }[]
 }
 
+/** Where one watch workout goes: the weekly aerobic log or a gym session. */
+export type HealthDestination = 'aerobic' | 'session'
+
 export interface HealthImportRow {
   workout: HealthWorkout
-  /** An earlier import of this same watch workout. */
+  /** Local calendar day the workout started on (YYYY-MM-DD). */
+  date: string
+  /** An earlier import of this same watch workout as a gym session. */
   alreadyImported: boolean
+  /** An earlier import of this same watch workout as an aerobic activity. */
+  aerobicImported: boolean
+  /** Sport preselected for the aerobic log. */
+  aerobicType: AerobicActivityType
+  defaultDestination: HealthDestination
   /** Existing session to receive heart rate. Null creates a session. */
   defaultTarget: string | null
   /** Gym sessions the user can pick instead, best match first. */
@@ -47,17 +58,25 @@ export interface HealthImportRow {
 
 const NAMES: Record<number, string> = {
   0: 'Gym workout',
+  2: 'Badminton',
+  5: 'Basketball',
   8: 'Cycling',
   9: 'Indoor cycling',
   25: 'Elliptical',
   36: 'HIIT',
   37: 'Hiking',
+  53: 'Rowing',
   54: 'Rowing',
   56: 'Running',
   57: 'Treadmill run',
+  64: 'Football',
+  68: 'Stair climbing',
   70: 'Strength training',
   73: 'Open water swim',
   74: 'Pool swim',
+  75: 'Table tennis',
+  76: 'Tennis',
+  78: 'Volleyball',
   79: 'Walking',
   81: 'Weightlifting',
   83: 'Yoga',
@@ -66,6 +85,40 @@ const NAMES: Record<number, string> = {
 /** English session name stored as-is. Unknown types stay a generic workout. */
 export function healthWorkoutName(exerciseType: number): string {
   return NAMES[exerciseType] ?? 'Workout'
+}
+
+/** Health Connect exercise types and the aerobic log sport they map to. */
+const AEROBIC_TYPES: Record<number, AerobicActivityType> = {
+  5: 'basketball',
+  8: 'cycling',
+  9: 'cycling',
+  25: 'elliptical',
+  37: 'hiking',
+  53: 'rowing',
+  54: 'rowing',
+  56: 'running',
+  57: 'running',
+  64: 'football',
+  73: 'swimming',
+  74: 'swimming',
+  75: 'table_tennis',
+  76: 'tennis',
+  78: 'volleyball',
+  79: 'walking',
+}
+
+/**
+ * Types that are gym work, so they default to a session.
+ * Other workout, calisthenics, pilates, strength, stretching, weightlifting, yoga.
+ */
+const GYM_TYPES = new Set([0, 13, 48, 70, 71, 81, 83])
+
+export function aerobicTypeForHealth(exerciseType: number): AerobicActivityType {
+  return AEROBIC_TYPES[exerciseType] ?? 'other'
+}
+
+export function isGymHealthType(exerciseType: number): boolean {
+  return GYM_TYPES.has(exerciseType)
 }
 
 export function healthOriginKind(origin: string): 'xiaomi' | 'samsung' | 'other' {
@@ -149,7 +202,14 @@ export function dedupeHealthWorkouts(workouts: readonly HealthWorkout[]): Health
   return kept.sort((a, b) => b.startMs - a.startMs)
 }
 
-function localDate(ms: number): string {
+/** Aerobic log id of a watch workout; stable across re-imports. */
+export function healthAerobicId(workout: { startMs: number; endMs: number }): string {
+  const startMinute = Math.floor(workout.startMs / START_BUCKET_MS)
+  const durationMinute = Math.round((workout.endMs - workout.startMs) / START_BUCKET_MS)
+  return deterministicUuid('health-connect-aerobic', startMinute, durationMinute)
+}
+
+export function localDate(ms: number): string {
   const date = new Date(ms)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -191,19 +251,31 @@ function positiveOverlap(
 export function planHealthImport(
   workouts: readonly HealthWorkout[],
   sessions: readonly HealthSessionRef[],
+  aerobic: readonly { id: string }[] = [],
 ): HealthImportRow[] {
+  const aerobicIds = new Set(aerobic.map((row) => row.id))
   return dedupeHealthWorkouts(workouts).map((workout) => {
     const importedId = existingHealthSession(workout, sessions)
+    const aerobicImported = aerobicIds.has(healthAerobicId(workout))
     const windows = sessions
       .filter((session) => session.id !== importedId)
       .map(sessionWindow)
       .filter((window): window is SessionWindow => window !== null)
     const options = linkCandidates(workout, windows)
     const overlap = options.find((window) => positiveOverlap(workout, window)) ?? null
+    const defaultTarget = importedId ?? overlap?.id ?? null
+    let defaultDestination: HealthDestination = 'aerobic'
+    if (!aerobicImported && (defaultTarget !== null || isGymHealthType(workout.exerciseType))) {
+      defaultDestination = 'session'
+    }
     return {
       workout,
+      date: localDate(workout.startMs),
       alreadyImported: importedId !== null,
-      defaultTarget: importedId ?? overlap?.id ?? null,
+      aerobicImported,
+      aerobicType: aerobicTypeForHealth(workout.exerciseType),
+      defaultDestination,
+      defaultTarget,
       options,
     }
   })
@@ -251,6 +323,34 @@ export function toHealthImport(workout: HealthWorkout): ParsedWorkoutImport {
     startedAt: new Date(workout.startMs).toISOString(),
     endedAt: new Date(workout.endMs).toISOString(),
     heartRate: thinHeartRate(mergeHeartRate([workout.heartRate])),
+  }
+}
+
+export interface HealthAerobicImport {
+  id: string
+  date: string
+  activityType: AerobicActivityType
+  durationS: number
+  avgBpm: number | null
+  maxBpm: number | null
+  notes: string
+}
+
+/** One aerobic log entry: day, sport, minutes and the watch heart rate summary. */
+export function toHealthAerobic(
+  workout: HealthWorkout,
+  activityType: AerobicActivityType,
+): HealthAerobicImport {
+  const seconds = Math.round((workout.endMs - workout.startMs) / 1000)
+  const heartRate = summarizeHeartRate(mergeHeartRate([workout.heartRate]))
+  return {
+    id: healthAerobicId(workout),
+    date: localDate(workout.startMs),
+    activityType,
+    durationS: Math.min(86_400, Math.max(60, seconds)),
+    avgBpm: heartRate?.average ?? null,
+    maxBpm: heartRate?.peak ?? null,
+    notes: `Imported from Health Connect (${workout.origin || 'unknown source'})`,
   }
 }
 

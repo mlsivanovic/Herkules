@@ -1,0 +1,182 @@
+/* Health Connect import: workouts grouped by day, each one saved as aerobic or gym. */
+
+.hc-import {
+  padding-bottom: 0;
+}
+
+.hc-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--c-bg-raised);
+}
+
+.hc-seg__option {
+  min-height: 38px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hc-seg__option--on {
+  background: var(--c-card);
+  color: var(--c-text);
+  box-shadow: 0 1px 3px rgb(20 24 36 / 0.12);
+}
+
+.hc-seg__option:disabled {
+  cursor: progress;
+}
+
+.hc-toolbar {
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hc-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.hc-day__title {
+  margin: 0.35rem 0 0;
+  color: var(--c-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.hc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-card);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.hc-card--on {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.hc-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+
+.hc-card__check {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+  accent-color: var(--c-primary);
+}
+
+.hc-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-card__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hc-card__title strong {
+  font-size: 1rem;
+}
+
+.hc-card__time {
+  color: var(--c-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.hc-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-size: 0.88rem;
+}
+
+.hc-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.hc-chip--heart {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+
+.hc-card__dest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--c-border);
+}
+
+.hc-card__dest .field {
+  margin: 0;
+}
+
+.hc-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.25rem 0.9rem;
+  border: 1px dashed var(--c-border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* Stays visible while the list scrolls inside the modal. */
+.hc-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 -1.1rem;
+  padding: 0.75rem 1.1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--c-border);
+  background: var(--c-card);
+}
+
+.hc-footer .btn {
+  flex-shrink: 0;
+}

@@ -340,7 +340,7 @@ class HerkulesHealthPlugin : Plugin() {
 
     /** Waits for the sensor to come back in range; autoConnect has no timeout. */
     @SuppressLint("MissingPermission")
-    private val reconnect = Runnable {
+    private val reconnect: Runnable = Runnable {
         synchronized(lock) {
             val address = deviceAddress ?: return@Runnable
             if (gatt != null) return@Runnable
@@ -359,7 +359,7 @@ class HerkulesHealthPlugin : Plugin() {
     }
 
     @SuppressLint("MissingPermission")
-    private val gattCallback = object : BluetoothGattCallback() {
+    private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             synchronized(lock) {
                 // A callback from a connection that was already replaced or stopped.

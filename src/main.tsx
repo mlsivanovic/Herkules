@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { startAndroidBack } from './lib/androidBack'
 import { startSystemThemeListener } from './lib/theme'
 import { applySavedLocale, startSystemLocaleListener } from './lib/i18n'
 import { startUpdateCheck } from './pwa'
@@ -19,3 +20,4 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 startSystemThemeListener()
 startSystemLocaleListener()
 startUpdateCheck()
+startAndroidBack()

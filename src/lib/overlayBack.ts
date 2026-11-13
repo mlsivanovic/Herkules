@@ -34,6 +34,11 @@ let ignorePop = 0
 let listening = false
 let nextToken = 1
 
+/** True while a modal or sheet still owns a history entry. */
+export function overlayIsOpen(): boolean {
+  return closers.length > 0
+}
+
 function onPop(): void {
   const decision = overlayOnPop(closers.length, ignorePop)
   ignorePop = decision.ignore

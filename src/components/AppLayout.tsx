@@ -19,6 +19,7 @@ import { syncBarStatus } from '../lib/syncStatus'
 import { BrandLogo } from './BrandLogo'
 import { PrimaryWorkoutAction } from './PrimaryWorkoutAction'
 import { primarySectionForPath } from '../lib/navigation'
+import { pushBackStep } from '../lib/androidBack'
 import './appLayout.css'
 
 function SyncBar() {
@@ -116,6 +117,11 @@ export function AppLayout() {
       active: primarySection === 'progress',
     },
   ]
+
+  useEffect(() => {
+    if (!profileOpen) return
+    return pushBackStep(() => setProfileOpen(false))
+  }, [profileOpen])
 
   useEffect(() => {
     if (!profileOpen) return

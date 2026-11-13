@@ -36,6 +36,7 @@ import { SamsungHealthImport } from '../components/SamsungHealthImport'
 import { AndroidUpdateNotice, HealthConnectImport } from '../components/HealthConnectImport'
 import { AndroidAppDownload } from '../components/AndroidAppDownload'
 import { isNativeApp } from '../lib/herkulesHealth'
+import { pushBackStep } from '../lib/androidBack'
 import './settings.css'
 
 const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'android', 'account'] as const
@@ -184,6 +185,14 @@ export function Settings() {
     if (!openPane) return
     const section = document.getElementById(`settings-panel-${openPane}`)?.closest('.settings-section')
     section?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [openPane])
+
+  useEffect(() => {
+    if (!openPane) return
+    return pushBackStep(() => {
+      setOpenPane(null)
+      persistOpenPane(null)
+    })
   }, [openPane])
 
   function togglePane(id: SettingsPane) {

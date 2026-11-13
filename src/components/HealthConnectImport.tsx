@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  isNewerAndroidRelease,
-  parseAndroidRelease,
-  type AndroidRelease,
-  type ReleasePayload,
-} from '../lib/androidRelease'
+import { fetchLatestAndroidRelease, isNewerAndroidRelease, type AndroidRelease } from '../lib/androidRelease'
 import { sessionIdsWithHeartRate } from '../lib/db'
 import {
   healthOriginKind,
@@ -30,7 +25,6 @@ import './samsungHealthImport.css'
 
 const NEW = 'new'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-const RELEASES_URL = 'https://api.github.com/repos/mlsivanovic/Herkules/releases?per_page=20'
 
 export function AndroidUpdateNotice() {
   const { t } = useT()
@@ -38,21 +32,14 @@ export function AndroidUpdateNotice() {
 
   useEffect(() => {
     if (!isNativeApp()) return
-    const current = __HERKULES_VERSION__
-    void fetch(RELEASES_URL)
-      .then((response) => (response.ok ? (response.json() as Promise<ReleasePayload[]>) : []))
-      .then((payloads) => {
-        for (const payload of payloads) {
-          const parsed = parseAndroidRelease(payload)
-          if (parsed && isNewerAndroidRelease(current, parsed.tag)) {
-            setRelease(parsed)
-            return
-          }
-        }
-      })
-      .catch(() => {
-        /* The app works without a release check. */
-      })
+    let alive = true
+    // The app works without a release check; null means no notice.
+    void fetchLatestAndroidRelease().then((latest) => {
+      if (alive && latest && isNewerAndroidRelease(__HERKULES_VERSION__, latest.tag)) setRelease(latest)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   if (!release) return null

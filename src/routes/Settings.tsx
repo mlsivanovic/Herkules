@@ -34,9 +34,11 @@ import { IconChevronDown } from '../components/Icons'
 import { Modal } from '../components/ui'
 import { SamsungHealthImport } from '../components/SamsungHealthImport'
 import { AndroidUpdateNotice, HealthConnectImport } from '../components/HealthConnectImport'
+import { AndroidAppDownload } from '../components/AndroidAppDownload'
+import { isNativeApp } from '../lib/herkulesHealth'
 import './settings.css'
 
-const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'account'] as const
+const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'android', 'account'] as const
 type SettingsPane = (typeof SETTINGS_PANES)[number]
 const SETTINGS_OPEN_KEY = 'herkules:settings-open'
 
@@ -930,6 +932,18 @@ export function Settings() {
         </div>
       </SettingsSection>
       ) : null}
+
+      {isNativeApp() ? null : (
+        <SettingsSection
+          id="android"
+          title={t('settings.androidApp')}
+          summary={t('settings.androidAppSummary')}
+          open={openPane === 'android'}
+          onToggle={() => togglePane('android')}
+        >
+          <AndroidAppDownload />
+        </SettingsSection>
+      )}
 
       <SettingsSection
         id="account"

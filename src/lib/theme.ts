@@ -1,5 +1,5 @@
 // Theme handling: device-persisted Light / Dark / System, live OS tracking.
-import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core'
+import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core'
 import { useEffect, useState } from 'react'
 
 export type Theme = 'light' | 'dark'
@@ -10,6 +10,11 @@ const STORAGE_KEY = 'herkules:theme'
 const THEME_COLORS: Record<Theme, string> = { light: '#f6f7fb', dark: '#0d0f15' }
 
 type ThemeState = { theme: Theme; preference: ThemePreference }
+
+/** Android only: remembers the choice so the next launch starts in the right colors. */
+const HerkulesTheme = registerPlugin<{
+  setPreference(options: { preference: ThemePreference }): Promise<{ preference: ThemePreference }>
+}>('HerkulesTheme')
 
 const listeners = new Set<(state: ThemeState) => void>()
 let memoryPreference: ThemePreference | null = null
@@ -54,6 +59,11 @@ function syncNativeBars(theme: Theme): void {
   }).catch(() => {})
 }
 
+function saveNativePreference(preference: ThemePreference): void {
+  if (Capacitor.getPlatform() !== 'android') return
+  void HerkulesTheme.setPreference({ preference }).catch(() => {})
+}
+
 function notify(): void {
   const state: ThemeState = { theme: currentTheme(), preference: savedPreference() }
   listeners.forEach((listener) => listener(state))
@@ -80,6 +90,7 @@ export function setPreference(preference: ThemePreference): Theme {
   } catch {
     // Private mode — preference stays in memory for this session
   }
+  saveNativePreference(preference)
   const theme = resolveTheme(preference, systemTheme())
   writeTheme(theme)
   notify()
@@ -97,6 +108,8 @@ export function startSystemThemeListener(): () => void {
   applySystem()
   // Explicit light/dark never goes through applySystem, so sync bars once at startup.
   syncNativeBars(currentTheme())
+  // Installs from before the native copy existed only have the choice in localStorage.
+  saveNativePreference(savedPreference())
   query.addEventListener('change', applySystem)
   return () => query.removeEventListener('change', applySystem)
 }

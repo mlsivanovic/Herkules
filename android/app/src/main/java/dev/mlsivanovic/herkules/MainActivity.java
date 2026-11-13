@@ -10,24 +10,35 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Target SDK 36 draws edge-to-edge. Transparent scrims (not auto) keep
-        // Android from laying a gray contrast bar over the status and gesture areas.
-        EdgeToEdge.enable(
-            this,
-            SystemBarStyle.dark(Color.TRANSPARENT),
-            SystemBarStyle.dark(Color.TRANSPARENT)
-        );
+        // The in-app theme saved on the last run, so the first frame already matches it.
+        String preference = HerkulesThemePlugin.savedPreference(this);
+        enableEdgeToEdge(preference);
         registerPlugin(HerkulesHealthPlugin.class);
+        registerPlugin(HerkulesThemePlugin.class);
         super.onCreate(savedInstanceState);
         // Capacitor applies AppTheme inside super.onCreate and can restore opaque bars.
-        EdgeToEdge.enable(
-            this,
-            SystemBarStyle.dark(Color.TRANSPARENT),
-            SystemBarStyle.dark(Color.TRANSPARENT)
-        );
+        enableEdgeToEdge(preference);
+        HerkulesThemePlugin.applyWindowBackground(this, preference);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setStatusBarContrastEnforced(false);
             getWindow().setNavigationBarContrastEnforced(false);
         }
+    }
+
+    /**
+     * Target SDK 36 draws edge-to-edge. Transparent scrims keep Android from laying a
+     * gray contrast bar over the status and gesture areas; the style picks the icon color
+     * (dark: light icons, light: dark icons, auto: follow the system night mode).
+     */
+    private void enableEdgeToEdge(String preference) {
+        SystemBarStyle style;
+        if ("dark".equals(preference)) {
+            style = SystemBarStyle.dark(Color.TRANSPARENT);
+        } else if ("light".equals(preference)) {
+            style = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT);
+        } else {
+            style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT);
+        }
+        EdgeToEdge.enable(this, style, style);
     }
 }

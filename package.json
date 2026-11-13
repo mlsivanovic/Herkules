@@ -1,7 +1,7 @@
 {
   "name": "herkules",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.1.3",
   "type": "module",
   "description": "Herkules — offline-first workout logging PWA (strength, cardio, mobility)",
   "scripts": {

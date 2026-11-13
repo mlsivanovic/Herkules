@@ -1,5 +1,6 @@
 // Manual service worker registration + update/offline-ready prompts.
 // The toast lives outside the React tree (vanilla DOM), styled by global.css.
+import { Capacitor } from '@capacitor/core'
 import { t } from './lib/i18n'
 
 const TOAST_ID = 'herkules-toast'
@@ -34,7 +35,8 @@ function dismissToast(): void {
 }
 
 export function startUpdateCheck(): void {
-  if (import.meta.env.DEV) return
+  // The APK ships its own assets. A service worker there would cache a second copy.
+  if (import.meta.env.DEV || Capacitor.isNativePlatform()) return
   import('virtual:pwa-register')
     .then(({ registerSW }) => {
       const updateNow = registerSW({

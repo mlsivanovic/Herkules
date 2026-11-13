@@ -647,6 +647,10 @@ export const en = {
     failed: 'Could not connect to the heart-rate sensor.',
     lost: 'Heart-rate sensor disconnected.',
     saveFailed: 'Could not save heart-rate readings.',
+    scanning: 'Looking for a sensor…',
+    pick: 'Choose a heart-rate sensor',
+    noneFound: 'No heart-rate sensor found.',
+    notification: 'Recording heart rate',
   },
   workout: {
     preparing: 'Preparing workout…',
@@ -1069,6 +1073,25 @@ export const en = {
     samsungImportSelected: 'Import {count} workout(s)',
     samsungImported:
       'New workouts: {created}. Heart rate added to existing workouts: {linked}. Skipped: {skipped}.',
+    healthImport: 'Import from Health Connect…',
+    healthHint:
+      'Workouts and heart rate that Samsung Health or Mi Fitness wrote to Health Connect on this phone.',
+    healthTitle: 'Workouts from Health Connect',
+    healthBody:
+      'Heart rate is written into the Herkules workout logged at the same time. A workout without a match can be saved as a new session.',
+    healthRefresh:
+      'If a Galaxy Watch workout is missing, open Samsung Health and pull down on the home screen, then look again.',
+    healthUnavailable: 'Health Connect is not available on this phone.',
+    healthUpdateRequired: 'Update Health Connect, then try again.',
+    healthDenied: 'Health Connect access was not granted.',
+    healthReadFailed: 'Could not read Health Connect.',
+    healthEmpty: 'No workouts in the last 7 days.',
+    healthLook: 'Look for workouts',
+    healthOriginXiaomi: 'Xiaomi watch',
+    healthOriginSamsung: 'Galaxy Watch / Samsung Health',
+    healthOriginOther: 'Other source',
+    androidUpdate: 'A newer Android build is on GitHub ({tag}).',
+    androidUpdateAction: 'Download',
     routines: 'Routines',
     routinesHint: 'JSON templates with exercise names, so they work on another account.',
     exportRoutines: 'Export routines (JSON)',

@@ -66,7 +66,7 @@ import {
   type StoreName,
 } from './db'
 import { fetchHeartRate, flushOutbox, fetchSnapshot } from './sync'
-import { heartRateRow, planHeartRateSync, samplesFromRow } from './heartRate'
+import { heartRateRow, planHeartRateSync, samplesFromRow, type HeartRateSample } from './heartRate'
 import { matchExercise, parseWorkoutCsv, serializeWorkoutCsv, type ParsedWorkoutImport } from './csv'
 import { parseExternalCsv } from './importExternal'
 import { parseBackup, serializeBackup } from './backup'
@@ -388,6 +388,8 @@ export interface StoreActions {
     linked: number
     skipped: number
   }>
+  /** Fills heart rate on a finished session that does not have any yet. */
+  attachHeartRate(sessionId: string, samples: readonly HeartRateSample[]): Promise<boolean>
   exportBackup(): Promise<string>
   restoreBackup(text: string): Promise<{
     sessions: number
@@ -2295,6 +2297,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (heartRateOps.length > 0) await commit([], heartRateOps)
         if (fresh.length > 0) await actionsRef.current?.importWorkouts(fresh)
         return { created: fresh.length, linked, skipped }
+      },
+
+      async attachHeartRate(sessionId, samples) {
+        if (samples.length === 0) return false
+        const existing = await readOne<SessionDoc>('sessions', sessionId)
+        if (!existing) return false
+        if ((await readHeartRate(sessionId)).length > 0) return false
+        await replaceHeartRate(sessionId, samples)
+        const ops = await heartRateUpload(sessionId, userIdRef.current ?? '')
+        if (ops.length > 0) await commit([], ops)
+        return ops.length > 0
       },
 
       async importWorkouts(parsed: ParsedWorkoutImport[]) {

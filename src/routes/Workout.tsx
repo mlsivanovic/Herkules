@@ -5,6 +5,8 @@ import { WorkoutHeartRate } from '../components/WorkoutHeartRate'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
+import { attachWatchHeartRate } from '../lib/attachWatchHeartRate'
+import { flushNativeHeartRate } from '../lib/flushHeartRate'
 import type { SessionDoc } from '../types/db'
 import { formatDuration } from '../lib/units'
 import { BottomSheet, EmptyState, Loader, Modal } from '../components/ui'
@@ -328,7 +330,15 @@ export function Workout() {
             setFinishError(null)
             setFinishBusy(true)
             try {
+              await flushNativeHeartRate(active.id)
               await store.finishSession(active.id, summary)
+              try {
+                await attachWatchHeartRate(active, (sessionId, samples) =>
+                  store.attachHeartRate(sessionId, samples),
+                )
+              } catch {
+                // Finish already succeeded. Watch data can be imported from Settings.
+              }
               intervalTimer.reset()
               skipRest()
               // Replace the finish sheet's history entry so Back does not return to it.

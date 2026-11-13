@@ -648,6 +648,10 @@ export const sr: Messages = {
     failed: 'Povezivanje sa senzorom pulsa nije uspelo.',
     lost: 'Senzor pulsa je odvojen.',
     saveFailed: 'Čuvanje očitavanja pulsa nije uspelo.',
+    scanning: 'Tražim senzor…',
+    pick: 'Izaberi senzor pulsa',
+    noneFound: 'Nije pronađen senzor pulsa.',
+    notification: 'Snimanje pulsa',
   },
   workout: {
     preparing: 'Priprema treninga…',
@@ -1067,6 +1071,25 @@ export const sr: Messages = {
     samsungImportSelected: 'Uvezi treninge: {count}',
     samsungImported:
       'Novih treninga: {created}. Puls upisan u postojeće treninge: {linked}. Preskočeno: {skipped}.',
+    healthImport: 'Uvezi iz Health Connecta…',
+    healthHint:
+      'Treninzi i puls koje su Samsung Health ili Mi Fitness upisali u Health Connect na ovom telefonu.',
+    healthTitle: 'Treninzi iz Health Connecta',
+    healthBody:
+      'Puls se upisuje u Herkules trening zabeležen u isto vreme. Trening bez para može da se sačuva kao nova sesija.',
+    healthRefresh:
+      'Ako trening sa Galaxy Watcha nedostaje, otvori Samsung Health i povuci početni ekran nadole, pa pogledaj ponovo.',
+    healthUnavailable: 'Health Connect nije dostupan na ovom telefonu.',
+    healthUpdateRequired: 'Ažuriraj Health Connect, pa pokušaj ponovo.',
+    healthDenied: 'Pristup Health Connectu nije odobren.',
+    healthReadFailed: 'Čitanje Health Connecta nije uspelo.',
+    healthEmpty: 'Nema treninga u poslednjih 7 dana.',
+    healthLook: 'Potraži treninge',
+    healthOriginXiaomi: 'Xiaomi sat',
+    healthOriginSamsung: 'Galaxy Watch / Samsung Health',
+    healthOriginOther: 'Drugi izvor',
+    androidUpdate: 'Novija Android verzija je na GitHubu ({tag}).',
+    androidUpdateAction: 'Preuzmi',
     routines: 'Rutine',
     routinesHint: 'JSON šabloni sa nazivima vežbi, da rade i na drugom nalogu.',
     exportRoutines: 'Izvezi rutine (JSON)',

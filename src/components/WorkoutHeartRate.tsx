@@ -1,17 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { recordHeartRate } from '../lib/db'
+import { flushNativeHeartRate } from '../lib/flushHeartRate'
+import {
+  connectHeartRateDevice,
+  isNativeApp,
+  scanHeartRateDevices,
+  stopHeartRateDevice,
+  type HeartRateDevice,
+} from '../lib/herkulesHealth'
 import { useT } from '../lib/i18n'
+import { Modal } from './ui'
 
-interface HeartRateCharacteristic extends EventTarget {
+interface WebHeartRateCharacteristic extends EventTarget {
   value?: DataView
   startNotifications(): Promise<unknown>
 }
 
-interface HeartRateDevice extends EventTarget {
+interface WebHeartRateDevice extends EventTarget {
   gatt?: {
     connect(): Promise<{
       getPrimaryService(service: string): Promise<{
-        getCharacteristic(name: string): Promise<HeartRateCharacteristic>
+        getCharacteristic(name: string): Promise<WebHeartRateCharacteristic>
       }>
     }>
     disconnect(): void
@@ -19,10 +28,141 @@ interface HeartRateDevice extends EventTarget {
 }
 
 interface HeartRateBluetooth {
-  requestDevice(options: { filters: { services: string[] }[] }): Promise<HeartRateDevice>
+  requestDevice(options: { filters: { services: string[] }[] }): Promise<WebHeartRateDevice>
+}
+
+function NativeWorkoutHeartRate({ sessionId }: { sessionId: string }) {
+  const { t } = useT()
+  const [status, setStatus] = useState<'idle' | 'scanning' | 'connecting' | 'connected' | 'failed' | 'lost'>('idle')
+  const [devices, setDevices] = useState<HeartRateDevice[]>([])
+  const [reading, setReading] = useState<number | null>(null)
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [scanEmpty, setScanEmpty] = useState(false)
+  const alive = useRef(true)
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      void flushNativeHeartRate(sessionId).finally(() => stopHeartRateDevice())
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    if (status !== 'connected') return
+    const timer = setInterval(() => {
+      void flushNativeHeartRate(sessionId)
+        .then((bpm) => {
+          if (!alive.current) return
+          if (bpm !== null) setReading(bpm)
+          setSaveFailed(false)
+        })
+        .catch(() => {
+          if (alive.current) setSaveFailed(true)
+        })
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [sessionId, status])
+
+  async function scan() {
+    setStatus('scanning')
+    setDevices([])
+    setSaveFailed(false)
+    try {
+      const found = await scanHeartRateDevices()
+      if (!alive.current) return
+      setDevices(found)
+      setScanEmpty(found.length === 0)
+      setStatus(found.length === 0 ? 'failed' : 'idle')
+    } catch {
+      if (!alive.current) return
+      setScanEmpty(false)
+      setStatus('failed')
+    }
+  }
+
+  async function connect(device: HeartRateDevice) {
+    setStatus('connecting')
+    try {
+      await connectHeartRateDevice(device.id, t('heartRate.notification'))
+      if (!alive.current) {
+        await stopHeartRateDevice()
+        return
+      }
+      setDevices([])
+      setStatus('connected')
+    } catch {
+      if (alive.current) setStatus('failed')
+    }
+  }
+
+  async function disconnect() {
+    await flushNativeHeartRate(sessionId)
+    await stopHeartRateDevice()
+    setReading(null)
+    setStatus('idle')
+  }
+
+  const connected = status === 'connected'
+  const message =
+    status === 'failed' && scanEmpty
+      ? 'heartRate.noneFound'
+      : status === 'failed'
+        ? 'heartRate.failed'
+        : status === 'lost'
+          ? 'heartRate.lost'
+          : saveFailed
+            ? 'heartRate.saveFailed'
+            : null
+
+  return (
+    <div className="workout-heart-rate">
+      <div className="workout-heart-rate__bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12h5l3-7 4 14 3-7h5" />
+        </svg>
+        <span className="workout-heart-rate__value">
+          {reading !== null && connected ? t('heartRate.bpm', { bpm: reading }) : t(connected ? 'heartRate.waiting' : 'heartRate.label')}
+        </span>
+        <button
+          type="button"
+          className="btn workout-heart-rate__action"
+          disabled={status === 'scanning' || status === 'connecting'}
+          aria-label={t(connected ? 'heartRate.disconnect' : 'heartRate.connect')}
+          onClick={() => void (connected ? disconnect() : scan())}
+        >
+          {t(
+            connected
+              ? 'heartRate.disconnectShort'
+              : status === 'scanning' || status === 'connecting'
+                ? 'heartRate.connecting'
+                : 'heartRate.connectShort',
+          )}
+        </button>
+      </div>
+      {message ? <p className="workout-heart-rate__message" role="status">{t(message)}</p> : null}
+      {devices.length > 0 && !connected ? (
+        <Modal title={t('heartRate.pick')} onClose={() => setDevices([])}>
+          <div className="stack">
+            {devices.map((device) => (
+              <button key={device.id} type="button" className="btn btn--block" onClick={() => void connect(device)}>
+                {device.name || device.id}
+              </button>
+            ))}
+          </div>
+        </Modal>
+      ) : null}
+    </div>
+  )
 }
 
 export function WorkoutHeartRate({ sessionId }: { sessionId: string }) {
+  if (isNativeApp()) return <NativeWorkoutHeartRate sessionId={sessionId} />
+  return <WebWorkoutHeartRate sessionId={sessionId} />
+}
+
+function WebWorkoutHeartRate({ sessionId }: { sessionId: string }) {
   const { t } = useT()
   const bluetooth = (navigator as Navigator & { bluetooth?: HeartRateBluetooth }).bluetooth
   const cleanup = useRef<(() => void) | null>(null)
@@ -39,8 +179,8 @@ export function WorkoutHeartRate({ sessionId }: { sessionId: string }) {
     setStatus('connecting')
     setReading(null)
     setSaveFailed(false)
-    let device: HeartRateDevice | undefined
-    let characteristic: HeartRateCharacteristic | undefined
+    let device: WebHeartRateDevice | undefined
+    let characteristic: WebHeartRateCharacteristic | undefined
     let timeout: ReturnType<typeof setTimeout> | undefined
 
     function stop() {

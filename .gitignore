@@ -30,3 +30,12 @@ playwright-report/
 *.log
 .idea/
 .vscode/
+
+# Android sideload build. The project under android/ is committed; outputs are not.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public
+*.keystore
+*.jks

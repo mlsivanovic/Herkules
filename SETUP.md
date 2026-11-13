@@ -107,7 +107,67 @@ devDependency `sharp`):
 npm run icons
 ```
 
-## 8. Troubleshooting
+## 8. Android sideload (not Play Store)
+
+The phone app is the same React app inside a Capacitor WebView, plus a small
+Kotlin plugin that reads Health Connect and, when a sensor advertises the
+standard heart-rate service, keeps a Bluetooth connection during a workout.
+GitHub Pages and this APK share one Supabase account.
+
+One-time keystore, kept outside the repo. Losing it means the next APK cannot
+update the installed app.
+
+```bash
+keytool -genkeypair -v \
+  -keystore herkules-release.keystore \
+  -alias herkules \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Repository **Secrets** (not Variables):
+
+- `ANDROID_KEYSTORE_BASE64` — `base64 < herkules-release.keystore | pbcopy` output
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS` — `herkules`, unless you chose another alias
+- `ANDROID_KEY_PASSWORD`
+
+`package.json` `version`, `android/app/build.gradle` `versionName`, and
+`versionCode` stay in step. Bump `versionCode` by 1 for every APK you install
+over an older one.
+
+Build locally (JDK 21):
+
+```bash
+npm run android:sync
+cd android
+ANDROID_KEYSTORE_PATH=/absolute/path/herkules-release.keystore \
+ANDROID_KEYSTORE_PASSWORD=… \
+ANDROID_KEY_ALIAS=herkules \
+ANDROID_KEY_PASSWORD=… \
+  ./gradlew assembleRelease
+```
+
+The APK is `android/app/build/outputs/apk/release/app-release.apk`.
+
+Publish: tag `android-v1.2.0` (matching `versionName`) and push it. The
+`android.yml` workflow signs the APK and attaches it to that GitHub Release.
+A manual run of the workflow uploads the APK as an Actions artifact instead.
+The installed app links to a newer `android-v*` release when one exists.
+
+On the Galaxy S25, before expecting watch data:
+
+1. Samsung Health → Settings → Health Connect → allow exercise and heart rate.
+2. Mi Fitness → Profile → third-party data → Health Connect → the same types,
+   if a probe shows Samsung Health is not already passing Xiaomi workouts through.
+3. In Herkules: Settings → Import from Health Connect. The list shows the
+   writing app, the workout, and how many heart-rate samples arrived.
+4. If a Galaxy Watch workout is missing, open Samsung Health and pull down on
+   the home screen, then look again.
+
+Install the APK from the Release page. Android asks to allow installs from
+the browser. The next signed build with a higher `versionCode` updates it.
+
+## 9. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |

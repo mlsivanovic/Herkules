@@ -250,7 +250,10 @@ export function sessionWindow(session: {
  * Herkules sessions that a watch workout plausibly belongs to: overlapping
  * ones first (largest overlap wins), then those within LINK_GAP_MS (closest first).
  */
-export function linkCandidates(workout: SamsungWorkout, windows: readonly SessionWindow[]): SessionWindow[] {
+export function linkCandidates(
+  workout: { startMs: number; endMs: number },
+  windows: readonly SessionWindow[],
+): SessionWindow[] {
   const scored = windows.map((w) => {
     const overlap = Math.min(w.endMs, workout.endMs) - Math.max(w.startMs, workout.startMs)
     return { window: w, overlap }

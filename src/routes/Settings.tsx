@@ -33,6 +33,7 @@ import { LineChart } from '../components/Chart'
 import { IconChevronDown } from '../components/Icons'
 import { Modal } from '../components/ui'
 import { SamsungHealthImport } from '../components/SamsungHealthImport'
+import { AndroidUpdateNotice, HealthConnectImport } from '../components/HealthConnectImport'
 import './settings.css'
 
 const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'account'] as const
@@ -768,6 +769,8 @@ export function Settings() {
           </button>
           <small className="muted">{t('settings.importStrongHint')}</small>
           <SamsungHealthImport />
+          <HealthConnectImport />
+          <AndroidUpdateNotice />
         </div>
 
         <div className="settings-group">

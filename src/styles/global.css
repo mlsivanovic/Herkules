@@ -101,6 +101,11 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Links styled as buttons (external downloads) keep the button look. */
+a.btn {
+  text-decoration: none;
+}
+
 .btn:active {
   transform: scale(0.985);
 }

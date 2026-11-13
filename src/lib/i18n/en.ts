@@ -1092,6 +1092,14 @@ export const en = {
     healthOriginOther: 'Other source',
     androidUpdate: 'A newer Android build is on GitHub ({tag}).',
     androidUpdateAction: 'Download',
+    androidApp: 'Android app',
+    androidAppSummary: 'Install Herkules on your Android phone',
+    androidAppBody:
+      'The Android app has everything the web app has, plus watch workouts from Health Connect and a heart-rate strap that keeps recording with the screen off.',
+    androidAppDownload: 'Download for Android',
+    androidAppDownloadVersion: 'Download for Android ({version})',
+    androidAppHint:
+      'APK from GitHub, Android 9 or newer. Open the downloaded file and allow installs from your browser when Android asks. Sign in with the same account; your data syncs.',
     routines: 'Routines',
     routinesHint: 'JSON templates with exercise names, so they work on another account.',
     exportRoutines: 'Export routines (JSON)',

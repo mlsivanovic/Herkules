@@ -1090,6 +1090,14 @@ export const sr: Messages = {
     healthOriginOther: 'Drugi izvor',
     androidUpdate: 'Novija Android verzija je na GitHubu ({tag}).',
     androidUpdateAction: 'Preuzmi',
+    androidApp: 'Android aplikacija',
+    androidAppSummary: 'Instaliraj Herkules na Android telefon',
+    androidAppBody:
+      'Android aplikacija ima sve što i web verzija, plus treninge sa sata preko Health Connecta i pojas za puls koji beleži i kad je ekran ugašen.',
+    androidAppDownload: 'Preuzmi za Android',
+    androidAppDownloadVersion: 'Preuzmi za Android ({version})',
+    androidAppHint:
+      'APK sa GitHuba, Android 9 ili noviji. Otvori preuzeti fajl i dozvoli instalaciju iz browsera kad Android pita. Prijavi se istim nalogom; podaci se sinhronizuju.',
     routines: 'Rutine',
     routinesHint: 'JSON šabloni sa nazivima vežbi, da rade i na drugom nalogu.',
     exportRoutines: 'Izvezi rutine (JSON)',

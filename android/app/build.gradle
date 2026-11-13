@@ -1,6 +1,16 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// package.json is the single version source for the web app, the APK and the
+// android-v* release tag. versionCode grows with every x.y.z bump, so a newer
+// APK always installs over an older one.
+def appVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json')).version as String
+def appVersionParts = appVersion.tokenize('.').collect { it.replaceAll(/\D.*$/, '') as int }
+if (appVersionParts.size() != 3 || appVersionParts[1] > 99 || appVersionParts[2] > 99) {
+    throw new GradleException("package.json version must be x.y.z with y and z below 100, got ${appVersion}")
+}
+def appVersionCode = appVersionParts[0] * 10000 + appVersionParts[1] * 100 + appVersionParts[2]
+
 android {
     namespace = "dev.mlsivanovic.herkules"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -15,8 +25,8 @@ android {
         applicationId "dev.mlsivanovic.herkules"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 110
-        versionName "1.1.0"
+        versionCode appVersionCode
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -26,15 +36,16 @@ android {
     }
     signingConfigs {
         release {
-            def storePath = System.getenv('ANDROID_KEYSTORE_PATH')
-            def storePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
-            def keyAlias = System.getenv('ANDROID_KEY_ALIAS')
-            def keyPassword = System.getenv('ANDROID_KEY_PASSWORD')
-            if (storePath && storePassword && keyAlias && keyPassword) {
-                storeFile file(storePath)
-                this.storePassword storePassword
-                this.keyAlias keyAlias
-                this.keyPassword keyPassword
+            // Local names must differ from the DSL properties; `this` here is the project.
+            def envStorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+            def envStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            def envKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
+            def envKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+            if (envStorePath && envStorePassword && envKeyAlias && envKeyPassword) {
+                storeFile = file(envStorePath)
+                storePassword = envStorePassword
+                keyAlias = envKeyAlias
+                keyPassword = envKeyPassword
             }
         }
     }
@@ -71,12 +82,3 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}

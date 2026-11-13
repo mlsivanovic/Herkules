@@ -8,6 +8,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { supabase, backendConfigured } from './supabase'
 import { t } from './i18n'
+import { appBaseUrl } from './appUrl'
 
 export interface AuthState {
   session: Session | null
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     passwordRecovery,
     clearPasswordRecovery: () => setPasswordRecovery(false),
     async signUp(email, password) {
-      const redirect = window.location.origin + import.meta.env.BASE_URL
+      const redirect = appBaseUrl()
       const { error } = await supabase().auth.signUp({
         email,
         password,
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return describeError(error)
     },
     async requestPasswordReset(email) {
-      const redirect = window.location.origin + import.meta.env.BASE_URL
+      const redirect = appBaseUrl()
       const { error } = await supabase().auth.resetPasswordForEmail(email, {
         redirectTo: redirect,
       })

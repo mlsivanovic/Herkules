@@ -17,15 +17,29 @@ export interface HeartRateDevice {
   name: string
 }
 
+/** `lost`: the sensor dropped mid-workout and the app is waiting for it to return. */
+export type NativeHeartRateState = 'idle' | 'connecting' | 'connected' | 'lost' | 'failed'
+
+export interface NativeHeartRateStatus {
+  state: NativeHeartRateState
+  deviceId?: string
+  deviceName?: string
+}
+
 interface HerkulesHealthPlugin {
   getStatus(): Promise<{ status: 'available' | 'update_required' | 'unavailable' }>
   requestHealthPermissions(): Promise<{ granted: boolean }>
   readWorkouts(options: { startMs: number; endMs: number }): Promise<{ workouts: RawHealthWorkout[] }>
   readHeartRate(options: { startMs: number; endMs: number }): Promise<{ samples: HeartRateSample[] }>
   scanHeartRate(): Promise<{ devices: HeartRateDevice[] }>
-  connectHeartRate(options: { deviceId: string; notificationTitle: string }): Promise<void>
-  drainHeartRate(): Promise<{ samples: HeartRateSample[] }>
-  stopHeartRate(): Promise<void>
+  connectHeartRate(options: {
+    deviceId: string
+    deviceName: string
+    notificationTitle: string
+  }): Promise<NativeHeartRateStatus>
+  heartRateState(): Promise<NativeHeartRateStatus>
+  drainHeartRate(): Promise<NativeHeartRateStatus & { samples: HeartRateSample[] }>
+  stopHeartRate(): Promise<NativeHeartRateStatus>
 }
 
 const HerkulesHealth = registerPlugin<HerkulesHealthPlugin>('HerkulesHealth')
@@ -64,14 +78,29 @@ export async function scanHeartRateDevices(): Promise<HeartRateDevice[]> {
   return result.devices ?? []
 }
 
-export async function connectHeartRateDevice(deviceId: string, notificationTitle: string): Promise<void> {
-  await HerkulesHealth.connectHeartRate({ deviceId, notificationTitle })
+export async function connectHeartRateDevice(
+  device: HeartRateDevice,
+  notificationTitle: string,
+): Promise<NativeHeartRateStatus> {
+  return HerkulesHealth.connectHeartRate({
+    deviceId: device.id,
+    deviceName: device.name,
+    notificationTitle,
+  })
 }
 
-export async function drainHeartRateSamples(): Promise<HeartRateSample[]> {
-  if (!isNativeApp()) return []
+export async function nativeHeartRateState(): Promise<NativeHeartRateStatus> {
+  if (!isNativeApp()) return { state: 'idle' }
+  return HerkulesHealth.heartRateState()
+}
+
+export async function drainHeartRateSamples(): Promise<{
+  samples: HeartRateSample[]
+  state: NativeHeartRateState
+}> {
+  if (!isNativeApp()) return { samples: [], state: 'idle' }
   const result = await HerkulesHealth.drainHeartRate()
-  return result.samples ?? []
+  return { samples: result.samples ?? [], state: result.state ?? 'idle' }
 }
 
 export async function stopHeartRateDevice(): Promise<void> {

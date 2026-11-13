@@ -4,9 +4,11 @@ import { flushNativeHeartRate } from '../lib/flushHeartRate'
 import {
   connectHeartRateDevice,
   isNativeApp,
+  nativeHeartRateState,
   scanHeartRateDevices,
   stopHeartRateDevice,
   type HeartRateDevice,
+  type NativeHeartRateState,
 } from '../lib/herkulesHealth'
 import { useT } from '../lib/i18n'
 import { Modal } from './ui'
@@ -31,9 +33,15 @@ interface HeartRateBluetooth {
   requestDevice(options: { filters: { services: string[] }[] }): Promise<WebHeartRateDevice>
 }
 
+type NativeStatus = 'idle' | 'scanning' | 'connecting' | 'connected' | 'failed' | 'lost'
+
+/**
+ * The native service owns the sensor connection, so it outlives this component:
+ * leaving the workout screen keeps recording. Finish and Discard stop it.
+ */
 function NativeWorkoutHeartRate({ sessionId }: { sessionId: string }) {
   const { t } = useT()
-  const [status, setStatus] = useState<'idle' | 'scanning' | 'connecting' | 'connected' | 'failed' | 'lost'>('idle')
+  const [status, setStatus] = useState<NativeStatus>('idle')
   const [devices, setDevices] = useState<HeartRateDevice[]>([])
   const [reading, setReading] = useState<number | null>(null)
   const [saveFailed, setSaveFailed] = useState(false)
@@ -42,19 +50,36 @@ function NativeWorkoutHeartRate({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     alive.current = true
+    // Pick up a connection made before the user left this screen.
+    void nativeHeartRateState()
+      .then((native) => {
+        if (!alive.current) return
+        if (native.state === 'connecting' || native.state === 'connected' || native.state === 'lost') {
+          setStatus(native.state)
+        }
+      })
+      .catch(() => {})
     return () => {
       alive.current = false
-      void flushNativeHeartRate(sessionId).finally(() => stopHeartRateDevice())
+      // Write what arrived so far; the sensor keeps buffering natively.
+      void flushNativeHeartRate(sessionId).catch(() => {})
     }
   }, [sessionId])
 
+  const polling = status === 'connecting' || status === 'connected' || status === 'lost'
   useEffect(() => {
-    if (status !== 'connected') return
+    if (!polling) return
     const timer = setInterval(() => {
       void flushNativeHeartRate(sessionId)
-        .then((bpm) => {
+        .then(({ latest, state }: { latest: number | null; state: NativeHeartRateState }) => {
           if (!alive.current) return
-          if (bpm !== null) setReading(bpm)
+          if (state === 'connected') {
+            if (latest !== null) setReading(latest)
+          } else {
+            setReading(null)
+          }
+          setScanEmpty(false)
+          setStatus(state)
           setSaveFailed(false)
         })
         .catch(() => {
@@ -62,7 +87,7 @@ function NativeWorkoutHeartRate({ sessionId }: { sessionId: string }) {
         })
     }, 2000)
     return () => clearInterval(timer)
-  }, [sessionId, status])
+  }, [sessionId, polling])
 
   async function scan() {
     setStatus('scanning')
@@ -83,27 +108,26 @@ function NativeWorkoutHeartRate({ sessionId }: { sessionId: string }) {
 
   async function connect(device: HeartRateDevice) {
     setStatus('connecting')
+    setDevices([])
     try {
-      await connectHeartRateDevice(device.id, t('heartRate.notification'))
-      if (!alive.current) {
-        await stopHeartRateDevice()
-        return
-      }
-      setDevices([])
-      setStatus('connected')
+      const native = await connectHeartRateDevice(device, t('heartRate.notification'))
+      if (!alive.current) return
+      setScanEmpty(false)
+      setStatus(native.state)
     } catch {
       if (alive.current) setStatus('failed')
     }
   }
 
   async function disconnect() {
-    await flushNativeHeartRate(sessionId)
+    await flushNativeHeartRate(sessionId).catch(() => null)
     await stopHeartRateDevice()
     setReading(null)
     setStatus('idle')
   }
 
-  const connected = status === 'connected'
+  // A dropped sensor still offers Disconnect while the app waits for it.
+  const connected = status === 'connected' || status === 'lost'
   const message =
     status === 'failed' && scanEmpty
       ? 'heartRate.noneFound'

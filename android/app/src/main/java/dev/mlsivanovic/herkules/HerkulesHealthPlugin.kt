@@ -24,6 +24,8 @@ import androidx.core.content.ContextCompat
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -64,13 +66,24 @@ import kotlinx.coroutines.launch
             strings = [Manifest.permission.POST_NOTIFICATIONS],
             alias = "notifications",
         ),
+        // Android 9-11 return no BLE scan results without location.
+        Permission(
+            strings = [Manifest.permission.ACCESS_FINE_LOCATION],
+            alias = "location",
+        ),
     ],
 )
 class HerkulesHealthPlugin : Plugin() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val main = Handler(Looper.getMainLooper())
     private val samples = ConcurrentLinkedDeque<JSObject>()
+    private val lock = Any()
     private var gatt: BluetoothGatt? = null
+    private var deviceAddress: String? = null
+    private var deviceName: String? = null
+    /** idle, connecting, connected, lost (sensor dropped, reconnecting) or failed. */
+    @Volatile private var hrState = "idle"
+    private var everConnected = false
     private var scanCallback: ScanCallback? = null
 
     private val healthPermissions = setOf(
@@ -81,7 +94,7 @@ class HerkulesHealthPlugin : Plugin() {
     )
 
     override fun handleOnDestroy() {
-        stopGatt()
+        stopGatt(clearSamples = true)
         scope.cancel()
     }
 
@@ -156,6 +169,10 @@ class HerkulesHealthPlugin : Plugin() {
             requestPermissionForAlias("bluetooth", call, "onBluetoothGranted")
             return
         }
+        if (Build.VERSION.SDK_INT < 31 && getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "onLocationGranted")
+            return
+        }
         if (Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
             requestPermissionForAlias("notifications", call, "onNotificationsGranted")
             return
@@ -173,22 +190,55 @@ class HerkulesHealthPlugin : Plugin() {
     }
 
     @PermissionCallback
+    private fun onLocationGranted(call: PluginCall) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            call.reject("Location permission is needed to find Bluetooth sensors")
+            return
+        }
+        scanHeartRate(call)
+    }
+
+    @PermissionCallback
     private fun onNotificationsGranted(call: PluginCall) {
         startScan(call)
     }
 
+    @SuppressLint("MissingPermission")
     @PluginMethod
     fun connectHeartRate(call: PluginCall) {
         val deviceId = call.getString("deviceId") ?: return call.reject("deviceId required")
         val title = call.getString("notificationTitle") ?: "Herkules"
+        if (Build.VERSION.SDK_INT >= 31 && getPermissionState("bluetooth") != PermissionState.GRANTED) {
+            return call.reject("Bluetooth permission was not granted")
+        }
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val adapter = manager.adapter ?: return call.reject("Bluetooth is off")
-        stopGatt()
+        val adapter = manager.adapter
+        if (adapter == null || !adapter.isEnabled) return call.reject("Bluetooth is off")
+        val device = try {
+            adapter.getRemoteDevice(deviceId)
+        } catch (error: IllegalArgumentException) {
+            return call.reject("Unknown Bluetooth device")
+        }
+        stopGatt(clearSamples = false)
         val intent = Intent(context, HeartRateService::class.java).putExtra(HeartRateService.EXTRA_TITLE, title)
-        ContextCompat.startForegroundService(context, intent)
-        val device = adapter.getRemoteDevice(deviceId)
-        gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-        call.resolve()
+        try {
+            ContextCompat.startForegroundService(context, intent)
+        } catch (error: Exception) {
+            return call.reject(error.message ?: "Could not keep the sensor connected in the background")
+        }
+        synchronized(lock) {
+            deviceAddress = deviceId
+            deviceName = call.getString("deviceName")
+            everConnected = false
+            hrState = "connecting"
+            gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        }
+        call.resolve(statePayload())
+    }
+
+    @PluginMethod
+    fun heartRateState(call: PluginCall) {
+        call.resolve(statePayload())
     }
 
     @PluginMethod
@@ -198,15 +248,23 @@ class HerkulesHealthPlugin : Plugin() {
             val sample = samples.pollFirst() ?: break
             drained.put(sample)
         }
-        val payload = JSObject()
+        val payload = statePayload()
         payload.put("samples", drained)
         call.resolve(payload)
     }
 
     @PluginMethod
     fun stopHeartRate(call: PluginCall) {
-        stopGatt()
-        call.resolve()
+        stopGatt(clearSamples = true)
+        call.resolve(statePayload())
+    }
+
+    private fun statePayload(): JSObject {
+        val payload = JSObject()
+        payload.put("state", hrState)
+        deviceAddress?.let { payload.put("deviceId", it) }
+        deviceName?.let { payload.put("deviceName", it) }
+        return payload
     }
 
     @SuppressLint("MissingPermission")
@@ -259,27 +317,92 @@ class HerkulesHealthPlugin : Plugin() {
         }, SCAN_MS)
     }
 
-    private fun stopGatt() {
-        try {
-            gatt?.disconnect()
-            gatt?.close()
-        } catch (_: Exception) {
+    /** User stop, Finish or plugin teardown. Never called for a sensor drop. */
+    @SuppressLint("MissingPermission")
+    private fun stopGatt(clearSamples: Boolean) {
+        synchronized(lock) {
+            val current = gatt
+            gatt = null
+            deviceAddress = null
+            deviceName = null
+            everConnected = false
+            hrState = "idle"
+            try {
+                current?.disconnect()
+                current?.close()
+            } catch (_: Exception) {
+            }
         }
-        gatt = null
+        main.removeCallbacks(reconnect)
+        if (clearSamples) samples.clear()
         context.stopService(Intent(context, HeartRateService::class.java))
     }
 
-    private val gattCallback = object : BluetoothGattCallback() {
+    /** Waits for the sensor to come back in range; autoConnect has no timeout. */
+    @SuppressLint("MissingPermission")
+    private val reconnect: Runnable = Runnable {
+        synchronized(lock) {
+            val address = deviceAddress ?: return@Runnable
+            if (gatt != null) return@Runnable
+            val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            val device = try {
+                manager.adapter?.getRemoteDevice(address)
+            } catch (_: Exception) {
+                null
+            } ?: return@Runnable
+            try {
+                gatt = device.connectGatt(context, true, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            } catch (_: SecurityException) {
+                hrState = "failed"
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+            synchronized(lock) {
+                // A callback from a connection that was already replaced or stopped.
+                if (gatt !== this@HerkulesHealthPlugin.gatt) {
+                    if (newState == BluetoothProfile.STATE_DISCONNECTED) gatt.close()
+                    return
+                }
+                if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    gatt.discoverServices()
+                    return
+                }
+                if (newState != BluetoothProfile.STATE_DISCONNECTED &&
+                    status == BluetoothGatt.GATT_SUCCESS
+                ) {
+                    return
+                }
+                // Dropped, out of range, or the first attempt failed.
+                try {
+                    gatt.close()
+                } catch (_: Exception) {
+                }
+                this@HerkulesHealthPlugin.gatt = null
+                if (deviceAddress == null) return
+                hrState = if (everConnected) "lost" else "failed"
+                if (everConnected) {
+                    main.removeCallbacks(reconnect)
+                    main.postDelayed(reconnect, RECONNECT_MS)
+                } else {
+                    deviceAddress = null
+                    deviceName = null
+                    main.post { context.stopService(Intent(context, HeartRateService::class.java)) }
+                }
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            val characteristic = gatt.getService(HR_SERVICE)?.getCharacteristic(HR_MEASUREMENT) ?: return
+            val characteristic = gatt.getService(HR_SERVICE)?.getCharacteristic(HR_MEASUREMENT)
+            val descriptor = characteristic?.getDescriptor(CLIENT_CONFIG)
+            if (status != BluetoothGatt.GATT_SUCCESS || characteristic == null || descriptor == null) {
+                failConnection(gatt)
+                return
+            }
             gatt.setCharacteristicNotification(characteristic, true)
-            val descriptor = characteristic.getDescriptor(CLIENT_CONFIG) ?: return
             if (Build.VERSION.SDK_INT >= 33) {
                 gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
             } else {
@@ -287,6 +410,19 @@ class HerkulesHealthPlugin : Plugin() {
                 descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                 @Suppress("DEPRECATION")
                 gatt.writeDescriptor(descriptor)
+            }
+        }
+
+        override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (descriptor.uuid != CLIENT_CONFIG) return
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                failConnection(gatt)
+                return
+            }
+            synchronized(lock) {
+                if (gatt !== this@HerkulesHealthPlugin.gatt) return
+                everConnected = true
+                hrState = "connected"
             }
         }
 
@@ -306,6 +442,21 @@ class HerkulesHealthPlugin : Plugin() {
         }
     }
 
+    /** The device connected but does not offer heart-rate notifications. */
+    @SuppressLint("MissingPermission")
+    private fun failConnection(gatt: BluetoothGatt) {
+        synchronized(lock) {
+            if (gatt !== this.gatt) return
+            if (everConnected) {
+                // Reconnected but discovery failed: drop and try again later.
+                gatt.disconnect()
+                return
+            }
+        }
+        stopGatt(clearSamples = false)
+        hrState = "failed"
+    }
+
     private fun pushSample(value: ByteArray) {
         val bpm = parseBpm(value) ?: return
         if (samples.size >= MAX_SAMPLES) samples.pollFirst()
@@ -322,8 +473,9 @@ class HerkulesHealthPlugin : Plugin() {
         val workouts = JSArray()
         for (session in sessions) {
             val heartRate = readHeartRate(client, session.startTime, session.endTime)
-            val distance = readDistance(client, session.startTime, session.endTime)
-            val calories = readCalories(client, session.startTime, session.endTime)
+            val totals = readTotals(client, session.startTime, session.endTime, session.metadata.dataOrigin)
+            val distance = totals.first
+            val calories = totals.second
             val item = JSObject()
             item.put("id", session.metadata.id)
             item.put("origin", session.metadata.dataOrigin.packageName)
@@ -361,16 +513,27 @@ class HerkulesHealthPlugin : Plugin() {
         return array
     }
 
-    private suspend fun readDistance(client: HealthConnectClient, start: Instant, end: Instant): Double? {
-        val records = readAll(client, DistanceRecord::class, TimeRangeFilter.between(start, end))
-        if (records.isEmpty()) return null
-        return records.sumOf { it.distance.inMeters }
-    }
-
-    private suspend fun readCalories(client: HealthConnectClient, start: Instant, end: Instant): Double? {
-        val records = readAll(client, TotalCaloriesBurnedRecord::class, TimeRangeFilter.between(start, end))
-        if (records.isEmpty()) return null
-        return records.sumOf { it.energy.inKilocalories }
+    /**
+     * Distance and energy written by the app that recorded the session. Aggregation
+     * prorates records that only partly overlap the session, and the origin filter
+     * keeps phone pedometer and second-watch copies out of the total.
+     */
+    private suspend fun readTotals(
+        client: HealthConnectClient,
+        start: Instant,
+        end: Instant,
+        origin: DataOrigin,
+    ): Pair<Double?, Double?> {
+        val response = client.aggregate(
+            AggregateRequest(
+                metrics = setOf(DistanceRecord.DISTANCE_TOTAL, TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                timeRangeFilter = TimeRangeFilter.between(start, end),
+                dataOriginFilter = setOf(origin),
+            ),
+        )
+        val distance = response[DistanceRecord.DISTANCE_TOTAL]?.inMeters
+        val calories = response[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
+        return distance to calories
     }
 
     private suspend fun <T : Record> readAll(
@@ -386,7 +549,7 @@ class HerkulesHealthPlugin : Plugin() {
             )
             all.addAll(response.records)
             pageToken = response.pageToken
-        } while (pageToken != null && all.size < 1000)
+        } while (pageToken != null)
         return all
     }
 
@@ -396,6 +559,7 @@ class HerkulesHealthPlugin : Plugin() {
         private val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private const val SCAN_MS = 8_000L
         private const val MAX_SAMPLES = 8_000
+        private const val RECONNECT_MS = 1_000L
     }
 }
 

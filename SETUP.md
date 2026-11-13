@@ -131,9 +131,9 @@ Repository **Secrets** (not Variables):
 - `ANDROID_KEY_ALIAS` — `herkules`, unless you chose another alias
 - `ANDROID_KEY_PASSWORD`
 
-`package.json` `version`, `android/app/build.gradle` `versionName`, and
-`versionCode` stay in step. Bump `versionCode` by 1 for every APK you install
-over an older one.
+`package.json` `version` is the only version to bump. `android/app/build.gradle`
+reads it: `versionName` is the same `x.y.z`, and `versionCode` is
+`x*10000 + y*100 + z`, so every bump installs over the older APK.
 
 Build locally (JDK 21):
 
@@ -149,7 +149,8 @@ ANDROID_KEY_PASSWORD=… \
 
 The APK is `android/app/build/outputs/apk/release/app-release.apk`.
 
-Publish: tag `android-v1.2.0` (matching `versionName`) and push it. The
+Publish: tag `android-v1.2.0` (matching `package.json` `version`; the workflow
+fails on a mismatch) and push it. The
 `android.yml` workflow signs the APK and attaches it to that GitHub Release.
 A manual run of the workflow uploads the APK as an Actions artifact instead.
 The installed app links to a newer `android-v*` release when one exists.
@@ -163,6 +164,12 @@ On the Galaxy S25, before expecting watch data:
    writing app, the workout, and how many heart-rate samples arrived.
 4. If a Galaxy Watch workout is missing, open Samsung Health and pull down on
    the home screen, then look again.
+
+Sign-up confirmation, password reset and coach invite links from the APK point
+at `https://mlsivanovic.github.io/Herkules/`, so they open the web app. Keep that
+URL in the Supabase redirect allow-list.
+
+The APK opts out of Android backup: after a new phone or reinstall, sign in again.
 
 Install the APK from the Release page. Android asks to allow installs from
 the browser. The next signed build with a higher `versionCode` updates it.

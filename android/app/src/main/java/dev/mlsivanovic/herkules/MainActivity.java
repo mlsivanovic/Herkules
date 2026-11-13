@@ -12,11 +12,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // The in-app theme saved on the last run, so the first frame already matches it.
         String preference = HerkulesThemePlugin.savedPreference(this);
-        enableEdgeToEdge(preference);
         registerPlugin(HerkulesHealthPlugin.class);
         registerPlugin(HerkulesThemePlugin.class);
         super.onCreate(savedInstanceState);
-        // Capacitor applies AppTheme inside super.onCreate and can restore opaque bars.
+        // Only after super.onCreate: Capacitor switches from the splash theme to
+        // AppTheme.NoActionBar there. Touching the window earlier builds the decor view
+        // with the splash theme's title bar and splash background, which then stays
+        // as a band under the status bar.
         enableEdgeToEdge(preference);
         HerkulesThemePlugin.applyWindowBackground(this, preference);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

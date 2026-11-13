@@ -1035,7 +1035,14 @@ export const en = {
       'Strong and Hevy CSV exports. Re-importing the same file updates instead of duplicating.',
     samsungImport: 'Import from Samsung Health…',
     samsungHint:
-      'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files. Heart rate is saved with the workout and syncs to your other devices.',
+      'Export your data in Samsung Health, then choose its folder (Downloads › Samsung Health). Herkules finds the workout and heart-rate files itself.',
+    samsungHintFiles:
+      'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files.',
+    samsungChooseFolder: 'Import Samsung Health folder…',
+    samsungChooseFiles: 'Choose files instead…',
+    samsungScanning: 'Reading files…',
+    samsungFound: 'Found {workouts} workout(s) and {files} heart-rate file(s).',
+    samsungShowHandled: 'Show workouts that already have heart rate ({count})',
     samsungTitle: 'Import Samsung Health workouts',
     samsungBody:
       'Heart rate is written into the Herkules workout logged at the same time. Workouts without a match can be saved as new gym sessions without sets.',
@@ -1044,7 +1051,7 @@ export const en = {
     samsungTargetOption: '{name} · {start}–{end}',
     samsungHasHeartRateTag: '(has heart rate)',
     samsungTargetHasHeartRate: 'This workout already has heart rate, so it will be skipped.',
-    samsungNothingToAdd: 'Select the heart-rate file too, otherwise there is nothing to add.',
+    samsungNothingToAdd: 'No heart-rate file for this workout, so there is nothing to add.',
     samsungSource: 'Source',
     samsungAllSources: 'All sources',
     samsungSourceXiaomi: 'Xiaomi watch (Mi Fitness)',
@@ -1054,11 +1061,11 @@ export const en = {
     samsungTypeRunning: 'Running',
     samsungTypeCode: 'Type {code}',
     samsungHeartRate: '{average} bpm average, {peak} bpm peak',
-    samsungHeartRateAttached: 'Heart-rate file selected',
-    samsungHeartRateMissing: 'No heart-rate file selected',
+    samsungHeartRateAttached: 'Heart-rate file found',
+    samsungHeartRateMissing: 'No heart-rate file found',
     samsungLong: 'Longer than 4 hours. Check that this was a workout.',
     samsungAlready: 'Already imported',
-    samsungNone: 'No workouts from this source.',
+    samsungNone: 'No new workouts from this source.',
     samsungImportSelected: 'Import {count} workout(s)',
     samsungImported:
       'New workouts: {created}. Heart rate added to existing workouts: {linked}. Skipped: {skipped}.',
@@ -1284,7 +1291,7 @@ export const en = {
     notHerkulesCsv: 'This file is not a Herkules workout CSV (missing workout_name / session_id).',
     notStrongHevy: 'This file does not look like a Strong or Hevy workout export.',
     notSamsungExport:
-      'Select the Samsung Health exercise CSV (com.samsung.shealth.exercise….csv).',
+      'No Samsung Health exercise CSV (com.samsung.shealth.exercise….csv) found in the selection.',
     samsungHeartRateFile: 'A heart-rate JSON file could not be read.',
   },
   importMsg: {

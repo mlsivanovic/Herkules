@@ -3,7 +3,10 @@ import {
   isLongWorkout,
   linkCandidates,
   sessionWindow,
-  matchesHeartRateFile,
+  exerciseCsvCandidates,
+  heartRateFileFor,
+  heartRateFileKey,
+  indexHeartRateFiles,
   parseOffset,
   parseSamsungExerciseCsv,
   parseSamsungHeartRate,
@@ -175,14 +178,42 @@ describe('parseSamsungHeartRate', () => {
   })
 })
 
-describe('matchesHeartRateFile', () => {
-  it('matches the exact name and re-downloaded copies', () => {
+describe('folder discovery', () => {
+  const file = (name: string, lastModified = 0) => ({ name, lastModified })
+
+  it('picks the main exercise CSV, newest export first, and ignores companions', () => {
+    const picked = exerciseCsvCandidates([
+      file('com.samsung.shealth.exercise.20261001090000.csv'),
+      file('com.samsung.shealth.exercise.hr_zone.20261113144875.csv'),
+      file('com.samsung.shealth.exercise.periodization_training_schedule.20261113144875.csv'),
+      file('com.samsung.shealth.exercise.20261113144875 (1).csv'),
+      file('com.samsung.health.weight.20261113144875.csv'),
+    ])
+    expect(picked.map((f) => f.name)).toEqual([
+      'com.samsung.shealth.exercise.20261113144875 (1).csv',
+      'com.samsung.shealth.exercise.20261001090000.csv',
+    ])
+  })
+
+  it('keys live_data files by record and skips other per-workout JSON', () => {
+    expect(heartRateFileKey('abc-1.com.samsung.health.exercise.live_data.json')).toBe('abc-1')
+    expect(heartRateFileKey('abc-1.com.samsung.health.exercise.live_data (2).json')).toBe('abc-1')
+    expect(heartRateFileKey('abc-1.com.samsung.health.exercise.location_data.json')).toBeNull()
+    expect(heartRateFileKey('abc-1.com.samsung.health.exercise.live_data_internal.json')).toBeNull()
+  })
+
+  it('finds the heart-rate file of a workout, newest copy first', () => {
     const gym = parseSamsungExerciseCsv(CSV)[0]
-    expect(matchesHeartRateFile(gym, gym.liveDataFile ?? '')).toBe(true)
-    expect(
-      matchesHeartRateFile(gym, `${gym.uuid}.com.samsung.health.exercise.live_data (1).json`),
-    ).toBe(true)
-    expect(matchesHeartRateFile(gym, 'bbbb.com.samsung.health.exercise.live_data.json')).toBe(false)
+    const live = `${gym.uuid}.com.samsung.health.exercise.live_data.json`
+    const index = indexHeartRateFiles([
+      file(live, 1),
+      file(`${gym.uuid}.com.samsung.health.exercise.live_data (1).json`, 5),
+      file(`${gym.uuid}.com.samsung.health.exercise.location_data.json`, 9),
+      file('other.com.samsung.health.exercise.live_data.json', 3),
+    ])
+    expect(index.size).toBe(2)
+    expect(heartRateFileFor(gym, index)?.lastModified).toBe(5)
+    expect(heartRateFileFor(parseSamsungExerciseCsv(CSV)[1], index)).toBeUndefined()
   })
 })
 

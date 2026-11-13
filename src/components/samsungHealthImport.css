@@ -51,3 +51,16 @@
 .samsung-import__note {
   display: block;
 }
+
+.samsung-import__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--control-h);
+}
+
+.samsung-import__toggle input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}

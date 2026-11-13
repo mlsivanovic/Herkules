@@ -142,10 +142,48 @@ export function parseSamsungHeartRate(text: string): HeartRateSample[] {
   return [...byTime.entries()].sort((a, b) => a[0] - b[0]).map(([at, bpm]) => ({ at, bpm }))
 }
 
-/** File names may gain a " (1)" suffix when downloaded twice, so the datauuid prefix also counts. */
-export function matchesHeartRateFile(workout: SamsungWorkout, fileName: string): boolean {
-  return fileName === workout.liveDataFile || fileName.startsWith(`${workout.uuid}.`) ||
-    fileName.startsWith(`${workout.uuid} `)
+// Main exercise CSV only: companions such as "exercise.hr_zone.<ts>.csv" or
+// "exercise.periodization_training_schedule.<ts>.csv" have a word before the timestamp.
+const EXERCISE_CSV = /^com\.samsung\.shealth\.exercise\.(\d+)(?: \(\d+\))?\.csv$/i
+// Per-workout heart-rate detail; "location_data" / "live_data_internal" files are not it.
+const LIVE_DATA_JSON = /^(.+?)\.com\.samsung\.health\.exercise\.live_data(?: \(\d+\))?\.json$/i
+
+interface NamedFile {
+  name: string
+  lastModified: number
+}
+
+/** Exercise CSVs in a picked folder or file list, newest export first. */
+export function exerciseCsvCandidates<T extends NamedFile>(files: readonly T[]): T[] {
+  const stamp = (file: T) => EXERCISE_CSV.exec(file.name)?.[1] ?? ''
+  return files
+    .filter((file) => EXERCISE_CSV.test(file.name))
+    .sort((a, b) => {
+      const byStamp = stamp(b).padStart(20, '0').localeCompare(stamp(a).padStart(20, '0'))
+      return byStamp !== 0 ? byStamp : b.lastModified - a.lastModified
+    })
+}
+
+/** The record key a live_data file belongs to (re-downloads add " (1)"), or null. */
+export function heartRateFileKey(name: string): string | null {
+  return LIVE_DATA_JSON.exec(name)?.[1] ?? null
+}
+
+/** live_data files by record key; with several exports in the folder the newest copy wins. */
+export function indexHeartRateFiles<T extends NamedFile>(files: readonly T[]): Map<string, T> {
+  const index = new Map<string, T>()
+  for (const file of files) {
+    const key = heartRateFileKey(file.name)
+    if (key === null) continue
+    const known = index.get(key)
+    if (!known || file.lastModified > known.lastModified) index.set(key, file)
+  }
+  return index
+}
+
+export function heartRateFileFor<T>(workout: SamsungWorkout, index: ReadonlyMap<string, T>): T | undefined {
+  const named = workout.liveDataFile ? heartRateFileKey(workout.liveDataFile) : null
+  return (named === null ? undefined : index.get(named)) ?? index.get(workout.uuid)
 }
 
 export function isLongWorkout(workout: SamsungWorkout): boolean {

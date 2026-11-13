@@ -1,14 +1,16 @@
 import './samsungHealthImport.css'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import type { ParsedWorkoutImport } from '../lib/csv'
 import { formatDateCompact, toDateKey } from '../lib/dates'
 import { sessionIdsWithHeartRate } from '../lib/db'
 import { bcp47, useT } from '../lib/i18n'
 import {
+  exerciseCsvCandidates,
+  heartRateFileFor,
+  indexHeartRateFiles,
   isLongWorkout,
   isSamsungExerciseCsv,
   linkCandidates,
-  matchesHeartRateFile,
   parseSamsungExerciseCsv,
   parseSamsungHeartRate,
   samsungSessionId,
@@ -28,33 +30,43 @@ const PHONE_SOURCE = 'com.sec.android.app.shealth'
 const ALL = 'all'
 /** Target value for "save as a new gym session". */
 const NEW = 'new'
+/** Folder picking (Chrome for Android 132+, desktop browsers); otherwise only files. */
+const FOLDER_PICKER = typeof document !== 'undefined' && 'webkitdirectory' in document.createElement('input')
 
 interface Row {
   workout: SamsungWorkout
   /** Earlier standalone import of this same Samsung record, if any. */
   alreadyImported: boolean
-  hasFile: boolean
+  /** Nothing left to do: the default target already holds heart rate. */
+  handled: boolean
+  heartRateFile: File | undefined
   /** Herkules sessions to link to, best match first. */
   options: SessionWindow[]
 }
 
 interface Loaded {
   rows: Row[]
-  heartRateFiles: File[]
+  heartRateFileCount: number
   withHeartRate: Set<string>
 }
 
+/** The exercise CSV of the newest export; peeks at content when names do not tell. */
 async function findExerciseCsv(files: File[]): Promise<SamsungWorkout[]> {
-  for (const file of files) {
-    if (/\.json$/i.test(file.name)) continue
-    // Only the exercise CSV qualifies; peek at its first line before reading it all.
+  const named = exerciseCsvCandidates(files)
+  const candidates = named.length > 0 ? named : files.filter((file) => /\.csv$/i.test(file.name))
+  for (const file of candidates) {
     if (!isSamsungExerciseCsv(await file.slice(0, 64).text())) continue
     return parseSamsungExerciseCsv(await file.text())
   }
   return []
 }
 
-function buildRows(workouts: SamsungWorkout[], heartRateFiles: File[], sessions: SessionDoc[]): Row[] {
+function buildRows(
+  workouts: SamsungWorkout[],
+  heartRateIndex: Map<string, File>,
+  sessions: SessionDoc[],
+  withHeartRate: Set<string>,
+): Row[] {
   const sessionIds = new Set(sessions.map((s) => s.id))
   const importIds = new Set(workouts.map((w) => samsungSessionId(w.uuid)))
   // Standalone sessions from earlier Samsung imports are not link targets.
@@ -67,10 +79,14 @@ function buildRows(workouts: SamsungWorkout[], heartRateFiles: File[], sessions:
     const sameDay = windows
       .filter((w) => toDateKey(new Date(w.startMs)) === workout.localDate && !near.includes(w))
       .sort((a, b) => a.startMs - b.startMs)
+    const ownId = samsungSessionId(workout.uuid)
+    const alreadyImported = sessionIds.has(ownId)
+    const defaultTarget = alreadyImported ? ownId : near[0]?.id ?? null
     return {
       workout,
-      alreadyImported: sessionIds.has(samsungSessionId(workout.uuid)),
-      hasFile: heartRateFiles.some((f) => matchesHeartRateFile(workout, f.name)),
+      alreadyImported,
+      handled: defaultTarget !== null && withHeartRate.has(defaultTarget),
+      heartRateFile: heartRateFileFor(workout, heartRateIndex),
       options: [...near, ...sameDay],
     }
   })
@@ -79,11 +95,14 @@ function buildRows(workouts: SamsungWorkout[], heartRateFiles: File[], sessions:
 export function SamsungHealthImport() {
   const { t } = useT()
   const store = useStore()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const folderRef = useRef<HTMLInputElement>(null)
+  const filesRef = useRef<HTMLInputElement>(null)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [source, setSource] = useState(ALL)
+  const [showHandled, setShowHandled] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [targets, setTargets] = useState<Map<string, string>>(new Map())
+  const [scanning, setScanning] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -96,7 +115,9 @@ export function SamsungHealthImport() {
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [loaded])
-  const visible = (loaded?.rows ?? []).filter((r) => source === ALL || r.workout.source === source)
+  const inSource = (loaded?.rows ?? []).filter((r) => source === ALL || r.workout.source === source)
+  const handledCount = inSource.filter((r) => r.handled).length
+  const visible = showHandled ? inSource : inSource.filter((r) => !r.handled)
 
   const sourceLabel = (pkg: string) =>
     pkg === XIAOMI_SOURCE ? t('settings.samsungSourceXiaomi')
@@ -130,11 +151,12 @@ export function SamsungHealthImport() {
     if (files.length === 0) return
     setError(null)
     setMessage(null)
-    const heartRateFiles = files.filter((file) => /\.json$/i.test(file.name))
+    setScanning(true)
+    const heartRateIndex = indexHeartRateFiles(files)
     void Promise.all([findExerciseCsv(files), sessionIdsWithHeartRate()])
       .then(([workouts, withHeartRate]) => {
         if (workouts.length === 0) throw new Error(t('errors.notSamsungExport'))
-        const rows = buildRows(workouts, heartRateFiles, store.sessions)
+        const rows = buildRows(workouts, heartRateIndex, store.sessions, withHeartRate)
         const nextTargets = new Map<string, string>()
         const nextSelected = new Set<string>()
         for (const row of rows) {
@@ -142,17 +164,19 @@ export function SamsungHealthImport() {
           nextTargets.set(row.workout.uuid, target)
           const existing = existingTarget(row, target)
           // An existing session only gains heart rate, so skip it when there is none to add.
-          const nothingToAdd = existing !== null && (!row.hasFile || withHeartRate.has(existing))
+          const nothingToAdd = existing !== null && (!row.heartRateFile || withHeartRate.has(existing))
           if (selectedByDefault(row.workout) && !nothingToAdd) nextSelected.add(row.workout.uuid)
         }
-        setLoaded({ rows, heartRateFiles, withHeartRate })
+        setLoaded({ rows, heartRateFileCount: heartRateIndex.size, withHeartRate })
         setTargets(nextTargets)
         setSelected(nextSelected)
+        setShowHandled(false)
         setSource(workouts.some((w) => w.source === XIAOMI_SOURCE) ? XIAOMI_SOURCE : ALL)
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : t('errors.readFile'))
       })
+      .finally(() => setScanning(false))
   }
 
   function toggle(uuid: string, on: boolean) {
@@ -168,8 +192,7 @@ export function SamsungHealthImport() {
     const items: { parsed: ParsedWorkoutImport; targetSessionId: string | null }[] = []
     for (const row of current.rows) {
       if (!selected.has(row.workout.uuid)) continue
-      const file = current.heartRateFiles.find((f) => matchesHeartRateFile(row.workout, f.name))
-      const samples = file ? parseSamsungHeartRate(await file.text()) : []
+      const samples = row.heartRateFile ? parseSamsungHeartRate(await row.heartRateFile.text()) : []
       const target = targets.get(row.workout.uuid) ?? NEW
       items.push({
         parsed: toWorkoutImport(row.workout, samples),
@@ -179,23 +202,38 @@ export function SamsungHealthImport() {
     return store.importSamsungWorkouts(items)
   }
 
+  const pickerProps = {
+    type: 'file',
+    hidden: true,
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      onFiles(event.target.files)
+      event.target.value = ''
+    },
+  } as const
+  const working = busy || scanning
+
   return (
     <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv,.json,text/csv,application/json"
-        multiple
-        hidden
-        onChange={(event) => {
-          onFiles(event.target.files)
-          event.target.value = ''
-        }}
-      />
-      <button type="button" className="btn" disabled={busy} onClick={() => inputRef.current?.click()}>
-        {busy ? t('settings.importing') : t('settings.samsungImport')}
+      {FOLDER_PICKER ? (
+        <input
+          {...pickerProps}
+          ref={(el) => {
+            folderRef.current = el
+            el?.setAttribute('webkitdirectory', '')
+          }}
+        />
+      ) : null}
+      <input {...pickerProps} ref={filesRef} accept=".csv,.json,text/csv,application/json" multiple />
+      {FOLDER_PICKER ? (
+        <button type="button" className="btn" disabled={working} onClick={() => folderRef.current?.click()}>
+          {scanning ? t('settings.samsungScanning') : busy ? t('settings.importing') : t('settings.samsungChooseFolder')}
+        </button>
+      ) : null}
+      <button type="button" className="btn" disabled={working} onClick={() => filesRef.current?.click()}>
+        {!FOLDER_PICKER && scanning ? t('settings.samsungScanning')
+          : t(FOLDER_PICKER ? 'settings.samsungChooseFiles' : 'settings.samsungImport')}
       </button>
-      <small className="muted">{t('settings.samsungHint')}</small>
+      <small className="muted">{t(FOLDER_PICKER ? 'settings.samsungHint' : 'settings.samsungHintFiles')}</small>
       {message ? <small className="badge badge--completed">{message}</small> : null}
       {error ? <p className="field-error" role="alert">{error}</p> : null}
 
@@ -203,6 +241,12 @@ export function SamsungHealthImport() {
         <Modal title={t('settings.samsungTitle')} onClose={() => setLoaded(null)}>
           <div className="stack">
             <p style={{ margin: 0 }}>{t('settings.samsungBody')}</p>
+            <small className="muted">
+              {t('settings.samsungFound', {
+                workouts: loaded.rows.length,
+                files: loaded.heartRateFileCount,
+              })}
+            </small>
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="samsung-source">{t('settings.samsungSource')}</label>
               <select
@@ -219,6 +263,16 @@ export function SamsungHealthImport() {
                 ))}
               </select>
             </div>
+            {handledCount > 0 ? (
+              <label className="samsung-import__toggle">
+                <input
+                  type="checkbox"
+                  checked={showHandled}
+                  onChange={(event) => setShowHandled(event.target.checked)}
+                />
+                <span>{t('settings.samsungShowHandled', { count: handledCount })}</span>
+              </label>
+            ) : null}
 
             {visible.length === 0 ? <p className="muted">{t('settings.samsungNone')}</p> : null}
             <ul className="samsung-import__list">
@@ -252,7 +306,7 @@ export function SamsungHealthImport() {
                           </span>
                         ) : null}
                         <span className="muted">
-                          {t(row.hasFile ? 'settings.samsungHeartRateAttached' : 'settings.samsungHeartRateMissing')}
+                          {t(row.heartRateFile ? 'settings.samsungHeartRateAttached' : 'settings.samsungHeartRateMissing')}
                         </span>
                         {isLongWorkout(w) || row.alreadyImported ? (
                           <span className="row row--wrap samsung-import__badges">
@@ -289,7 +343,7 @@ export function SamsungHealthImport() {
                     ) : null}
                     {hasHeartRate ? (
                       <small className="muted samsung-import__note">{t('settings.samsungTargetHasHeartRate')}</small>
-                    ) : existing !== null && !row.hasFile ? (
+                    ) : existing !== null && !row.heartRateFile ? (
                       <small className="muted samsung-import__note">{t('settings.samsungNothingToAdd')}</small>
                     ) : null}
                   </li>

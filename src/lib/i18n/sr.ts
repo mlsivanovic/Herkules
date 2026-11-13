@@ -1033,7 +1033,14 @@ export const sr: Messages = {
     importStrongHint: 'CSV izvoz iz Strong i Hevy. Ponovni uvoz ažurira umesto da duplira.',
     samsungImport: 'Uvezi iz Samsung Healtha…',
     samsungHint:
-      'Izaberi CSV sa treninzima iz Samsung Health izvoza zajedno sa odgovarajućim live_data JSON fajlovima. Puls se čuva uz trening i sinhronizuje na ostale uređaje.',
+      'Izvezi podatke u Samsung Healthu, pa izaberi njihov folder (Preuzimanja › Samsung Health). Herkules sam pronalazi fajlove sa treninzima i pulsom.',
+    samsungHintFiles:
+      'Izaberi CSV sa treninzima iz Samsung Health izvoza zajedno sa odgovarajućim live_data JSON fajlovima.',
+    samsungChooseFolder: 'Uvezi Samsung Health folder…',
+    samsungChooseFiles: 'Ili izaberi fajlove…',
+    samsungScanning: 'Čitam fajlove…',
+    samsungFound: 'Pronađeno treninga: {workouts}, fajlova sa pulsom: {files}.',
+    samsungShowHandled: 'Prikaži treninge koji već imaju puls ({count})',
     samsungTitle: 'Uvoz treninga iz Samsung Healtha',
     samsungBody:
       'Puls se upisuje u Herkules trening zabeležen u isto vreme. Treninzi bez para mogu da se sačuvaju kao novi treninzi u teretani bez serija.',
@@ -1042,7 +1049,7 @@ export const sr: Messages = {
     samsungTargetOption: '{name} · {start}–{end}',
     samsungHasHeartRateTag: '(već ima puls)',
     samsungTargetHasHeartRate: 'Ovaj trening već ima puls, pa će biti preskočen.',
-    samsungNothingToAdd: 'Izaberi i fajl sa pulsom, inače nema šta da se upiše.',
+    samsungNothingToAdd: 'Za ovaj trening nema fajla sa pulsom, pa nema šta da se upiše.',
     samsungSource: 'Izvor',
     samsungAllSources: 'Svi izvori',
     samsungSourceXiaomi: 'Xiaomi sat (Mi Fitness)',
@@ -1052,11 +1059,11 @@ export const sr: Messages = {
     samsungTypeRunning: 'Trčanje',
     samsungTypeCode: 'Tip {code}',
     samsungHeartRate: 'Puls: prosek {average}, maksimum {peak} otk/min',
-    samsungHeartRateAttached: 'Izabran fajl sa pulsom',
-    samsungHeartRateMissing: 'Nije izabran fajl sa pulsom',
+    samsungHeartRateAttached: 'Pronađen fajl sa pulsom',
+    samsungHeartRateMissing: 'Nije pronađen fajl sa pulsom',
     samsungLong: 'Duže od 4 sata. Proveri da li je ovo bio trening.',
     samsungAlready: 'Već uvezeno',
-    samsungNone: 'Nema treninga iz ovog izvora.',
+    samsungNone: 'Nema novih treninga iz ovog izvora.',
     samsungImportSelected: 'Uvezi treninge: {count}',
     samsungImported:
       'Novih treninga: {created}. Puls upisan u postojeće treninge: {linked}. Preskočeno: {skipped}.',
@@ -1283,7 +1290,7 @@ export const sr: Messages = {
     notHerkulesCsv: 'Ovo nije Herkules CSV treninga (nedostaje workout_name / session_id).',
     notStrongHevy: 'Ovaj fajl ne liči na Strong ili Hevy izvoz treninga.',
     notSamsungExport:
-      'Izaberi Samsung Health CSV sa treninzima (com.samsung.shealth.exercise….csv).',
+      'U izboru nema Samsung Health CSV-a sa treninzima (com.samsung.shealth.exercise….csv).',
     samsungHeartRateFile: 'Fajl sa pulsom (JSON) nije mogao da se pročita.',
   },
   importMsg: {

@@ -179,8 +179,9 @@ function upsert(table: SyncTable, row: object): OutboxOp {
 
 /** Queue the session's locally stored heart rate for the server, if it has any. */
 async function heartRateUpload(sessionId: string, ownerId: string): Promise<OutboxOp[]> {
-  const samples = await readHeartRate(sessionId)
-  return samples.length > 0 ? [upsert('session_heart_rate', heartRateRow(sessionId, ownerId, samples))] : []
+  const row = heartRateRow(sessionId, ownerId, await readHeartRate(sessionId))
+  // Sensors report 0 bpm without skin contact; a row with no valid samples is never sent.
+  return row.sample_bpm.length > 0 ? [upsert('session_heart_rate', row)] : []
 }
 
 function membershipRow(input: {
@@ -2165,7 +2166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const samples = samplesFromRow(row)
           if (samples.length === 0) continue
           await replaceHeartRate(row.id, samples)
-          ops.push(upsert('session_heart_rate', heartRateRow(row.id, owner, samples)))
+          ops.push(...(await heartRateUpload(row.id, owner)))
         }
 
         await commit(writes, ops)
@@ -2285,9 +2286,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ) {
             // Keep the session (and any edits); only fill in missing heart rate.
             await replaceHeartRate(existing.id, incoming.heartRate)
-            heartRateOps.push(
-              upsert('session_heart_rate', heartRateRow(existing.id, userIdRef.current ?? '', incoming.heartRate)),
-            )
+            heartRateOps.push(...(await heartRateUpload(existing.id, userIdRef.current ?? '')))
             linked += 1
           } else {
             skipped += 1
@@ -2409,7 +2408,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           if (incoming.heartRate?.length) {
             await replaceHeartRate(sessionId, incoming.heartRate)
-            ops.push(upsert('session_heart_rate', heartRateRow(sessionId, userIdRef.current ?? '', incoming.heartRate)))
+            ops.push(...(await heartRateUpload(sessionId, userIdRef.current ?? '')))
           }
           await commit([{ store: 'sessions', row: doc }], ops)
         }

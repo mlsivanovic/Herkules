@@ -88,7 +88,16 @@ export async function flushOutbox(client: SupabaseClient): Promise<number> {
       }
     } else if (batch.kind === 'upsert') {
       const onConflict = batch.table === 'plan_routines' ? 'plan_id,template_id' : 'id'
-      const rows = batch.rows.map(sanitizeRow)
+      let rows = batch.rows.map(sanitizeRow)
+      if (batch.table === 'session_heart_rate') {
+        // Older builds could queue rows without valid samples; drop them so they never block sync.
+        rows = rows.filter((row) => Array.isArray(row.sample_bpm) && row.sample_bpm.length > 0)
+        if (rows.length === 0) {
+          await removeOps(batch.seqs)
+          removed += batch.seqs.length
+          continue
+        }
+      }
       const payload = batch.table === 'plan_routines' ? uniquePlanRoutineRows(rows) : rows
       const { error } = await client.from(batch.table).upsert(
         payload,

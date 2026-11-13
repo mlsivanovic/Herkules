@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest'
+import {
+  isLongWorkout,
+  matchesHeartRateFile,
+  parseOffset,
+  parseSamsungExerciseCsv,
+  parseSamsungHeartRate,
+  samsungSessionId,
+  selectedByDefault,
+  toWorkoutImport,
+} from './samsungHealth'
+
+const P = 'com.samsung.health.exercise.'
+const HEADER = [
+  'live_data_internal',
+  'total_calorie',
+  `${P}duration`,
+  `${P}start_time`,
+  `${P}exercise_type`,
+  `${P}mean_heart_rate`,
+  `${P}max_heart_rate`,
+  `${P}distance`,
+  `${P}time_offset`,
+  `${P}live_data`,
+  `${P}pkg_name`,
+  `${P}end_time`,
+  `${P}datauuid`,
+].join(',')
+
+function row(fields: {
+  uuid: string
+  pkg: string
+  type: string
+  start: string
+  end: string
+  durationMs: number
+  offset?: string
+  mean?: string
+  max?: string
+  distance?: string
+  liveData?: string
+}): string {
+  return [
+    '',
+    '',
+    fields.durationMs,
+    fields.start,
+    fields.type,
+    fields.mean ?? '',
+    fields.max ?? '',
+    fields.distance ?? '',
+    fields.offset ?? 'UTC+0100',
+    fields.liveData ?? '',
+    fields.pkg,
+    fields.end,
+    fields.uuid,
+    '', // Samsung rows end with a trailing comma
+  ].join(',')
+}
+
+const GYM = row({
+  uuid: 'aaaa1111-0000-4000-8000-000000000001',
+  pkg: 'com.xiaomi.wearable',
+  type: '0',
+  start: '2026-11-12 19:24:50.000',
+  end: '2026-11-12 20:09:18.000',
+  durationMs: 2_668_000,
+  mean: '104.0',
+  max: '132.0',
+  liveData: 'aaaa1111-0000-4000-8000-000000000001.com.samsung.health.exercise.live_data.json',
+})
+const OVERNIGHT = row({
+  uuid: 'aaaa1111-0000-4000-8000-000000000002',
+  pkg: 'com.xiaomi.wearable',
+  type: '0',
+  start: '2026-11-09 22:08:27.000',
+  end: '2026-11-10 06:50:28.000',
+  durationMs: 31_321_000,
+  mean: '64.0',
+})
+const WALK = row({
+  uuid: 'aaaa1111-0000-4000-8000-000000000003',
+  pkg: 'com.xiaomi.wearable',
+  type: '1001',
+  start: '2026-11-11 14:01:08.000',
+  end: '2026-11-11 14:16:03.000',
+  durationMs: 895_000,
+  distance: '1033.0',
+})
+const PHONE = row({
+  uuid: 'aaaa1111-0000-4000-8000-000000000004',
+  pkg: 'com.sec.android.app.shealth',
+  type: '0',
+  start: '2026-07-01 23:30:00.000',
+  end: '2026-07-02 00:10:00.000',
+  durationMs: 2_400_000,
+  offset: 'UTC+0200',
+})
+
+const CSV = ['com.samsung.shealth.exercise,7013005,18', HEADER, GYM, OVERNIGHT, WALK, PHONE].join('\n')
+
+describe('parseSamsungExerciseCsv', () => {
+  it('reads every row, newest first, with UTC times and local date/time', () => {
+    const workouts = parseSamsungExerciseCsv(CSV)
+    expect(workouts.map((w) => w.uuid.slice(-1))).toEqual(['1', '3', '2', '4'])
+    const gym = workouts[0]
+    expect(gym.source).toBe('com.xiaomi.wearable')
+    expect(gym.exerciseType).toBe('0')
+    expect(new Date(gym.startMs).toISOString()).toBe('2026-11-12T19:24:50.000Z')
+    expect(new Date(gym.endMs).toISOString()).toBe('2026-11-12T20:09:18.000Z')
+    expect(gym.offsetMinutes).toBe(60)
+    expect(gym.localDate).toBe('2026-11-12')
+    expect(gym.localTime).toBe('20:24')
+    expect(gym.durationS).toBe(2668)
+    expect(gym.meanHeartRate).toBe(104)
+    expect(gym.maxHeartRate).toBe(132)
+    expect(gym.distanceM).toBeNull()
+    expect(gym.liveDataFile).toMatch(/live_data\.json$/)
+    expect(workouts[1].distanceM).toBe(1033)
+  })
+
+  it('moves the local date across midnight using the recorded offset', () => {
+    const phone = parseSamsungExerciseCsv(CSV).find((w) => w.uuid.endsWith('4'))
+    expect(phone?.localDate).toBe('2026-07-02')
+    expect(phone?.localTime).toBe('01:30')
+  })
+
+  it('rejects files that are not the exercise export', () => {
+    expect(() => parseSamsungExerciseCsv('Date,Workout Name\n2026-01-01,Push')).toThrow()
+    expect(() =>
+      parseSamsungExerciseCsv('com.samsung.shealth.exercise.periodization_training_schedule,1,1\na,b'),
+    ).toThrow()
+  })
+})
+
+describe('selection rules', () => {
+  it('preselects Xiaomi workouts of the unspecified type up to four hours', () => {
+    const [gym, walk, overnight, phone] = parseSamsungExerciseCsv(CSV)
+    expect(selectedByDefault(gym)).toBe(true)
+    expect(selectedByDefault(overnight)).toBe(false)
+    expect(isLongWorkout(overnight)).toBe(true)
+    expect(selectedByDefault(walk)).toBe(false)
+    expect(selectedByDefault(phone)).toBe(false)
+  })
+})
+
+describe('parseOffset', () => {
+  it('parses signed offsets with or without a colon', () => {
+    expect(parseOffset('UTC+0100')).toBe(60)
+    expect(parseOffset('UTC-05:30')).toBe(-330)
+    expect(parseOffset('')).toBeNull()
+  })
+})
+
+describe('parseSamsungHeartRate', () => {
+  it('keeps valid samples sorted and rounded, dropping noise and duplicates', () => {
+    const json = JSON.stringify([
+      { heart_rate: 100.0, start_time: 2000 },
+      { heart_rate: 99.4, start_time: 1000 },
+      { heart_rate: 0, start_time: 3000 },
+      { speed: 1.2, start_time: 4000 },
+      { heart_rate: 101, start_time: 2000 },
+    ])
+    expect(parseSamsungHeartRate(json)).toEqual([
+      { at: 1000, bpm: 99 },
+      { at: 2000, bpm: 101 },
+    ])
+  })
+
+  it('rejects non-array JSON', () => {
+    expect(() => parseSamsungHeartRate('{"heart_rate":1}')).toThrow()
+    expect(() => parseSamsungHeartRate('not json')).toThrow()
+  })
+})
+
+describe('matchesHeartRateFile', () => {
+  it('matches the exact name and re-downloaded copies', () => {
+    const gym = parseSamsungExerciseCsv(CSV)[0]
+    expect(matchesHeartRateFile(gym, gym.liveDataFile ?? '')).toBe(true)
+    expect(
+      matchesHeartRateFile(gym, `${gym.uuid}.com.samsung.health.exercise.live_data (1).json`),
+    ).toBe(true)
+    expect(matchesHeartRateFile(gym, 'bbbb.com.samsung.health.exercise.live_data.json')).toBe(false)
+  })
+})
+
+describe('toWorkoutImport', () => {
+  it('builds a set-less gym session with a stable id and real times', () => {
+    const gym = parseSamsungExerciseCsv(CSV)[0]
+    const samples = [{ at: gym.startMs + 3000, bpm: 99 }]
+    const parsed = toWorkoutImport(gym, samples)
+    expect(parsed.sessionId).toBe(samsungSessionId(gym.uuid))
+    expect(parsed.sessionId).toBe(toWorkoutImport(gym).sessionId)
+    expect(parsed.date).toBe('2026-11-12')
+    expect(parsed.name).toBe('Gym workout')
+    expect(parsed.exercises).toEqual([])
+    expect(parsed.startedAt).toBe('2026-11-12T19:24:50.000Z')
+    expect(parsed.endedAt).toBe('2026-11-12T20:09:18.000Z')
+    expect(parsed.heartRate).toEqual(samples)
+  })
+})

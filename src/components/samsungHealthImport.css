@@ -1,0 +1,39 @@
+.samsung-import__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.samsung-import__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: var(--control-h);
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.samsung-import__row input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.samsung-import__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.samsung-import__badges {
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}

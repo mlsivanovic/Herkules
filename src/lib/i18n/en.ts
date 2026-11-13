@@ -1033,6 +1033,29 @@ export const en = {
     importStrong: 'Import from Strong / Hevy…',
     importStrongHint:
       'Strong and Hevy CSV exports. Re-importing the same file updates instead of duplicating.',
+    samsungImport: 'Import from Samsung Health…',
+    samsungHint:
+      'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files. Imported heart rate stays on this device.',
+    samsungTitle: 'Import Samsung Health workouts',
+    samsungBody:
+      'Checked workouts are saved as gym sessions without sets, with their real start and end time.',
+    samsungSource: 'Source',
+    samsungAllSources: 'All sources',
+    samsungSourceXiaomi: 'Xiaomi watch (Mi Fitness)',
+    samsungSourcePhone: 'Samsung Health',
+    samsungTypeOther: 'Other workout',
+    samsungTypeWalking: 'Walking',
+    samsungTypeRunning: 'Running',
+    samsungTypeCode: 'Type {code}',
+    samsungHeartRate: '{average} bpm average, {peak} bpm peak',
+    samsungHeartRateAttached: 'Heart-rate file selected',
+    samsungHeartRateMissing: 'No heart-rate file selected',
+    samsungLong: 'Longer than 4 hours. Check that this was a workout.',
+    samsungAlready: 'Already imported',
+    samsungNone: 'No workouts from this source.',
+    samsungImportSelected: 'Import {count} workout(s)',
+    samsungImported:
+      'Imported {created} workout(s). Heart rate added to {updated} earlier import(s), {skipped} skipped.',
     routines: 'Routines',
     routinesHint: 'JSON templates with exercise names, so they work on another account.',
     exportRoutines: 'Export routines (JSON)',
@@ -1254,6 +1277,9 @@ export const en = {
     blockNotObject: 'Routine block {n} is not an object.',
     notHerkulesCsv: 'This file is not a Herkules workout CSV (missing workout_name / session_id).',
     notStrongHevy: 'This file does not look like a Strong or Hevy workout export.',
+    notSamsungExport:
+      'Select the Samsung Health exercise CSV (com.samsung.shealth.exercise….csv).',
+    samsungHeartRateFile: 'A heart-rate JSON file could not be read.',
   },
   importMsg: {
     newRoutineOne: '{count} new routine',

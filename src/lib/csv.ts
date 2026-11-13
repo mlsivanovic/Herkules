@@ -265,6 +265,11 @@ export interface ParsedWorkoutImport {
     measurement: ExerciseMeasurement
     sets: Omit<SetRow, 'id' | 'session_exercise_id' | 'created_at' | 'updated_at'>[]
   }[]
+  /** Real start/end (ISO) when the source knows them; otherwise noon / import time. */
+  startedAt?: string
+  endedAt?: string
+  /** Heart-rate samples stored locally with the session (not synced). */
+  heartRate?: HeartRateSample[]
 }
 
 const MEASUREMENTS: ExerciseMeasurement[] = [

@@ -50,6 +50,7 @@ import {
   pendingCount,
   putDirty,
   readAll,
+  readHeartRate,
   readHeartRateBySession,
   readOne,
   readProfile,
@@ -57,6 +58,7 @@ import {
   reconcileStore,
   removeFrom,
   removeMatchingOps,
+  replaceHeartRate,
   setMeta,
   wipeLocalData,
   type StoreName,
@@ -366,6 +368,12 @@ export interface StoreActions {
   }>
   importWorkoutsCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
   importExternalCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
+  /** Imports new sessions; existing ones only gain heart rate if they had none. */
+  importSamsungWorkouts(parsed: ParsedWorkoutImport[]): Promise<{
+    created: number
+    updated: number
+    skipped: number
+  }>
   exportBackup(): Promise<string>
   restoreBackup(text: string): Promise<{
     sessions: number
@@ -2205,6 +2213,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
+      async importSamsungWorkouts(parsed) {
+        assertCapability(
+          capabilitiesFor(await readProfile()).canImportExport,
+          t('errors.lightNoImportExport'),
+        )
+        const fresh: ParsedWorkoutImport[] = []
+        let updated = 0
+        let skipped = 0
+        for (const incoming of parsed) {
+          const existing = await readOne<SessionDoc>('sessions', incoming.sessionId)
+          if (!existing) {
+            fresh.push(incoming)
+          } else if (
+            incoming.heartRate?.length &&
+            (await readHeartRate(existing.id)).length === 0
+          ) {
+            // Keep the session (and any edits); only fill in missing heart rate.
+            await replaceHeartRate(existing.id, incoming.heartRate)
+            updated += 1
+          } else {
+            skipped += 1
+          }
+        }
+        if (fresh.length > 0) await actionsRef.current?.importWorkouts(fresh)
+        return { created: fresh.length, updated, skipped }
+      },
+
       async importWorkouts(parsed: ParsedWorkoutImport[]) {
         assertCapability(
           capabilitiesFor(await readProfile()).canImportExport,
@@ -2224,7 +2259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
           const sessionId = uuid.test(incoming.sessionId) ? incoming.sessionId : newId()
           const stamp = nowIso()
-          const started = `${incoming.date}T12:00:00.000Z`
+          const started = incoming.startedAt ?? `${incoming.date}T12:00:00.000Z`
           const exercises: (SessionExerciseRow & { sets: SetRow[] })[] = []
 
           for (const [index, item] of incoming.exercises.entries()) {
@@ -2302,7 +2337,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status,
             planned_date: incoming.date,
             started_at: started,
-            ended_at: stamp,
+            ended_at: incoming.endedAt ?? stamp,
             notes: incoming.notes,
             rpe: incoming.rpe,
             created_at: stamp,
@@ -2315,6 +2350,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             for (const set of se.sets) ops.push(upsert('workout_sets', set))
           }
           await commit([{ store: 'sessions', row: doc }], ops)
+          if (incoming.heartRate?.length) await replaceHeartRate(sessionId, incoming.heartRate)
         }
 
         return { sessions: parsed.length, sets: setCount, createdExercises }

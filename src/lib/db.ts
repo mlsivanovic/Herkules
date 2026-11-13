@@ -551,6 +551,21 @@ export async function recordHeartRate(sessionId: string, at: number, bpm: number
   await tx.done
 }
 
+/** Replace all stored samples of a session in one transaction (imports). */
+export async function replaceHeartRate(
+  sessionId: string,
+  samples: readonly HeartRateSample[],
+): Promise<void> {
+  const tx = (await getDb()).transaction('heartRate', 'readwrite')
+  for (const key of await tx.store.index('sessionId').getAllKeys(sessionId)) {
+    await tx.store.delete(key)
+  }
+  for (const { at, bpm } of samples) {
+    await tx.store.add({ sessionId, at, bpm })
+  }
+  await tx.done
+}
+
 export async function readHeartRate(sessionId: string) {
   return (await getDb()).getAllFromIndex('heartRate', 'sessionId', sessionId)
 }

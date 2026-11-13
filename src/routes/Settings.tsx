@@ -32,6 +32,7 @@ import { latestBodyFatPercent } from '../lib/bodyComposition'
 import { LineChart } from '../components/Chart'
 import { IconChevronDown } from '../components/Icons'
 import { Modal } from '../components/ui'
+import { SamsungHealthImport } from '../components/SamsungHealthImport'
 import './settings.css'
 
 const SETTINGS_PANES = ['profile', 'preferences', 'weight', 'sync', 'data', 'account'] as const
@@ -766,6 +767,7 @@ export function Settings() {
             {t('settings.importStrong')}
           </button>
           <small className="muted">{t('settings.importStrongHint')}</small>
+          <SamsungHealthImport />
         </div>
 
         <div className="settings-group">

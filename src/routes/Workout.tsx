@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { attachWatchHeartRate } from '../lib/attachWatchHeartRate'
 import { flushNativeHeartRate } from '../lib/flushHeartRate'
+import { isNativeApp, stopHeartRateDevice } from '../lib/herkulesHealth'
 import type { SessionDoc } from '../types/db'
 import { formatDuration } from '../lib/units'
 import { BottomSheet, EmptyState, Loader, Modal } from '../components/ui'
@@ -76,6 +77,13 @@ export function Workout() {
   const dockRef = useRef<HTMLDivElement>(null)
   const intervalBlock = active?.session_blocks?.find((block) => block.format === 'interval') ?? null
   const progress = active ? sessionFlowProgress(active) : null
+
+  // A workout finished or discarded elsewhere (another device, sync) must not
+  // leave the Android sensor service running.
+  const hasActive = active !== null
+  useEffect(() => {
+    if (store.ready && !hasActive && isNativeApp()) void stopHeartRateDevice().catch(() => {})
+  }, [store.ready, hasActive])
 
   useEffect(() => {
     if (intervalTimer.active && restRemaining !== null) skipRest()
@@ -300,7 +308,10 @@ export function Workout() {
                 setDiscardOpen(false)
                 intervalTimer.reset()
                 skipRest()
-                void store.discardSession(active.id).then(() => navigate('/'))
+                void stopHeartRateDevice()
+                  .catch(() => {})
+                  .then(() => store.discardSession(active.id))
+                  .then(() => navigate('/'))
               }}
             >
               {t('workout.discardConfirm')}
@@ -332,6 +343,8 @@ export function Workout() {
             try {
               await flushNativeHeartRate(active.id)
               await store.finishSession(active.id, summary)
+              // Samples after Finish would be ignored; release the sensor.
+              await stopHeartRateDevice().catch(() => {})
               try {
                 await attachWatchHeartRate(active, (sessionId, samples) =>
                   store.attachHeartRate(sessionId, samples),
@@ -377,6 +390,7 @@ export function Workout() {
                   try {
                     intervalTimer.reset()
                     skipRest()
+                    await stopHeartRateDevice().catch(() => {})
                     await store.discardSession(active.id)
                     setConflict(false)
                     await store.startSession({

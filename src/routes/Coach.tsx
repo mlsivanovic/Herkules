@@ -9,6 +9,7 @@ import { IconPlus } from '../components/Icons'
 import { validateEmail } from '../lib/validation'
 import { useT } from '../lib/i18n'
 import { todayKey } from '../lib/dates'
+import { appBaseUrl } from '../lib/appUrl'
 
 export function Coach() {
   const { t } = useT()
@@ -44,7 +45,7 @@ export function Coach() {
     setInviteError(null)
     try {
       const result = await store.createClientInvite({ email, displayName: name })
-      const url = `${window.location.origin}${import.meta.env.BASE_URL}#${result.path}`
+      const url = `${appBaseUrl()}#${result.path}`
       await navigator.clipboard.writeText(url)
       setCopiedId('new')
       setEmail('')
@@ -57,7 +58,7 @@ export function Coach() {
   }
 
   async function copyInvite(tokenPath: string, id: string) {
-    const url = `${window.location.origin}${import.meta.env.BASE_URL}#${tokenPath}`
+    const url = `${appBaseUrl()}#${tokenPath}`
     await navigator.clipboard.writeText(url)
     setCopiedId(id)
   }

@@ -1,11 +1,13 @@
 // Theme handling: device-persisted Light / Dark / System, live OS tracking.
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core'
 import { useEffect, useState } from 'react'
 
 export type Theme = 'light' | 'dark'
 export type ThemePreference = Theme | 'system'
 
 const STORAGE_KEY = 'herkules:theme'
-const THEME_COLORS: Record<Theme, string> = { light: '#f1f5f9', dark: '#101a2e' }
+// Keep in sync with --c-bg in src/styles/theme.css and the pre-paint script in index.html.
+const THEME_COLORS: Record<Theme, string> = { light: '#f6f7fb', dark: '#0d0f15' }
 
 type ThemeState = { theme: Theme; preference: ThemePreference }
 
@@ -41,6 +43,15 @@ export function savedPreference(): ThemePreference {
 function writeTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme])
+  syncNativeBars(theme)
+}
+
+/** Light icons on a dark app, dark icons on a light app. The web view paints the bar color. */
+function syncNativeBars(theme: Theme): void {
+  if (!Capacitor.isNativePlatform()) return
+  void SystemBars.setStyle({
+    style: theme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light,
+  }).catch(() => {})
 }
 
 function notify(): void {
@@ -84,6 +95,8 @@ export function startSystemThemeListener(): () => void {
     notify()
   }
   applySystem()
+  // Explicit light/dark never goes through applySystem, so sync bars once at startup.
+  syncNativeBars(currentTheme())
   query.addEventListener('change', applySystem)
   return () => query.removeEventListener('change', applySystem)
 }

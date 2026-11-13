@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -14,6 +15,10 @@ const android = process.env.HERKULES_ANDROID === '1'
 // Served from the GitHub Pages subpath /Herkules/
 export default defineConfig({
   base: android ? './' : '/Herkules/',
+  // Without VitePWA the virtual module does not exist; src/pwa.ts still imports it.
+  resolve: android
+    ? { alias: { 'virtual:pwa-register': fileURLToPath(new URL('./src/android/pwaRegisterStub.ts', import.meta.url)) } }
+    : undefined,
   define: {
     __HERKULES_VERSION__: JSON.stringify(appVersion),
   },

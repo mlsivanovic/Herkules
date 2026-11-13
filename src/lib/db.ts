@@ -566,6 +566,18 @@ export async function replaceHeartRate(
   await tx.done
 }
 
+/** Ids of sessions that already have at least one stored heart-rate sample. */
+export async function sessionIdsWithHeartRate(): Promise<Set<string>> {
+  const ids = new Set<string>()
+  const tx = (await getDb()).transaction('heartRate')
+  let cursor = await tx.store.index('sessionId').openKeyCursor(null, 'nextunique')
+  while (cursor) {
+    ids.add(String(cursor.key))
+    cursor = await cursor.continue()
+  }
+  return ids
+}
+
 export async function readHeartRate(sessionId: string) {
   return (await getDb()).getAllFromIndex('heartRate', 'sessionId', sessionId)
 }

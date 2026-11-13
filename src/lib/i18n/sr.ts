@@ -1036,7 +1036,13 @@ export const sr: Messages = {
       'Izaberi CSV sa treninzima iz Samsung Health izvoza zajedno sa odgovarajućim live_data JSON fajlovima. Uvezeni puls ostaje na ovom uređaju.',
     samsungTitle: 'Uvoz treninga iz Samsung Healtha',
     samsungBody:
-      'Označeni treninzi se čuvaju kao treninzi u teretani bez serija, sa stvarnim vremenom početka i kraja.',
+      'Puls se upisuje u Herkules trening zabeležen u isto vreme. Treninzi bez para mogu da se sačuvaju kao novi treninzi u teretani bez serija.',
+    samsungTarget: 'Upiši puls u',
+    samsungTargetNew: 'Novi trening u teretani',
+    samsungTargetOption: '{name} · {start}–{end}',
+    samsungHasHeartRateTag: '(već ima puls)',
+    samsungTargetHasHeartRate: 'Ovaj trening već ima puls, pa će biti preskočen.',
+    samsungNothingToAdd: 'Izaberi i fajl sa pulsom, inače nema šta da se upiše.',
     samsungSource: 'Izvor',
     samsungAllSources: 'Svi izvori',
     samsungSourceXiaomi: 'Xiaomi sat (Mi Fitness)',
@@ -1053,7 +1059,7 @@ export const sr: Messages = {
     samsungNone: 'Nema treninga iz ovog izvora.',
     samsungImportSelected: 'Uvezi treninge: {count}',
     samsungImported:
-      'Uvezeno treninga: {created}. Puls dodat ranijim uvozima: {updated}, preskočeno: {skipped}.',
+      'Novih treninga: {created}. Puls upisan u postojeće treninge: {linked}. Preskočeno: {skipped}.',
     routines: 'Rutine',
     routinesHint: 'JSON šabloni sa nazivima vežbi, da rade i na drugom nalogu.',
     exportRoutines: 'Izvezi rutine (JSON)',

@@ -7,14 +7,20 @@
   gap: 0.5rem;
 }
 
+.samsung-import__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+}
+
 .samsung-import__row {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
   min-height: var(--control-h);
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -36,4 +42,12 @@
 .samsung-import__badges {
   gap: 0.35rem;
   margin-top: 0.2rem;
+}
+
+.samsung-import__target {
+  margin: 0;
+}
+
+.samsung-import__note {
+  display: block;
 }

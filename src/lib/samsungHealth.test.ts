@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   isLongWorkout,
+  linkCandidates,
+  sessionWindow,
   matchesHeartRateFile,
   parseOffset,
   parseSamsungExerciseCsv,
@@ -197,5 +199,43 @@ describe('toWorkoutImport', () => {
     expect(parsed.startedAt).toBe('2026-11-12T19:24:50.000Z')
     expect(parsed.endedAt).toBe('2026-11-12T20:09:18.000Z')
     expect(parsed.heartRate).toEqual(samples)
+  })
+})
+
+describe('sessionWindow', () => {
+  it('spans start to the last logged set and ignores unfinished sessions', () => {
+    const base = {
+      id: 's1',
+      status: 'completed',
+      started_at: '2026-11-12T19:20:00.000Z',
+      ended_at: '2026-11-12T21:30:00.000Z',
+      session_exercises: [{ sets: [{ completed_at: '2026-11-12T20:05:00.000Z' }, { completed_at: null }] }],
+    }
+    expect(sessionWindow(base)).toEqual({
+      id: 's1',
+      startMs: Date.parse('2026-11-12T19:20:00.000Z'),
+      endMs: Date.parse('2026-11-12T20:05:00.000Z'),
+    })
+    expect(sessionWindow({ ...base, status: 'in_progress' })).toBeNull()
+    expect(sessionWindow({ ...base, status: 'skipped' })).toBeNull()
+  })
+})
+
+describe('linkCandidates', () => {
+  const gym = parseSamsungExerciseCsv(CSV)[0] // 19:24:50-20:09:18 UTC
+  const at = (iso: string) => Date.parse(iso)
+  const windows = [
+    { id: 'small-overlap', startMs: at('2026-11-12T20:00:00Z'), endMs: at('2026-11-12T20:40:00Z') },
+    { id: 'big-overlap', startMs: at('2026-11-12T19:20:00Z'), endMs: at('2026-11-12T20:05:00Z') },
+    { id: 'near', startMs: at('2026-11-12T20:20:00Z'), endMs: at('2026-11-12T20:50:00Z') },
+    { id: 'far', startMs: at('2026-11-12T08:00:00Z'), endMs: at('2026-11-12T09:00:00Z') },
+  ]
+
+  it('ranks overlapping sessions by overlap, then nearby ones, and drops distant ones', () => {
+    expect(linkCandidates(gym, windows).map((w) => w.id)).toEqual(['big-overlap', 'small-overlap', 'near'])
+  })
+
+  it('returns nothing when no session is close', () => {
+    expect(linkCandidates(gym, [windows[3]])).toEqual([])
   })
 })

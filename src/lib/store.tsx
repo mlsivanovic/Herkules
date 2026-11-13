@@ -368,10 +368,14 @@ export interface StoreActions {
   }>
   importWorkoutsCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
   importExternalCsv(text: string): Promise<{ sessions: number; sets: number; createdExercises: number }>
-  /** Imports new sessions; existing ones only gain heart rate if they had none. */
-  importSamsungWorkouts(parsed: ParsedWorkoutImport[]): Promise<{
+  /**
+   * With a target, writes the heart rate into that existing Herkules session.
+   * Without one, imports a new session (or fills heart rate on an earlier import).
+   * Sessions that already have heart rate are never overwritten.
+   */
+  importSamsungWorkouts(items: { parsed: ParsedWorkoutImport; targetSessionId: string | null }[]): Promise<{
     created: number
-    updated: number
+    linked: number
     skipped: number
   }>
   exportBackup(): Promise<string>
@@ -2213,31 +2217,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      async importSamsungWorkouts(parsed) {
+      async importSamsungWorkouts(items) {
         assertCapability(
           capabilitiesFor(await readProfile()).canImportExport,
           t('errors.lightNoImportExport'),
         )
         const fresh: ParsedWorkoutImport[] = []
-        let updated = 0
+        let linked = 0
         let skipped = 0
-        for (const incoming of parsed) {
-          const existing = await readOne<SessionDoc>('sessions', incoming.sessionId)
+        for (const { parsed: incoming, targetSessionId } of items) {
+          const existing = await readOne<SessionDoc>('sessions', targetSessionId ?? incoming.sessionId)
           if (!existing) {
-            fresh.push(incoming)
+            if (targetSessionId === null) fresh.push(incoming)
+            else skipped += 1
           } else if (
             incoming.heartRate?.length &&
             (await readHeartRate(existing.id)).length === 0
           ) {
             // Keep the session (and any edits); only fill in missing heart rate.
             await replaceHeartRate(existing.id, incoming.heartRate)
-            updated += 1
+            linked += 1
           } else {
             skipped += 1
           }
         }
         if (fresh.length > 0) await actionsRef.current?.importWorkouts(fresh)
-        return { created: fresh.length, updated, skipped }
+        return { created: fresh.length, linked, skipped }
       },
 
       async importWorkouts(parsed: ParsedWorkoutImport[]) {

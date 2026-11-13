@@ -1038,7 +1038,13 @@ export const en = {
       'Select the exercise CSV from a Samsung Health export together with the matching live_data JSON files. Imported heart rate stays on this device.',
     samsungTitle: 'Import Samsung Health workouts',
     samsungBody:
-      'Checked workouts are saved as gym sessions without sets, with their real start and end time.',
+      'Heart rate is written into the Herkules workout logged at the same time. Workouts without a match can be saved as new gym sessions without sets.',
+    samsungTarget: 'Save heart rate to',
+    samsungTargetNew: 'New gym session',
+    samsungTargetOption: '{name} · {start}–{end}',
+    samsungHasHeartRateTag: '(has heart rate)',
+    samsungTargetHasHeartRate: 'This workout already has heart rate, so it will be skipped.',
+    samsungNothingToAdd: 'Select the heart-rate file too, otherwise there is nothing to add.',
     samsungSource: 'Source',
     samsungAllSources: 'All sources',
     samsungSourceXiaomi: 'Xiaomi watch (Mi Fitness)',
@@ -1055,7 +1061,7 @@ export const en = {
     samsungNone: 'No workouts from this source.',
     samsungImportSelected: 'Import {count} workout(s)',
     samsungImported:
-      'Imported {created} workout(s). Heart rate added to {updated} earlier import(s), {skipped} skipped.',
+      'New workouts: {created}. Heart rate added to existing workouts: {linked}. Skipped: {skipped}.',
     routines: 'Routines',
     routinesHint: 'JSON templates with exercise names, so they work on another account.',
     exportRoutines: 'Export routines (JSON)',

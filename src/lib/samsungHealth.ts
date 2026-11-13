@@ -12,7 +12,7 @@ import type { ParsedWorkoutImport } from './csv'
 import type { HeartRateSample } from './heartRate'
 import { t } from './i18n'
 import { deterministicUuid, parseDelimited } from './importExternal'
-import { LONG_SESSION_SECONDS } from './sessionDuration'
+import { LONG_SESSION_SECONDS, sessionDurationSeconds } from './sessionDuration'
 
 const PREFIX = 'com.samsung.health.exercise.'
 export const XIAOMI_SOURCE = 'com.xiaomi.wearable'
@@ -182,4 +182,41 @@ export function toWorkoutImport(
     endedAt: new Date(workout.endMs).toISOString(),
     heartRate,
   }
+}
+
+/** How far apart a watch workout and a Herkules session may be and still be offered as a link. */
+export const LINK_GAP_MS = 30 * 60_000
+
+export interface SessionWindow {
+  id: string
+  startMs: number
+  endMs: number
+}
+
+/** Logged span of a finished Herkules session (start to last set, else to Finish). */
+export function sessionWindow(session: {
+  id: string
+  status: string
+  started_at: string
+  ended_at: string | null
+  session_exercises?: { sets: { completed_at: string | null }[] }[]
+}): SessionWindow | null {
+  if (session.status !== 'completed') return null
+  const startMs = Date.parse(session.started_at)
+  const seconds = sessionDurationSeconds(session)
+  if (!Number.isFinite(startMs) || seconds === null) return null
+  return { id: session.id, startMs, endMs: startMs + seconds * 1000 }
+}
+
+/**
+ * Herkules sessions that a watch workout plausibly belongs to: overlapping
+ * ones first (largest overlap wins), then those within LINK_GAP_MS (closest first).
+ */
+export function linkCandidates(workout: SamsungWorkout, windows: readonly SessionWindow[]): SessionWindow[] {
+  const scored = windows.map((w) => {
+    const overlap = Math.min(w.endMs, workout.endMs) - Math.max(w.startMs, workout.startMs)
+    return { window: w, overlap }
+  }).filter(({ overlap }) => overlap > -LINK_GAP_MS)
+  // Positive overlap sorts by size; negative values are gaps, so larger (closer to 0) is better too.
+  return scored.sort((a, b) => b.overlap - a.overlap).map(({ window }) => window)
 }
